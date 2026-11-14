@@ -6516,3 +6516,43 @@ async fn l809_scroll_context_limit_fails_once_with_a_hint() {
     );
     assert!(!out.exists(), "{err}");
 }
+
+// L-810 (LOAD-015): a bulk larger than http.max_content_length is answered with 413 and an
+// empty body. It is not retried, exits 1, and the message names the limit and --maxBulkBytes.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn l810_payload_too_large_names_the_limit() {
+    let m = RouterMock::builder()
+        .route(Route::exact("GET", "/").reply(Reply::ok(INFO)))
+        .route(Route::contains("POST", "/_bulk").reply(Reply::json(413, "")))
+        .fallback(Reply::ok(
+            r#"{"_shards":{"total":1,"successful":1,"failed":0}}"#,
+        ))
+        .start()
+        .await;
+    let dir = tempfile::tempdir().unwrap();
+    let input = dir.path().join("in.json");
+    std::fs::write(&input, format!("{}\n", hit("1", "{}"))).unwrap();
+    let o = run_async(
+        s(&[
+            "--input",
+            input.to_str().unwrap(),
+            "--output",
+            &format!("{}/dst", m.url()),
+            "--retryAttempts",
+            "3",
+            "--retryDelay",
+            "1",
+        ]),
+        vec![],
+    )
+    .await;
+    let err = stderr(&o);
+    assert_eq!(o.status.code(), Some(1), "{err}");
+    assert_eq!(count(&m.requests(), "POST", "/dst/_bulk"), 1, "{err}");
+    assert!(
+        err.contains("HTTP 413")
+            && err.contains("http.max_content_length")
+            && err.contains("--maxBulkBytes"),
+        "{err}"
+    );
+}

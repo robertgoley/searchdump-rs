@@ -134,6 +134,11 @@ impl fmt::Display for EsHttpError {
                 f,
                 " (the cluster's open scroll limit was reached: search.max_open_scroll_context, 500 by default; a scroll dump holds one context per shard and slice, so shards x --slices must stay below it, minus other open scrolls. Lower --slices, dump fewer indices per run, use a point-in-time dump (--searchAfter --pit, which opens no scroll contexts), or raise search.max_open_scroll_context)"
             ),
+            // L-810: Elasticsearch/OpenSearch answer 413 with an empty body
+            413 => write!(
+                f,
+                " (the request is larger than the cluster accepts: http.max_content_length, 100mb by default; lower --maxBulkBytes below it. A single document larger than the limit cannot be indexed until http.max_content_length is raised)"
+            ),
             400 if self.body.contains("max_slices_per_scroll") => write!(
                 f,
                 " (--slices is larger than the index allows: index.max_slices_per_scroll, 1024 by default; lower --slices)"
