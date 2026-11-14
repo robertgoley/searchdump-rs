@@ -20,7 +20,21 @@ pub struct ValueSplitter {
     /// stops as soon as a value grows past it, so a giant value cannot
     /// exhaust memory.
     max_value: Option<usize>,
+    /// Test only: scan byte by byte (the pre-L-808q path) to compare against.
+    #[cfg(test)]
+    no_skip: bool,
 }
+
+/// Bytes that change the splitter's state inside an object or array, outside strings.
+const STRUCTURAL: [bool; 256] = {
+    let mut t = [false; 256];
+    t[b'"' as usize] = true;
+    t[b'{' as usize] = true;
+    t[b'[' as usize] = true;
+    t[b'}' as usize] = true;
+    t[b']' as usize] = true;
+    t
+};
 
 /// Capacity a reused byte buffer may keep whatever it holds (L-802a).
 pub(crate) const RETAIN_FLOOR: usize = 4 << 20;
@@ -103,6 +117,28 @@ impl ValueSplitter {
                 self.compact();
                 return Ok(None);
             }
+            if self.start.is_some() && !self.scalar && self.fast() {
+                // L-808q: jump over bytes that cannot change the state (SIMD inside strings,
+                // a table lookup outside them); the byte-by-byte code below then handles the
+                // byte found, so values, errors and buffering are exactly as before.
+                let rest = &self.buf[self.pos..];
+                let skip = if self.in_string {
+                    if self.escaped {
+                        Some(0)
+                    } else {
+                        memchr::memchr2(b'"', b'\\', rest)
+                    }
+                } else {
+                    rest.iter().position(|&b| STRUCTURAL[b as usize])
+                };
+                match skip {
+                    Some(k) => self.pos += k,
+                    None => {
+                        self.pos = self.buf.len();
+                        continue;
+                    }
+                }
+            }
             let b = self.buf[self.pos];
             match self.start {
                 None => {
@@ -168,6 +204,16 @@ impl ValueSplitter {
                 }
             }
         }
+    }
+
+    #[cfg(not(test))]
+    fn fast(&self) -> bool {
+        true
+    }
+
+    #[cfg(test)]
+    fn fast(&self) -> bool {
+        !self.no_skip
     }
 
     fn reset_value(&mut self) {
@@ -464,6 +510,51 @@ mod props {
     fn document() -> impl Strategy<Value = Value> {
         proptest::collection::vec((tricky_string(), json_value()), 0..5)
             .prop_map(|kv| Value::Object(kv.into_iter().collect()))
+    }
+
+    /// Every value, error and end state of one splitter fed `input` in `chunk`-byte pieces.
+    fn trace(input: &[u8], chunk: usize, max: Option<usize>, no_skip: bool) -> Vec<String> {
+        let mut s = ValueSplitter::with_max_value(max);
+        s.no_skip = no_skip;
+        let mut out = vec![];
+        let pieces: Vec<&[u8]> = input.chunks(chunk.max(1)).collect();
+        for (i, c) in pieces.iter().enumerate() {
+            s.push(c);
+            let eof = i + 1 == pieces.len();
+            loop {
+                match s.next_value(eof) {
+                    Ok(Some(v)) => out.push(format!("v {v:?}")),
+                    Ok(None) => break,
+                    Err(e) => {
+                        out.push(format!("e {e}"));
+                        return out;
+                    }
+                }
+            }
+            out.push(format!("@ {} {:?}", s.pos, s.start));
+        }
+        out
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(cases()))]
+        /// L-808q: the skipping scan returns exactly what the byte-by-byte scan returns, on
+        /// arbitrary (also malformed) bytes, any chunking and any size limit.
+        #[test]
+        fn skipping_scan_equals_byte_scan(
+            input in proptest::collection::vec(
+                prop_oneof![
+                    Just(b'{'), Just(b'}'), Just(b'['), Just(b']'), Just(b'"'), Just(b'\\'),
+                    Just(b','), Just(b':'), Just(b'\n'), Just(b' '), Just(0xEFu8), Just(b'1'),
+                    Just(b't'), Just(b'a'), any::<u8>(),
+                ],
+                0..200,
+            ),
+            chunk in 1usize..64,
+            max in proptest::option::of(1usize..80),
+        ) {
+            prop_assert_eq!(trace(&input, chunk, max, false), trace(&input, chunk, max, true));
+        }
     }
 
     #[derive(Debug, Clone, Copy)]
