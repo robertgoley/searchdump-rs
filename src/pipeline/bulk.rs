@@ -1161,32 +1161,37 @@ impl BulkSink {
     async fn send_batch(&mut self, batch: EncodedBatch) -> Result<()> {
         let EncodedBatch {
             lines,
-            encoded,
+            mut encoded,
             docs,
             indices,
         } = batch;
         self.batch_indices.extend(indices);
         let mut start = 0;
         while start < docs.len() {
-            // Split oversized batches at --maxBulkBytes.
-            let mut body = Vec::with_capacity(
-                encoded
-                    .len()
-                    .min(self.opts.max_bulk_bytes.saturating_add(4096)),
-            );
+            // Split oversized batches at --maxBulkBytes. The encoded documents are contiguous
+            // in `encoded`, so a chunk is one byte range of it (L-808p: sized first, then
+            // moved when it is the whole batch, the common case, instead of copied).
+            let mut len = 0usize;
             let mut end = start;
             while end < docs.len() {
-                let before = body.len();
-                body.extend_from_slice(&encoded[docs[end].1.clone()]);
+                let before = len;
+                len += docs[end].1.len();
                 end += 1;
-                if body.len() >= self.opts.max_bulk_bytes && end - start >= 1 {
-                    if body.len() > self.opts.max_bulk_bytes && end - start > 1 {
-                        body.truncate(before);
+                if len >= self.opts.max_bulk_bytes && end - start >= 1 {
+                    if len > self.opts.max_bulk_bytes && end - start > 1 {
+                        len = before;
                         end -= 1;
                     }
                     break;
                 }
             }
+            let range = docs[start].1.start..docs[start].1.start + len;
+            debug_assert!(end == 0 || range.end == docs[end - 1].1.end);
+            let body = if range.start == 0 && range.end == encoded.len() {
+                std::mem::take(&mut encoded)
+            } else {
+                encoded[range].to_vec()
+            };
             let chunk: Vec<&[u8]> = docs[start..end]
                 .iter()
                 .map(|(l, _)| &lines[l.clone()])

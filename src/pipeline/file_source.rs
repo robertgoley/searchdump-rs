@@ -475,7 +475,13 @@ fn read_loop(
             batch.docs += 1;
             docs_read += 1;
             if batch.docs as usize >= limit {
-                let full = std::mem::take(&mut batch);
+                // L-808p: the next batch starts at this one's size instead of growing
+                // from empty by doubling (each step a fresh allocation and a full copy)
+                let next = FileBatch {
+                    buf: Vec::with_capacity(batch.buf.len()),
+                    ..FileBatch::default()
+                };
+                let full = std::mem::replace(&mut batch, next);
                 if tx.blocking_send(Ok(full)).is_err() {
                     return Ok(());
                 }
