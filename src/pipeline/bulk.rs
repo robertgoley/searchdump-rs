@@ -774,15 +774,15 @@ impl BulkSink {
     }
 
     /// Hand one batch to the writer. Sequential with `--concurrency 1`.
-    pub async fn write_batch(&mut self, buf: &[u8]) -> Result<()> {
+    pub async fn write_batch(&mut self, data: Bytes) -> Result<()> {
         self.note_target_uuid().await;
         let first = self.next_doc;
-        self.next_doc += nonempty_lines(buf).count() as u64;
+        self.next_doc += nonempty_lines(&data).count() as u64;
         if self.pipelined() {
             // 1.1-6: encode this batch while the previous one is still being sent, then send
             // it once that send is done. Sends never overlap, so the cluster sees the same
             // requests in the same order as without the overlap.
-            let encoded = self.encode_batch(Bytes::copy_from_slice(buf), first);
+            let encoded = self.encode_batch(data, first);
             // Batch N is finished (written, retried or reported) before N+1 is sent; an error
             // from N means N+1 is never sent. An encoding error of N+1 is reported after N.
             self.join_inflight().await?;
@@ -796,8 +796,7 @@ impl BulkSink {
                 Ok(worker.report)
             });
         } else if self.concurrency <= 1 {
-            self.process_batch(Bytes::copy_from_slice(buf), first)
-                .await?;
+            self.process_batch(data, first).await?;
         } else {
             while self.inflight.len() >= self.concurrency {
                 let joined = self.inflight.join_next().await.expect("non-empty");
@@ -807,7 +806,7 @@ impl BulkSink {
                 }
             }
             let mut worker = self.worker();
-            let data = Bytes::copy_from_slice(buf);
+            // L-808r: the shared batch moves into the worker; it used to be copied here
             self.inflight.spawn(async move {
                 worker.process_batch(data, first).await?;
                 Ok(worker.report)
