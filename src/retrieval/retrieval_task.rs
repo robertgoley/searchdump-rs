@@ -75,8 +75,14 @@ pub(crate) fn context_lost_error(
     } else {
         "--pitKeepAlive"
     };
+    // L-804c: the scroll case carries the same way out as a failed scroll continuation (P4)
+    let hint = if kind == "scroll" {
+        ". A point-in-time dump (--searchAfter --pit, ES 7.10+ / OpenSearch 2.4+) retries a failed page safely; --restartOnContextLoss N restarts a scroll dump into a file automatically"
+    } else {
+        ""
+    };
     error.context(crate::http::ContextLoss(format!(
-        "Slice {slice_id}: the {kind} context no longer exists on the cluster: it expired (raise {knob} when pages are slow to write), the index was deleted, or the node holding it restarted; nothing was committed. Re-run the dump"
+        "Slice {slice_id}: the {kind} context no longer exists on the cluster: it expired (raise {knob} when pages are slow to write), the index was deleted, or the node holding it restarted; nothing was committed. Re-run the dump{hint}"
     )))
 }
 
