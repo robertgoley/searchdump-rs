@@ -77,3 +77,140 @@ vulnerabilities:
     purls:
       - pkg:deb/debian/libsqlite3-0
     statement: "won't-fix upstream; not reachable from searchdump, see SECURITY-CVE.md (L-810e)"
+  # L-810i (owner decision 2026-11-14, t85u): OpenSSH client + Kerberos libraries; see SECURITY-CVE.md.
+  - id: CVE-2026-60002
+    purls:
+      - pkg:deb/debian/openssh-client
+    statement: "no fix upstream; accepted for sftp:// (ssh client only, no sshd, no GSSAPI use), see SECURITY-CVE.md (L-810i)"
+  - id: CVE-2026-59999
+    purls:
+      - pkg:deb/debian/openssh-client
+    statement: "no fix upstream; accepted for sftp:// (ssh client only, no sshd, no GSSAPI use), see SECURITY-CVE.md (L-810i)"
+  - id: CVE-2026-60000
+    purls:
+      - pkg:deb/debian/openssh-client
+    statement: "no fix upstream; accepted for sftp:// (ssh client only, no sshd, no GSSAPI use), see SECURITY-CVE.md (L-810i)"
+  - id: CVE-2026-106553
+    purls:
+      - pkg:deb/debian/openssh-client
+    statement: "no fix upstream; accepted for sftp:// (ssh client only, no sshd, no GSSAPI use), see SECURITY-CVE.md (L-810i)"
+  - id: CVE-2026-106555
+    purls:
+      - pkg:deb/debian/openssh-client
+    statement: "no fix upstream; accepted for sftp:// (ssh client only, no sshd, no GSSAPI use), see SECURITY-CVE.md (L-810i)"
+  - id: CVE-2026-106583
+    purls:
+      - pkg:deb/debian/openssh-client
+    statement: "no fix upstream; accepted for sftp:// (ssh client only, no sshd, no GSSAPI use), see SECURITY-CVE.md (L-810i)"
+  - id: CVE-2026-107778
+    purls:
+      - pkg:deb/debian/libgssapi-krb5-2
+      - pkg:deb/debian/libk5crypto3
+      - pkg:deb/debian/libkrb5-3
+      - pkg:deb/debian/libkrb5support0
+    statement: "no fix upstream; accepted for sftp:// (ssh client only, no sshd, no GSSAPI use), see SECURITY-CVE.md (L-810i)"
+  - id: CVE-2026-112314
+    purls:
+      - pkg:deb/debian/libgssapi-krb5-2
+      - pkg:deb/debian/libk5crypto3
+      - pkg:deb/debian/libkrb5-3
+      - pkg:deb/debian/libkrb5support0
+    statement: "no fix upstream; accepted for sftp:// (ssh client only, no sshd, no GSSAPI use), see SECURITY-CVE.md (L-810i)"
+  - id: CVE-2026-112320
+    purls:
+      - pkg:deb/debian/libgssapi-krb5-2
+      - pkg:deb/debian/libk5crypto3
+      - pkg:deb/debian/libkrb5-3
+      - pkg:deb/debian/libkrb5support0
+    statement: "no fix upstream; accepted for sftp:// (ssh client only, no sshd, no GSSAPI use), see SECURITY-CVE.md (L-810i)"
+  - id: CVE-2026-112321
+    purls:
+      - pkg:deb/debian/libgssapi-krb5-2
+      - pkg:deb/debian/libk5crypto3
+      - pkg:deb/debian/libkrb5-3
+      - pkg:deb/debian/libkrb5support0
+    statement: "no fix upstream; accepted for sftp:// (ssh client only, no sshd, no GSSAPI use), see SECURITY-CVE.md (L-810i)"
+  - id: CVE-2026-112322
+    purls:
+      - pkg:deb/debian/libgssapi-krb5-2
+      - pkg:deb/debian/libk5crypto3
+      - pkg:deb/debian/libkrb5-3
+      - pkg:deb/debian/libkrb5support0
+    statement: "no fix upstream; accepted for sftp:// (ssh client only, no sshd, no GSSAPI use), see SECURITY-CVE.md (L-810i)"
+  - id: CVE-2026-112323
+    purls:
+      - pkg:deb/debian/libgssapi-krb5-2
+      - pkg:deb/debian/libk5crypto3
+      - pkg:deb/debian/libkrb5-3
+      - pkg:deb/debian/libkrb5support0
+    statement: "no fix upstream; accepted for sftp:// (ssh client only, no sshd, no GSSAPI use), see SECURITY-CVE.md (L-810i)"
+  - id: CVE-2026-119079
+    purls:
+      - pkg:deb/debian/libgssapi-krb5-2
+      - pkg:deb/debian/libk5crypto3
+      - pkg:deb/debian/libkrb5-3
+      - pkg:deb/debian/libkrb5support0
+    statement: "no fix upstream; accepted for sftp:// (ssh client only, no sshd, no GSSAPI use), see SECURITY-CVE.md (L-810i)"
+  - id: CVE-2026-107364
+    purls:
+      - pkg:deb/debian/libgssapi-krb5-2
+      - pkg:deb/debian/libk5crypto3
+      - pkg:deb/debian/libkrb5-3
+      - pkg:deb/debian/libkrb5support0
+    statement: "no fix upstream; accepted for sftp:// (ssh client only, no sshd, no GSSAPI use), see SECURITY-CVE.md (L-810i)"
+  - id: CVE-2026-112315
+    purls:
+      - pkg:deb/debian/libgssapi-krb5-2
+      - pkg:deb/debian/libk5crypto3
+      - pkg:deb/debian/libkrb5-3
+      - pkg:deb/debian/libkrb5support0
+    statement: "no fix upstream; accepted for sftp:// (ssh client only, no sshd, no GSSAPI use), see SECURITY-CVE.md (L-810i)"
+  - id: CVE-2026-112316
+    purls:
+      - pkg:deb/debian/libgssapi-krb5-2
+      - pkg:deb/debian/libk5crypto3
+      - pkg:deb/debian/libkrb5-3
+      - pkg:deb/debian/libkrb5support0
+    statement: "no fix upstream; accepted for sftp:// (ssh client only, no sshd, no GSSAPI use), see SECURITY-CVE.md (L-810i)"
+  - id: CVE-2026-112317
+    purls:
+      - pkg:deb/debian/libgssapi-krb5-2
+      - pkg:deb/debian/libk5crypto3
+      - pkg:deb/debian/libkrb5-3
+      - pkg:deb/debian/libkrb5support0
+    statement: "no fix upstream; accepted for sftp:// (ssh client only, no sshd, no GSSAPI use), see SECURITY-CVE.md (L-810i)"
+  - id: CVE-2026-112318
+    purls:
+      - pkg:deb/debian/libgssapi-krb5-2
+      - pkg:deb/debian/libk5crypto3
+      - pkg:deb/debian/libkrb5-3
+      - pkg:deb/debian/libkrb5support0
+    statement: "no fix upstream; accepted for sftp:// (ssh client only, no sshd, no GSSAPI use), see SECURITY-CVE.md (L-810i)"
+  - id: CVE-2026-112319
+    purls:
+      - pkg:deb/debian/libgssapi-krb5-2
+      - pkg:deb/debian/libk5crypto3
+      - pkg:deb/debian/libkrb5-3
+      - pkg:deb/debian/libkrb5support0
+    statement: "no fix upstream; accepted for sftp:// (ssh client only, no sshd, no GSSAPI use), see SECURITY-CVE.md (L-810i)"
+  - id: CVE-2026-118380
+    purls:
+      - pkg:deb/debian/libgssapi-krb5-2
+      - pkg:deb/debian/libk5crypto3
+      - pkg:deb/debian/libkrb5-3
+      - pkg:deb/debian/libkrb5support0
+    statement: "no fix upstream; accepted for sftp:// (ssh client only, no sshd, no GSSAPI use), see SECURITY-CVE.md (L-810i)"
+  - id: CVE-2026-71199
+    purls:
+      - pkg:deb/debian/libgssapi-krb5-2
+      - pkg:deb/debian/libk5crypto3
+      - pkg:deb/debian/libkrb5-3
+      - pkg:deb/debian/libkrb5support0
+    statement: "no fix upstream; accepted for sftp:// (ssh client only, no sshd, no GSSAPI use), see SECURITY-CVE.md (L-810i)"
+  - id: CVE-2026-71200
+    purls:
+      - pkg:deb/debian/libgssapi-krb5-2
+      - pkg:deb/debian/libk5crypto3
+      - pkg:deb/debian/libkrb5-3
+      - pkg:deb/debian/libkrb5support0
+    statement: "no fix upstream; accepted for sftp:// (ssh client only, no sshd, no GSSAPI use), see SECURITY-CVE.md (L-810i)"

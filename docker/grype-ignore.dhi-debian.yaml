@@ -265,3 +265,705 @@ ignore:
     package:
       name: '^libsqlite3-0$'
       type: deb
+  # L-810i (owner decision 2026-11-14, t85u): OpenSSH client + its Kerberos libraries on Debian bases;
+  # accepted while not-fixed / wont-fix, see SECURITY-CVE.md section "OpenSSH client (L-810i)".
+  - vulnerability: CVE-2026-60002
+    fix-state: not-fixed
+    package:
+      name: '^openssh-client$'
+      type: deb
+  - vulnerability: CVE-2026-60002
+    fix-state: wont-fix
+    package:
+      name: '^openssh-client$'
+      type: deb
+  - vulnerability: CVE-2026-59999
+    fix-state: not-fixed
+    package:
+      name: '^openssh-client$'
+      type: deb
+  - vulnerability: CVE-2026-59999
+    fix-state: wont-fix
+    package:
+      name: '^openssh-client$'
+      type: deb
+  - vulnerability: CVE-2026-60000
+    fix-state: not-fixed
+    package:
+      name: '^openssh-client$'
+      type: deb
+  - vulnerability: CVE-2026-60000
+    fix-state: wont-fix
+    package:
+      name: '^openssh-client$'
+      type: deb
+  - vulnerability: CVE-2026-106553
+    fix-state: not-fixed
+    package:
+      name: '^openssh-client$'
+      type: deb
+  - vulnerability: CVE-2026-106553
+    fix-state: wont-fix
+    package:
+      name: '^openssh-client$'
+      type: deb
+  - vulnerability: CVE-2026-106555
+    fix-state: not-fixed
+    package:
+      name: '^openssh-client$'
+      type: deb
+  - vulnerability: CVE-2026-106555
+    fix-state: wont-fix
+    package:
+      name: '^openssh-client$'
+      type: deb
+  - vulnerability: CVE-2026-106583
+    fix-state: not-fixed
+    package:
+      name: '^openssh-client$'
+      type: deb
+  - vulnerability: CVE-2026-106583
+    fix-state: wont-fix
+    package:
+      name: '^openssh-client$'
+      type: deb
+  - vulnerability: CVE-2026-107778
+    fix-state: not-fixed
+    package:
+      name: '^libgssapi-krb5-2$'
+      type: deb
+  - vulnerability: CVE-2026-107778
+    fix-state: wont-fix
+    package:
+      name: '^libgssapi-krb5-2$'
+      type: deb
+  - vulnerability: CVE-2026-107778
+    fix-state: not-fixed
+    package:
+      name: '^libk5crypto3$'
+      type: deb
+  - vulnerability: CVE-2026-107778
+    fix-state: wont-fix
+    package:
+      name: '^libk5crypto3$'
+      type: deb
+  - vulnerability: CVE-2026-107778
+    fix-state: not-fixed
+    package:
+      name: '^libkrb5-3$'
+      type: deb
+  - vulnerability: CVE-2026-107778
+    fix-state: wont-fix
+    package:
+      name: '^libkrb5-3$'
+      type: deb
+  - vulnerability: CVE-2026-107778
+    fix-state: not-fixed
+    package:
+      name: '^libkrb5support0$'
+      type: deb
+  - vulnerability: CVE-2026-107778
+    fix-state: wont-fix
+    package:
+      name: '^libkrb5support0$'
+      type: deb
+  - vulnerability: CVE-2026-112314
+    fix-state: not-fixed
+    package:
+      name: '^libgssapi-krb5-2$'
+      type: deb
+  - vulnerability: CVE-2026-112314
+    fix-state: wont-fix
+    package:
+      name: '^libgssapi-krb5-2$'
+      type: deb
+  - vulnerability: CVE-2026-112314
+    fix-state: not-fixed
+    package:
+      name: '^libk5crypto3$'
+      type: deb
+  - vulnerability: CVE-2026-112314
+    fix-state: wont-fix
+    package:
+      name: '^libk5crypto3$'
+      type: deb
+  - vulnerability: CVE-2026-112314
+    fix-state: not-fixed
+    package:
+      name: '^libkrb5-3$'
+      type: deb
+  - vulnerability: CVE-2026-112314
+    fix-state: wont-fix
+    package:
+      name: '^libkrb5-3$'
+      type: deb
+  - vulnerability: CVE-2026-112314
+    fix-state: not-fixed
+    package:
+      name: '^libkrb5support0$'
+      type: deb
+  - vulnerability: CVE-2026-112314
+    fix-state: wont-fix
+    package:
+      name: '^libkrb5support0$'
+      type: deb
+  - vulnerability: CVE-2026-112320
+    fix-state: not-fixed
+    package:
+      name: '^libgssapi-krb5-2$'
+      type: deb
+  - vulnerability: CVE-2026-112320
+    fix-state: wont-fix
+    package:
+      name: '^libgssapi-krb5-2$'
+      type: deb
+  - vulnerability: CVE-2026-112320
+    fix-state: not-fixed
+    package:
+      name: '^libk5crypto3$'
+      type: deb
+  - vulnerability: CVE-2026-112320
+    fix-state: wont-fix
+    package:
+      name: '^libk5crypto3$'
+      type: deb
+  - vulnerability: CVE-2026-112320
+    fix-state: not-fixed
+    package:
+      name: '^libkrb5-3$'
+      type: deb
+  - vulnerability: CVE-2026-112320
+    fix-state: wont-fix
+    package:
+      name: '^libkrb5-3$'
+      type: deb
+  - vulnerability: CVE-2026-112320
+    fix-state: not-fixed
+    package:
+      name: '^libkrb5support0$'
+      type: deb
+  - vulnerability: CVE-2026-112320
+    fix-state: wont-fix
+    package:
+      name: '^libkrb5support0$'
+      type: deb
+  - vulnerability: CVE-2026-112321
+    fix-state: not-fixed
+    package:
+      name: '^libgssapi-krb5-2$'
+      type: deb
+  - vulnerability: CVE-2026-112321
+    fix-state: wont-fix
+    package:
+      name: '^libgssapi-krb5-2$'
+      type: deb
+  - vulnerability: CVE-2026-112321
+    fix-state: not-fixed
+    package:
+      name: '^libk5crypto3$'
+      type: deb
+  - vulnerability: CVE-2026-112321
+    fix-state: wont-fix
+    package:
+      name: '^libk5crypto3$'
+      type: deb
+  - vulnerability: CVE-2026-112321
+    fix-state: not-fixed
+    package:
+      name: '^libkrb5-3$'
+      type: deb
+  - vulnerability: CVE-2026-112321
+    fix-state: wont-fix
+    package:
+      name: '^libkrb5-3$'
+      type: deb
+  - vulnerability: CVE-2026-112321
+    fix-state: not-fixed
+    package:
+      name: '^libkrb5support0$'
+      type: deb
+  - vulnerability: CVE-2026-112321
+    fix-state: wont-fix
+    package:
+      name: '^libkrb5support0$'
+      type: deb
+  - vulnerability: CVE-2026-112322
+    fix-state: not-fixed
+    package:
+      name: '^libgssapi-krb5-2$'
+      type: deb
+  - vulnerability: CVE-2026-112322
+    fix-state: wont-fix
+    package:
+      name: '^libgssapi-krb5-2$'
+      type: deb
+  - vulnerability: CVE-2026-112322
+    fix-state: not-fixed
+    package:
+      name: '^libk5crypto3$'
+      type: deb
+  - vulnerability: CVE-2026-112322
+    fix-state: wont-fix
+    package:
+      name: '^libk5crypto3$'
+      type: deb
+  - vulnerability: CVE-2026-112322
+    fix-state: not-fixed
+    package:
+      name: '^libkrb5-3$'
+      type: deb
+  - vulnerability: CVE-2026-112322
+    fix-state: wont-fix
+    package:
+      name: '^libkrb5-3$'
+      type: deb
+  - vulnerability: CVE-2026-112322
+    fix-state: not-fixed
+    package:
+      name: '^libkrb5support0$'
+      type: deb
+  - vulnerability: CVE-2026-112322
+    fix-state: wont-fix
+    package:
+      name: '^libkrb5support0$'
+      type: deb
+  - vulnerability: CVE-2026-112323
+    fix-state: not-fixed
+    package:
+      name: '^libgssapi-krb5-2$'
+      type: deb
+  - vulnerability: CVE-2026-112323
+    fix-state: wont-fix
+    package:
+      name: '^libgssapi-krb5-2$'
+      type: deb
+  - vulnerability: CVE-2026-112323
+    fix-state: not-fixed
+    package:
+      name: '^libk5crypto3$'
+      type: deb
+  - vulnerability: CVE-2026-112323
+    fix-state: wont-fix
+    package:
+      name: '^libk5crypto3$'
+      type: deb
+  - vulnerability: CVE-2026-112323
+    fix-state: not-fixed
+    package:
+      name: '^libkrb5-3$'
+      type: deb
+  - vulnerability: CVE-2026-112323
+    fix-state: wont-fix
+    package:
+      name: '^libkrb5-3$'
+      type: deb
+  - vulnerability: CVE-2026-112323
+    fix-state: not-fixed
+    package:
+      name: '^libkrb5support0$'
+      type: deb
+  - vulnerability: CVE-2026-112323
+    fix-state: wont-fix
+    package:
+      name: '^libkrb5support0$'
+      type: deb
+  - vulnerability: CVE-2026-119079
+    fix-state: not-fixed
+    package:
+      name: '^libgssapi-krb5-2$'
+      type: deb
+  - vulnerability: CVE-2026-119079
+    fix-state: wont-fix
+    package:
+      name: '^libgssapi-krb5-2$'
+      type: deb
+  - vulnerability: CVE-2026-119079
+    fix-state: not-fixed
+    package:
+      name: '^libk5crypto3$'
+      type: deb
+  - vulnerability: CVE-2026-119079
+    fix-state: wont-fix
+    package:
+      name: '^libk5crypto3$'
+      type: deb
+  - vulnerability: CVE-2026-119079
+    fix-state: not-fixed
+    package:
+      name: '^libkrb5-3$'
+      type: deb
+  - vulnerability: CVE-2026-119079
+    fix-state: wont-fix
+    package:
+      name: '^libkrb5-3$'
+      type: deb
+  - vulnerability: CVE-2026-119079
+    fix-state: not-fixed
+    package:
+      name: '^libkrb5support0$'
+      type: deb
+  - vulnerability: CVE-2026-119079
+    fix-state: wont-fix
+    package:
+      name: '^libkrb5support0$'
+      type: deb
+  - vulnerability: CVE-2026-107364
+    fix-state: not-fixed
+    package:
+      name: '^libgssapi-krb5-2$'
+      type: deb
+  - vulnerability: CVE-2026-107364
+    fix-state: wont-fix
+    package:
+      name: '^libgssapi-krb5-2$'
+      type: deb
+  - vulnerability: CVE-2026-107364
+    fix-state: not-fixed
+    package:
+      name: '^libk5crypto3$'
+      type: deb
+  - vulnerability: CVE-2026-107364
+    fix-state: wont-fix
+    package:
+      name: '^libk5crypto3$'
+      type: deb
+  - vulnerability: CVE-2026-107364
+    fix-state: not-fixed
+    package:
+      name: '^libkrb5-3$'
+      type: deb
+  - vulnerability: CVE-2026-107364
+    fix-state: wont-fix
+    package:
+      name: '^libkrb5-3$'
+      type: deb
+  - vulnerability: CVE-2026-107364
+    fix-state: not-fixed
+    package:
+      name: '^libkrb5support0$'
+      type: deb
+  - vulnerability: CVE-2026-107364
+    fix-state: wont-fix
+    package:
+      name: '^libkrb5support0$'
+      type: deb
+  - vulnerability: CVE-2026-112315
+    fix-state: not-fixed
+    package:
+      name: '^libgssapi-krb5-2$'
+      type: deb
+  - vulnerability: CVE-2026-112315
+    fix-state: wont-fix
+    package:
+      name: '^libgssapi-krb5-2$'
+      type: deb
+  - vulnerability: CVE-2026-112315
+    fix-state: not-fixed
+    package:
+      name: '^libk5crypto3$'
+      type: deb
+  - vulnerability: CVE-2026-112315
+    fix-state: wont-fix
+    package:
+      name: '^libk5crypto3$'
+      type: deb
+  - vulnerability: CVE-2026-112315
+    fix-state: not-fixed
+    package:
+      name: '^libkrb5-3$'
+      type: deb
+  - vulnerability: CVE-2026-112315
+    fix-state: wont-fix
+    package:
+      name: '^libkrb5-3$'
+      type: deb
+  - vulnerability: CVE-2026-112315
+    fix-state: not-fixed
+    package:
+      name: '^libkrb5support0$'
+      type: deb
+  - vulnerability: CVE-2026-112315
+    fix-state: wont-fix
+    package:
+      name: '^libkrb5support0$'
+      type: deb
+  - vulnerability: CVE-2026-112316
+    fix-state: not-fixed
+    package:
+      name: '^libgssapi-krb5-2$'
+      type: deb
+  - vulnerability: CVE-2026-112316
+    fix-state: wont-fix
+    package:
+      name: '^libgssapi-krb5-2$'
+      type: deb
+  - vulnerability: CVE-2026-112316
+    fix-state: not-fixed
+    package:
+      name: '^libk5crypto3$'
+      type: deb
+  - vulnerability: CVE-2026-112316
+    fix-state: wont-fix
+    package:
+      name: '^libk5crypto3$'
+      type: deb
+  - vulnerability: CVE-2026-112316
+    fix-state: not-fixed
+    package:
+      name: '^libkrb5-3$'
+      type: deb
+  - vulnerability: CVE-2026-112316
+    fix-state: wont-fix
+    package:
+      name: '^libkrb5-3$'
+      type: deb
+  - vulnerability: CVE-2026-112316
+    fix-state: not-fixed
+    package:
+      name: '^libkrb5support0$'
+      type: deb
+  - vulnerability: CVE-2026-112316
+    fix-state: wont-fix
+    package:
+      name: '^libkrb5support0$'
+      type: deb
+  - vulnerability: CVE-2026-112317
+    fix-state: not-fixed
+    package:
+      name: '^libgssapi-krb5-2$'
+      type: deb
+  - vulnerability: CVE-2026-112317
+    fix-state: wont-fix
+    package:
+      name: '^libgssapi-krb5-2$'
+      type: deb
+  - vulnerability: CVE-2026-112317
+    fix-state: not-fixed
+    package:
+      name: '^libk5crypto3$'
+      type: deb
+  - vulnerability: CVE-2026-112317
+    fix-state: wont-fix
+    package:
+      name: '^libk5crypto3$'
+      type: deb
+  - vulnerability: CVE-2026-112317
+    fix-state: not-fixed
+    package:
+      name: '^libkrb5-3$'
+      type: deb
+  - vulnerability: CVE-2026-112317
+    fix-state: wont-fix
+    package:
+      name: '^libkrb5-3$'
+      type: deb
+  - vulnerability: CVE-2026-112317
+    fix-state: not-fixed
+    package:
+      name: '^libkrb5support0$'
+      type: deb
+  - vulnerability: CVE-2026-112317
+    fix-state: wont-fix
+    package:
+      name: '^libkrb5support0$'
+      type: deb
+  - vulnerability: CVE-2026-112318
+    fix-state: not-fixed
+    package:
+      name: '^libgssapi-krb5-2$'
+      type: deb
+  - vulnerability: CVE-2026-112318
+    fix-state: wont-fix
+    package:
+      name: '^libgssapi-krb5-2$'
+      type: deb
+  - vulnerability: CVE-2026-112318
+    fix-state: not-fixed
+    package:
+      name: '^libk5crypto3$'
+      type: deb
+  - vulnerability: CVE-2026-112318
+    fix-state: wont-fix
+    package:
+      name: '^libk5crypto3$'
+      type: deb
+  - vulnerability: CVE-2026-112318
+    fix-state: not-fixed
+    package:
+      name: '^libkrb5-3$'
+      type: deb
+  - vulnerability: CVE-2026-112318
+    fix-state: wont-fix
+    package:
+      name: '^libkrb5-3$'
+      type: deb
+  - vulnerability: CVE-2026-112318
+    fix-state: not-fixed
+    package:
+      name: '^libkrb5support0$'
+      type: deb
+  - vulnerability: CVE-2026-112318
+    fix-state: wont-fix
+    package:
+      name: '^libkrb5support0$'
+      type: deb
+  - vulnerability: CVE-2026-112319
+    fix-state: not-fixed
+    package:
+      name: '^libgssapi-krb5-2$'
+      type: deb
+  - vulnerability: CVE-2026-112319
+    fix-state: wont-fix
+    package:
+      name: '^libgssapi-krb5-2$'
+      type: deb
+  - vulnerability: CVE-2026-112319
+    fix-state: not-fixed
+    package:
+      name: '^libk5crypto3$'
+      type: deb
+  - vulnerability: CVE-2026-112319
+    fix-state: wont-fix
+    package:
+      name: '^libk5crypto3$'
+      type: deb
+  - vulnerability: CVE-2026-112319
+    fix-state: not-fixed
+    package:
+      name: '^libkrb5-3$'
+      type: deb
+  - vulnerability: CVE-2026-112319
+    fix-state: wont-fix
+    package:
+      name: '^libkrb5-3$'
+      type: deb
+  - vulnerability: CVE-2026-112319
+    fix-state: not-fixed
+    package:
+      name: '^libkrb5support0$'
+      type: deb
+  - vulnerability: CVE-2026-112319
+    fix-state: wont-fix
+    package:
+      name: '^libkrb5support0$'
+      type: deb
+  - vulnerability: CVE-2026-118380
+    fix-state: not-fixed
+    package:
+      name: '^libgssapi-krb5-2$'
+      type: deb
+  - vulnerability: CVE-2026-118380
+    fix-state: wont-fix
+    package:
+      name: '^libgssapi-krb5-2$'
+      type: deb
+  - vulnerability: CVE-2026-118380
+    fix-state: not-fixed
+    package:
+      name: '^libk5crypto3$'
+      type: deb
+  - vulnerability: CVE-2026-118380
+    fix-state: wont-fix
+    package:
+      name: '^libk5crypto3$'
+      type: deb
+  - vulnerability: CVE-2026-118380
+    fix-state: not-fixed
+    package:
+      name: '^libkrb5-3$'
+      type: deb
+  - vulnerability: CVE-2026-118380
+    fix-state: wont-fix
+    package:
+      name: '^libkrb5-3$'
+      type: deb
+  - vulnerability: CVE-2026-118380
+    fix-state: not-fixed
+    package:
+      name: '^libkrb5support0$'
+      type: deb
+  - vulnerability: CVE-2026-118380
+    fix-state: wont-fix
+    package:
+      name: '^libkrb5support0$'
+      type: deb
+  - vulnerability: CVE-2026-71199
+    fix-state: not-fixed
+    package:
+      name: '^libgssapi-krb5-2$'
+      type: deb
+  - vulnerability: CVE-2026-71199
+    fix-state: wont-fix
+    package:
+      name: '^libgssapi-krb5-2$'
+      type: deb
+  - vulnerability: CVE-2026-71199
+    fix-state: not-fixed
+    package:
+      name: '^libk5crypto3$'
+      type: deb
+  - vulnerability: CVE-2026-71199
+    fix-state: wont-fix
+    package:
+      name: '^libk5crypto3$'
+      type: deb
+  - vulnerability: CVE-2026-71199
+    fix-state: not-fixed
+    package:
+      name: '^libkrb5-3$'
+      type: deb
+  - vulnerability: CVE-2026-71199
+    fix-state: wont-fix
+    package:
+      name: '^libkrb5-3$'
+      type: deb
+  - vulnerability: CVE-2026-71199
+    fix-state: not-fixed
+    package:
+      name: '^libkrb5support0$'
+      type: deb
+  - vulnerability: CVE-2026-71199
+    fix-state: wont-fix
+    package:
+      name: '^libkrb5support0$'
+      type: deb
+  - vulnerability: CVE-2026-71200
+    fix-state: not-fixed
+    package:
+      name: '^libgssapi-krb5-2$'
+      type: deb
+  - vulnerability: CVE-2026-71200
+    fix-state: wont-fix
+    package:
+      name: '^libgssapi-krb5-2$'
+      type: deb
+  - vulnerability: CVE-2026-71200
+    fix-state: not-fixed
+    package:
+      name: '^libk5crypto3$'
+      type: deb
+  - vulnerability: CVE-2026-71200
+    fix-state: wont-fix
+    package:
+      name: '^libk5crypto3$'
+      type: deb
+  - vulnerability: CVE-2026-71200
+    fix-state: not-fixed
+    package:
+      name: '^libkrb5-3$'
+      type: deb
+  - vulnerability: CVE-2026-71200
+    fix-state: wont-fix
+    package:
+      name: '^libkrb5-3$'
+      type: deb
+  - vulnerability: CVE-2026-71200
+    fix-state: not-fixed
+    package:
+      name: '^libkrb5support0$'
+      type: deb
+  - vulnerability: CVE-2026-71200
+    fix-state: wont-fix
+    package:
+      name: '^libkrb5support0$'
+      type: deb

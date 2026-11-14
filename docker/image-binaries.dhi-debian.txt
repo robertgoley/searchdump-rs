@@ -151,6 +151,7 @@
 /usr/bin/run-parts
 /usr/bin/runcon
 /usr/bin/savelog
+/usr/bin/scp
 /usr/bin/sdiff
 /usr/bin/sed
 /usr/bin/seq
@@ -158,6 +159,7 @@
 /usr/bin/setpriv
 /usr/bin/setsid
 /usr/bin/setterm
+/usr/bin/sftp
 /usr/bin/sha1sum
 /usr/bin/sha224sum
 /usr/bin/sha256sum
@@ -168,6 +170,13 @@
 /usr/bin/sleep
 /usr/bin/sort
 /usr/bin/split
+/usr/bin/ssh
+/usr/bin/ssh-add
+/usr/bin/ssh-agent
+/usr/bin/ssh-argv0
+/usr/bin/ssh-copy-id
+/usr/bin/ssh-keygen
+/usr/bin/ssh-keyscan
 /usr/bin/stat
 /usr/bin/stdbuf
 /usr/bin/stty
@@ -238,6 +247,9 @@
 /usr/lib/dpkg/methods/apt/install
 /usr/lib/dpkg/methods/apt/setup
 /usr/lib/dpkg/methods/apt/update
+/usr/lib/openssh/ssh-keysign
+/usr/lib/openssh/ssh-pkcs11-helper
+/usr/lib/openssh/ssh-sk-helper
 /usr/lib/ssl/misc/CA.pl
 /usr/lib/ssl/misc/tsget.pl
 /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
@@ -248,6 +260,7 @@
 /usr/local/bin/searchdump
 /usr/local/bin/searchdump-multi
 /usr/sbin/add-shell
+/usr/sbin/adduser
 /usr/sbin/agetty
 /usr/sbin/blkdiscard
 /usr/sbin/blkid
@@ -256,6 +269,7 @@
 /usr/sbin/chcpu
 /usr/sbin/chmem
 /usr/sbin/chroot
+/usr/sbin/deluser
 /usr/sbin/dpkg-preconfigure
 /usr/sbin/dpkg-reconfigure
 /usr/sbin/faillock
@@ -299,3 +313,11 @@
 /usr/share/debconf/fix_db.pl
 /usr/share/debconf/frontend
 /usr/share/libgcrypt20/clean-up-unmanaged-libraries
+/var/lib/dpkg/info/adduser.postrm
+/var/lib/dpkg/info/adduser.preinst
+/var/lib/dpkg/info/libgssapi-krb5-2:amd64.postinst
+/var/lib/dpkg/info/libgssapi-krb5-2:amd64.postrm
+/var/lib/dpkg/info/openssh-client.postinst
+/var/lib/dpkg/info/openssh-client.postrm
+/var/lib/dpkg/info/openssh-client.preinst
+/var/lib/dpkg/info/openssh-client.prerm

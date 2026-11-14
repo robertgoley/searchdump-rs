@@ -163,6 +163,7 @@
 /usr/bin/run-parts
 /usr/bin/runcon
 /usr/bin/savelog
+/usr/bin/scp
 /usr/bin/script
 /usr/bin/scriptlive
 /usr/bin/scriptreplay
@@ -173,6 +174,7 @@
 /usr/bin/setpriv
 /usr/bin/setsid
 /usr/bin/setterm
+/usr/bin/sftp
 /usr/bin/sha1sum
 /usr/bin/sha224sum
 /usr/bin/sha256sum
@@ -184,6 +186,13 @@
 /usr/bin/sort
 /usr/bin/split
 /usr/bin/sqv
+/usr/bin/ssh
+/usr/bin/ssh-add
+/usr/bin/ssh-agent
+/usr/bin/ssh-argv0
+/usr/bin/ssh-copy-id
+/usr/bin/ssh-keygen
+/usr/bin/ssh-keyscan
 /usr/bin/stat
 /usr/bin/stdbuf
 /usr/bin/stty
@@ -257,6 +266,9 @@
 /usr/lib/dpkg/methods/apt/setup
 /usr/lib/dpkg/methods/apt/update
 /usr/lib/init/init-d-script
+/usr/lib/openssh/ssh-keysign
+/usr/lib/openssh/ssh-pkcs11-helper
+/usr/lib/openssh/ssh-sk-helper
 /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
 /usr/lib/x86_64-linux-gnu/libc.so.6
 /usr/libexec/coreutils/libstdbuf.so
@@ -265,6 +277,7 @@
 /usr/local/bin/searchdump
 /usr/local/bin/searchdump-multi
 /usr/sbin/add-shell
+/usr/sbin/adduser
 /usr/sbin/agetty
 /usr/sbin/blkdiscard
 /usr/sbin/blkid
@@ -275,6 +288,7 @@
 /usr/sbin/chmem
 /usr/sbin/chpasswd
 /usr/sbin/chroot
+/usr/sbin/deluser
 /usr/sbin/dpkg-preconfigure
 /usr/sbin/dpkg-reconfigure
 /usr/sbin/faillock
@@ -341,6 +355,8 @@
 /usr/share/bug/apt/script
 /usr/share/debconf/fix_db.pl
 /usr/share/debconf/frontend
+/var/lib/dpkg/info/adduser.postrm
+/var/lib/dpkg/info/adduser.preinst
 /var/lib/dpkg/info/apt.postinst
 /var/lib/dpkg/info/apt.postrm
 /var/lib/dpkg/info/apt.preinst
@@ -376,6 +392,8 @@
 /var/lib/dpkg/info/libc6:amd64.postinst
 /var/lib/dpkg/info/libc6:amd64.postrm
 /var/lib/dpkg/info/libc6:amd64.preinst
+/var/lib/dpkg/info/libgssapi-krb5-2:amd64.postinst
+/var/lib/dpkg/info/libgssapi-krb5-2:amd64.postrm
 /var/lib/dpkg/info/libpam-modules-bin.postinst
 /var/lib/dpkg/info/libpam-modules-bin.postrm
 /var/lib/dpkg/info/libpam-modules-bin.prerm
@@ -396,6 +414,10 @@
 /var/lib/dpkg/info/login.prerm
 /var/lib/dpkg/info/mawk.postinst
 /var/lib/dpkg/info/mawk.prerm
+/var/lib/dpkg/info/openssh-client.postinst
+/var/lib/dpkg/info/openssh-client.postrm
+/var/lib/dpkg/info/openssh-client.preinst
+/var/lib/dpkg/info/openssh-client.prerm
 /var/lib/dpkg/info/passwd.postinst
 /var/lib/dpkg/info/passwd.postrm
 /var/lib/dpkg/info/passwd.preinst

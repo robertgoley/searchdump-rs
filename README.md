@@ -646,10 +646,14 @@ Other behaviour:
 - Cargo features `opendal` (S3, B2, fs) and `opendal-sftp` are on by default; a build without them refuses storage
   URLs with a clear error.
 
-**Known issue (1.0.0-beta1): `sftp://` does not work inside the container images.** OpenDAL's SFTP backend runs the
-system OpenSSH `ssh` client, and the images do not include it (Dropbear's client is not compatible). SFTP works with
-the host binaries and the release archives on systems that have OpenSSH installed. `s3://`, `b2://` and `fs://` are
-not affected. A fix is tracked in FEATURES-TODO.md.
+**`sftp://` in the container images (L-810i, new in 1.1; 1.0.0 images lack it).** OpenDAL's SFTP backend runs the
+system OpenSSH `ssh` client (Dropbear's client is not compatible). Since L-810i every image built with a package
+manager installs it: Debian-based images (`dhi-debian` default, `public`) get `openssh-client` (no recommends,
+`ssh-keysign` without its setuid bit), Alpine-based images (`dhi-alpine`, `alpine`) get `openssh-client-default`.
+The COPY-only `dhi-static` image still has no `ssh`, so `sftp://` does not work there. Give the key with
+`key_file` in a `--inputStorageConfig`/`--outputStorageConfig` file (mounted read-only and readable by uid 65532)
+and pre-seed `known_hosts` (the image has no `~/.ssh`); `known_hosts = accept` works but trusts any host key. In
+1.0.0 images SFTP works only with the host binaries and release archives on systems that have OpenSSH.
 
 ### searchdump-multi with storage
 
@@ -740,10 +744,14 @@ and `multielasticdump` symlinks, runs as uid
 `/data` as its writable working directory, and carries OCI labels (version, revision, created,
 base name).
 
-**Known issue (1.0.0-beta1): `sftp://` does not work inside the container images.** OpenDAL's SFTP backend runs the
-system OpenSSH `ssh` client, and the images do not include it (Dropbear's client is not compatible). SFTP works with
-the host binaries and the release archives on systems that have OpenSSH installed. `s3://`, `b2://` and `fs://` are
-not affected. A fix is tracked in FEATURES-TODO.md.
+**`sftp://` in the container images (L-810i, new in 1.1; 1.0.0 images lack it).** OpenDAL's SFTP backend runs the
+system OpenSSH `ssh` client (Dropbear's client is not compatible). Since L-810i every image built with a package
+manager installs it: Debian-based images (`dhi-debian` default, `public`) get `openssh-client` (no recommends,
+`ssh-keysign` without its setuid bit), Alpine-based images (`dhi-alpine`, `alpine`) get `openssh-client-default`.
+The COPY-only `dhi-static` image still has no `ssh`, so `sftp://` does not work there. Give the key with
+`key_file` in a `--inputStorageConfig`/`--outputStorageConfig` file (mounted read-only and readable by uid 65532)
+and pre-seed `known_hosts` (the image has no `~/.ssh`); `known_hosts = accept` works but trusts any host key. In
+1.0.0 images SFTP works only with the host binaries and release archives on systems that have OpenSSH.
 
 ### `scripts/build-image.sh`
 

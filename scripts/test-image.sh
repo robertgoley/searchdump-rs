@@ -15,6 +15,7 @@
 #      --read-only --cap-drop ALL --security-opt no-new-privileges, and writing anywhere else fails
 #   4. no executables beyond the documented set (docker/image-binaries.<variant>.txt)
 #   5. the base image label is pinned by digest (org.opencontainers.image.base.name has @sha256:)
+#   6. (L-810i) the OpenSSH client is present for sftp:// (not on dhi-static) and ssh-keysign is not setuid
 # Image package SBOM diff: scripts/sup/sbom-pr.sh with IMAGE_SBOM_BASE/HEAD (SUP-011).
 set -uo pipefail
 cd "$(dirname "$0")/.." || exit 2
@@ -56,6 +57,14 @@ if [[ $shell == 1 ]]; then
 else
   ok "no shell in the image (no /bin/sh): shell checks skipped"
 fi
+
+# L-810i: sftp:// runs the system OpenSSH client; every image with a package manager ships it
+# (the COPY-only dhi-static image does not), and ssh-keysign carries no setuid bit.
+if [[ "$VAR" != dhi-static ]]; then
+  check "OpenSSH client /usr/bin/ssh present (sftp://)" has usr/bin/ssh
+fi
+nosuid_keysign() { ! grep -qE '^-..[sS].* usr/lib/(openssh|ssh)/ssh-keysign$' "$W/rootfs.lst"; }
+check "ssh-keysign not setuid" nosuid_keysign
 
 user=$($C image inspect "$IMG" --format '{{.Config.User}}')
 nonroot() { [[ -n "$1" && "${1%%:*}" != 0 && "${1%%:*}" != root ]]; }

@@ -5,7 +5,7 @@
 # Default (L-810c, owner decision 2026-11-11): dhi.io Debian 13, target `runtime-shell`, amd64,
 # tags <ver> and latest; glibc + mimalloc (the default for *-linux-gnu builds, see Cargo.toml)
 #   builder: dhi.io/rust:1.99.1-debian13-dev
-#   runtime: dhi.io/debian-base:trixie-debian13-dev (shell, apt; uid 65532)
+#   runtime: dhi.io/debian-base:trixie-debian13-dev (shell, apt; uid 65532; OpenSSH client for sftp://)
 # A plain `podman build .` builds this default (runtime-shell is the last stage).
 #
 # Other build types, same Dockerfile through the ARGs below (pins in the Makefile):
@@ -113,13 +113,26 @@ COPY --from=builder /out/searchdump /usr/local/bin/searchdump
 # Bulk dump/load of regex-selected indices (runs searchdump from the same directory).
 COPY --from=builder /out/searchdump-multi /usr/local/bin/searchdump-multi
 COPY --from=builder /out/root/usr/share/doc/searchdump-rs/ /usr/share/doc/searchdump-rs/
+# - OpenSSH client (L-810i, owner decision 2026-11-14): OpenDAL's sftp:// backend runs the system
+#   `ssh` binary (Dropbear's client is not compatible). Alpine: openssh-client-default (ssh only,
+#   no keysign); Debian: openssh-client without recommends, apt lists removed, and the setuid bit
+#   dropped from ssh-keysign (host-based auth only; the image runs as 65532 with no setuid files).
+#   The COPY-only dhi-static type has no package manager and stays without SFTP.
 # - compatibility symlinks: elasticdump, elasticdump-rs -> searchdump; multielasticdump -> searchdump-multi
 # - CA bundle only when the base image has none
 # - /data: writable working directory for dumps (mount a volume here)
 RUN --mount=type=bind,from=builder,source=/out/ca-certificates.crt,target=/tmp/ca.crt \
     if command -v apk >/dev/null 2>&1; then \
-      apk upgrade --no-cache && apk add --no-cache bash ca-certificates libgcc; \
+      apk upgrade --no-cache && apk add --no-cache bash ca-certificates libgcc openssh-client-default; \
+    elif command -v apt-get >/dev/null 2>&1; then \
+      export DEBIAN_FRONTEND=noninteractive \
+      && apt-get update \
+      && apt-get install -y --no-install-recommends openssh-client \
+      && apt-get clean \
+      && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*.deb /var/log/apt /var/log/dpkg.log \
+      && if [ -e /usr/lib/openssh/ssh-keysign ]; then chmod u-s /usr/lib/openssh/ssh-keysign; fi; \
     fi \
+ && ssh -V \
  && ln -s searchdump /usr/local/bin/elasticdump \
  && ln -s searchdump /usr/local/bin/elasticdump-rs \
  && ln -s searchdump-multi /usr/local/bin/multielasticdump \

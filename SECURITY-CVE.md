@@ -18,7 +18,7 @@ Counts below are taken from the sections in this file (High+Critical image findi
 | Artifact | Open | Resolved | Won't-fix (accepted) | Not-affected |
 |---|---:|---:|---:|---:|
 | Cargo.lock (Rust dependencies) | 0 | 41 | 0 | 0 |
-| `dhi-debian` (default `make image` since L-810c) | 0 | 1 (CVE-2026-109518 in apt, fixed by the `94571f3d…` base) | 19 | 0 |
+| `dhi-debian` (default `make image` since L-810c) | 0 | 1 (CVE-2026-109518 in apt, fixed by the `94571f3d…` base) | 19 + 22 OpenSSH/Kerberos ids from L-810i (accepted 2026-11-14) | 0 |
 | `dhi-static` (default from L-808b to L-810c) | 0 | 0 | 5 | 0 |
 | `dhi-alpine` | 0 | 0 | 0 | 0 |
 | Public Alpine (`make image-alpine`) | 0 | 0 | 0 | 1 (CVE-2025-60876, Medium, busybox `wget`) |
@@ -30,6 +30,7 @@ The 15 public-Debian High CVEs are the same kind of base-OS won't-fix findings; 
 
 | Date (America/New_York) | Commit | Tool (DB) | Target | Result |
 |---|---|---|---|---|
+| 2026-11-14 | L-810i (merged to `main` after the owner accepted the findings, t85u) | grype + trivy, box | `public` (debian:trixie-slim) and `alpine` image builds with the OpenSSH client added | Alpine: 0 High/Critical. Debian: openssh-client adds 1 Critical (CVE-2026-60002) and 5 High, its krb5 dependencies about 15 High ids, none fixable; **accepted by the owner 2026-11-14 (t85u)**, see [OpenSSH client (L-810i)](#openssh-client-l-810i) (details and options: [results/local/L-810i.md](results/local/L-810i.md)). dhi.io types not built (no login). |
 | 2026-11-11 | `800ff96` (L-810f) | CI [security.yml](https://github.com/robertgoley/searchdump-rs/actions/workflows/security.yml) (grype + trivy), `base=dhi-debian` | `dhi-debian` default image on digest `sha256:94571f3d…` (apt 3.0.4+dhi0) | **pass**. Confirming scan of the L-810e base refresh: [run 42998300960](https://github.com/robertgoley/searchdump-rs/actions/runs/42998300960) (manual dispatch, 04:48–05:00 America/New_York). CVE-2026-109518 is gone; remaining High findings are the accepted won't-fix set. Later pushes on `main` also passed the same workflow: 42998301407 (`800ff96` push), 43070931258 (`e1a0f8e`), 43071665377 (`f38af3f`), 43077967669 (`94e4afb`), 43085265717 (`a98be22`) |
 | 2026-11-11 | L-810e | grype 0.121.0 + trivy 0.76.1 | `dhi-debian` image (default since L-810c) on the previous base digest `cc4e05ff…` | before: grype 19 distinct High (90 matches; 1 fixable, CVE-2026-109518 in apt), trivy 12 distinct HIGH. With the new dhi-debian ignore files: only CVE-2026-109518 left in both scanners, which the refreshed base (`94571f3d…`, apt 3.0.4+dhi0) fixes. The confirming CI scan on the new digest is the row above |
 | 2026-10-29 | 55fa662 | cargo-audit 0.22.2 (re-run for L-109) | Cargo.lock | **0 vulnerabilities, 0 warnings**; cargo-deny: all four checks ok |
@@ -267,6 +268,27 @@ The package versions in the table are those of the image scanned locally on 2026
 `cc4e05ff…`). The new digest could not be pulled on the review host (no dhi.io login). The confirming CI `make scan`
 on `sha256:94571f3d…` passed (run 42998300960 and the later `main` runs listed under [Last scan](#last-scan)). If a
 new base adds a High CVE or changes a fix state, that scan fails and the new finding needs an entry here first.
+
+### OpenSSH client (L-810i)
+
+Owner decision 2026-11-14 (t85u): the High/Critical findings that `openssh-client` and the Kerberos libraries it
+depends on (`libgssapi-krb5-2`, `libk5crypto3`, `libkrb5-3`, `libkrb5support0`) add to the Debian-based images
+are **accepted as known and open** until Debian/DHI publish fixes, in the same way as L-808d / L-810e. Scanned on
+the `public` Debian build (openssh-client 1:10.0p1-7+deb13u4, krb5 1.21.3-5+deb13u1); the dhi-debian image uses the
+same packages unless DHI patches them, and its CI `make scan` is the confirming run. Alpine images: 0 findings.
+
+| CVE | Severity | Packages | grype fix state | Why accepted |
+|---|---|---|---|---|
+| CVE-2026-60002 | Critical | openssh-client | wont-fix | Client side only, used by `sftp://` to a host the operator names; no sshd in the image; runs as uid 65532 |
+| CVE-2026-59999, CVE-2026-60000, CVE-2026-106553, CVE-2026-106555, CVE-2026-106583 | High | openssh-client | wont-fix | Same |
+| CVE-2026-107778 | High | krb5 libraries | wont-fix | Pulled in for GSSAPI; searchdump's SFTP does not use GSSAPI/Kerberos auth |
+| CVE-2026-112314, CVE-2026-112320, CVE-2026-112321, CVE-2026-112322, CVE-2026-112323, CVE-2026-119079 | High | krb5 libraries | not-fixed | Same |
+| CVE-2026-107364, CVE-2026-112315, CVE-2026-112316, CVE-2026-112317, CVE-2026-112318, CVE-2026-112319, CVE-2026-118380, CVE-2026-71199, CVE-2026-71200 | High | krb5 libraries | (trivy only: affected) | Same |
+
+`make scan` ignores exactly these ids in exactly these packages: grype rules in `docker/grype-ignore.dhi-debian.yaml`
+and `docker/grype-ignore.yaml`, only while the fix state is not-fixed or wont-fix; trivy rules in
+`docker/trivyignore.dhi-debian.yaml` (purl-scoped). Verified 2026-11-14 on the local `public` Debian build: with the
+rules, grype and trivy report none of these ids. Revisit when a fix is published (grype then fails `make scan`).
 
 ### Debian 13 public fallback (`make image-public`)
 
