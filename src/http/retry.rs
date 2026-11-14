@@ -88,6 +88,13 @@ impl fmt::Display for EsHttpError {
                 f,
                 " (--slices is larger than the index allows: index.max_slices_per_scroll, 1024 by default; lower --slices)"
             ),
+            // L-804a: a final 429 means the cluster kept rejecting through every retry (429 is
+            // retried by default); the raw es_rejected_execution_exception alone does not say
+            // what to change.
+            429 => write!(
+                f,
+                " (the cluster kept rejecting requests as overloaded (HTTP 429) through every retry: raise --retryAttempts / --retryDelay, or lower --concurrency, --limit or --maxSockets)"
+            ),
             503 if self.body.contains("missing shards")
                 || self.body.contains("no_shard_available_action_exception")
                 || self.body.contains("all shards failed") =>
@@ -1136,6 +1143,34 @@ mod tests {
             e("plain text".into()),
             "Elasticsearch op failed with HTTP 400: plain text"
         );
+    }
+
+    /// L-804a: a final HTTP 429 names the knobs that help (storm runs exited with the raw
+    /// es_rejected_execution_exception only).
+    #[test]
+    fn final_429_suggests_retry_and_load_knobs() {
+        let m = EsHttpError {
+            prefix: String::new(),
+            operation: "bulk".into(),
+            status: 429,
+            body: r#"{"error":{"type":"es_rejected_execution_exception","reason":"rejected execution"},"status":429}"#.into(),
+            endpoint: String::new(),
+        }
+        .to_string();
+        assert!(
+            m.starts_with(
+                "Elasticsearch bulk failed with HTTP 429: es_rejected_execution_exception"
+            ),
+            "{m}"
+        );
+        for knob in [
+            "--retryAttempts",
+            "--retryDelay",
+            "--concurrency",
+            "--limit",
+        ] {
+            assert!(m.contains(knob), "{knob}: {m}");
+        }
     }
 
     #[test]
