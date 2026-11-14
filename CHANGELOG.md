@@ -7,6 +7,13 @@ GitHub release.
 
 ## Unreleased
 
+### Added
+
+- **`--restartOnContextLoss N`** (L-804b, P3): a scroll data dump from a cluster into a file restarts from the start, rewriting the file, up to N times when the scroll context is lost (default 0 = off). Refused with a usage error for PIT/search_after dumps, `--scrollId`, and outputs other than a file.
+- The scroll-context-lost error suggests a point-in-time dump (`--searchAfter --pit`) and `--restartOnContextLoss` (P4).
+- When most failed writes are `cluster_block_exception`s, the exit-3 summary names the block; for a disk flood-stage block it suggests freeing disk, then rerunning with a higher `--retryAttempts` (P5).
+- Error causes stay typed through the pipeline (`.context` instead of re-formatting; P2), so exit codes classify them reliably.
+
 ### Fixed
 
 - **`sftp://` inside the container images** (owner decision 2026-11-14, L-810i). The runtime stage installs the
@@ -17,6 +24,8 @@ GitHub release.
   `make scan` ignores exactly those ids while they stay unfixed).
 
 ### Changed (behaviour change)
+
+- **Exit status 4 for transient, rerun-safe failures** (owner decision 2026-11-14, L-804b; proposal P1 of L-804a). A run that still fails after its retries because of the network (refused, reset, timed out, body cut off), HTTP 429 or 5xx, or a lost scroll context now exits 4 instead of 1, when nothing was committed that a rerun would duplicate. A restore that already sent documents without `_id`, TLS certificate or protocol errors, credentials, mapping errors and every other permanent failure still exit 1; 0, 2, 3, 130 and 143 are unchanged. Scripts that treat any non-zero status as failure are unaffected; scripts that test for exactly 1 should also accept 4. `searchdump-multi` keeps its own codes.
 
 - **`--httpAuthFile` now wins over every other credential source** (owner decision 2026-11-14, L-645b). When an
   auth file is given, its `user=`/`password=` pair is used for both directions even if the URL has

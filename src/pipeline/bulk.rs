@@ -115,6 +115,26 @@ pub struct WriteReport {
     /// Written documents that replaced an existing one with the same `_id` (item status 200
     /// for `index`; TST-BRK-IN-010). Included in `written`.
     pub overwritten: u64,
+    /// L-804b: failed items refused by a `cluster_block_exception`. Included in `failed`.
+    pub blocked: u64,
+    /// L-804b: of `blocked`, those from the read-only-allow-delete block that the disk
+    /// flood-stage watermark sets.
+    pub disk_blocked: u64,
+}
+
+/// The read-only-allow-delete block that the disk flood-stage watermark sets (its reason
+/// text varies by version: `FORBIDDEN/12/index read-only / allow delete (api)`, `disk usage
+/// exceeded flood-stage watermark, index has read-only-allow-delete block`).
+pub(crate) fn is_disk_block(item: &str) -> bool {
+    [
+        "allow delete",
+        "allow-delete",
+        "allow_delete",
+        "flood-stage",
+        "flood stage",
+    ]
+    .iter()
+    .any(|m| item.contains(m))
 }
 
 impl WriteReport {
@@ -123,6 +143,8 @@ impl WriteReport {
         self.written += other.written;
         self.failed += other.failed;
         self.rejected += other.rejected;
+        self.blocked += other.blocked;
+        self.disk_blocked += other.disk_blocked;
     }
 }
 
@@ -135,6 +157,9 @@ pub struct BulkSink {
     cancel: CancellationToken,
     pub report: WriteReport,
     warned_ttl: Arc<AtomicBool>,
+    /// L-804b: a bulk request holding documents without `_id` reached the cluster (shared
+    /// by the workers), so a rerun could index them twice.
+    auto_id_written: Arc<AtomicBool>,
     concurrency: usize,
     throttle: Option<Duration>,
     inflight: JoinSet<Result<WriteReport>>,
@@ -491,6 +516,7 @@ impl BulkSink {
             cancel,
             report: WriteReport::default(),
             warned_ttl: Arc::new(AtomicBool::new(false)),
+            auto_id_written: Arc::new(AtomicBool::new(false)),
             concurrency: 1,
             throttle: None,
             inflight: JoinSet::new(),
@@ -629,6 +655,7 @@ impl BulkSink {
             cancel: self.cancel.clone(),
             report: WriteReport::default(),
             warned_ttl: Arc::clone(&self.warned_ttl),
+            auto_id_written: Arc::clone(&self.auto_id_written),
             concurrency: 1,
             throttle: None,
             inflight: JoinSet::new(),
@@ -960,7 +987,7 @@ impl BulkSink {
                     );
                     self.report.failed += chunk.len() as u64;
                 }
-                Err(e) => return Err(e),
+                Err(e) => return Err(self.rerun_safety(e)),
             }
             start = end;
         }
@@ -994,12 +1021,15 @@ impl BulkSink {
                         && !crate::http::is_cancelled(&e)
                         && e.downcast_ref::<crate::http::EsHttpError>().is_none() =>
                 {
-                    return Err(e.context(format!(
+                    return Err(e.context(crate::http::NotRerunSafe(format!(
                         "the bulk request was not re-sent: it holds {auto} document(s) without _id and the connection failed after it was sent, so the cluster may already have indexed them and a retry would duplicate them under new ids. Check the target's document count before re-running; dumps that keep _id (no --sourceOnly) restore retry-safely"
-                    )));
+                    ))));
                 }
                 Err(e) => return Err(e),
             };
+            if auto > 0 {
+                self.auto_id_written.store(true, Ordering::Relaxed);
+            }
             let rejected = self.handle_response(&resp, chunk, &pending, resent)?;
             if rejected.is_empty() {
                 return Ok(());
@@ -1055,8 +1085,28 @@ impl BulkSink {
         }
     }
 
+    /// L-804b: a transient failure after documents without `_id` were sent is not safe to
+    /// rerun (they would be indexed again under new ids): say so, and keep exit status 1.
+    fn rerun_safety(&self, e: anyhow::Error) -> anyhow::Error {
+        if self.auto_id_written.load(Ordering::Relaxed) && crate::is_transient(&e) {
+            e.context(crate::http::NotRerunSafe(
+                "documents without _id were already written by this run, so a rerun would index them again under new ids; check the target's document count before re-running".to_string(),
+            ))
+        } else {
+            e
+        }
+    }
+
     fn report_failure(&mut self, doc: &[u8], item: &str) -> Result<()> {
         self.report.failed += 1;
+        // L-804b (P5): count refusals by an index/cluster block, and those of them from the
+        // disk flood-stage watermark, so the exit-3 summary can name the dominant cause
+        if item.contains("cluster_block_exception") {
+            self.report.blocked += 1;
+            if is_disk_block(item) {
+                self.report.disk_blocked += 1;
+            }
+        }
         // name the document that was sent, not what the item echoes (TST-BRK-SRV-003)
         let id = get(doc, &["_id"])
             .map(|v| v.as_raw_str().to_string())

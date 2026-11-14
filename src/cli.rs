@@ -98,7 +98,10 @@ fn parse_type(value: &str) -> Result<DumpType, String> {
     author,
     version,
     about = "Back up, restore and copy Elasticsearch and OpenSearch indices, mappings and settings (elasticdump-compatible CLI)",
-    after_long_help = "Provided as is, without warranty (MIT license). Verify every backup by restoring it and\n\
+    after_long_help = "Exit status: 0 success; 1 error; 2 usage error; 3 finished, but documents were not written;\n\
+        4 transient failure (network, HTTP 429/5xx, scroll context lost) after the retries, nothing was\n\
+        committed that a rerun would duplicate, so rerunning the same command is safe; 130/143 SIGINT/SIGTERM.\n\n\
+        Provided as is, without warranty (MIT license). Verify every backup by restoring it and\n\
         comparing document counts, and test outside production first.",
     allow_negative_numbers = true,
     max_term_width = 100
@@ -451,6 +454,12 @@ pub struct Cli {
     /// Extension: fixed or exponential retry delay
     #[arg(long = "retryBackoff", value_enum, default_value_t = RetryBackoffArg::Fixed)]
     pub retry_backoff: RetryBackoffArg,
+
+    /// Extension (L-804b): a scroll dump from a cluster into a file restarts from the start, up to
+    /// N times, when its scroll context is lost (node restart, expiry) or a scroll continuation
+    /// fails and cannot be retried safely; the staged file is discarded each time. 0 = never
+    #[arg(long = "restartOnContextLoss", default_value_t = 0)]
+    pub restart_on_context_loss: u32,
 
     /// Extension: with --retryAttempts 0, do not retry at all
     #[arg(long = "noImplicitRetry", num_args = 0..=1, default_missing_value = "true", value_parser = parse_bool)]

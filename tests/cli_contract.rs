@@ -2019,7 +2019,7 @@ async fn http_5xx_per_request_kind() {
         )
         .await;
         let err = stderr(&o);
-        assert_eq!(o.status.code(), Some(1), "{err}");
+        assert_eq!(o.status.code(), Some(4), "{err}");
         let reqs = m.requests();
         let n = |p: &str| {
             reqs.iter()
@@ -2415,7 +2415,9 @@ async fn tls_failures_have_one_clear_message() {
         args.extend(extra);
         let o = run_async(args, env).await;
         let err = stderr(&o);
-        assert_eq!(o.status.code(), Some(1), "{name}: {err}");
+        // L-804b: a plain-HTTP request whose connection closes is retried and may be transient
+        let code = if name == "http to TLS port" { 4 } else { 1 };
+        assert_eq!(o.status.code(), Some(code), "{name}: {err}");
         assert!(err.contains(want), "{name}: want {want:?}: {err}");
         assert!(
             !err.contains("clientpass") && !err.contains("WRONG-pass"),
@@ -2678,7 +2680,7 @@ async fn stalled_server_fails_within_the_idle_timeout() {
         .await;
         let took = t.elapsed();
         let err = stderr(&o);
-        assert_eq!(o.status.code(), Some(1), "{label}: {err}");
+        assert_eq!(o.status.code(), Some(4), "{label}: {err}");
         assert!(took < Duration::from_secs(20), "{label}: took {took:?}");
         assert!(err.contains("--idleTimeout"), "{label}: {err}");
         assert!(!out.exists(), "{label}: nothing committed");
@@ -2784,15 +2786,32 @@ async fn failed_writes_exit_non_zero_unless_accepted_explicitly() {
         format!("{}\n{}\n", hit("1", "{\"a\":1}"), hit("2", "{\"a\":2}")),
     )
     .unwrap();
-    let item = |status: u16, ty: &str| {
+    let item = |status: u16, ty: &str, reason: &str| {
         format!(
-            r#"{{"index":{{"status":{status},"error":{{"type":"{ty}","reason":"{ty} reason"}}}}}}"#
+            r#"{{"index":{{"status":{status},"error":{{"type":"{ty}","reason":"{reason}"}}}}}}"#
         )
     };
     let cases = [
-        ("429 storm", item(429, "es_rejected_execution_exception")),
-        ("flood stage", item(429, "cluster_block_exception")),
-        ("write block", item(403, "cluster_block_exception")),
+        (
+            "429 storm",
+            item(429, "es_rejected_execution_exception", "rejected execution"),
+        ),
+        (
+            "flood stage",
+            item(
+                429,
+                "cluster_block_exception",
+                "index [dst] blocked by: [TOO_MANY_REQUESTS/12/disk usage exceeded flood-stage watermark, index has read-only-allow-delete block];",
+            ),
+        ),
+        (
+            "write block",
+            item(
+                403,
+                "cluster_block_exception",
+                "index [dst] blocked by: [FORBIDDEN/8/index write (api)];",
+            ),
+        ),
     ];
     for (label, failing) in cases {
         let body = format!(
@@ -2843,6 +2862,16 @@ async fn failed_writes_exit_non_zero_unless_accepted_explicitly() {
                         && err.contains("--ignore-es-write-errors"),
                     "{label}: {err}"
                 );
+                // L-804b (P5): a dominant block is named, with what to do about it
+                let (disk, block) = (
+                    err.contains("flood-stage watermark: free disk space"),
+                    err.contains("refused by an index or cluster block"),
+                );
+                match label {
+                    "flood stage" => assert!(disk && !block, "{label}: {err}"),
+                    "write block" => assert!(block && !disk, "{label}: {err}"),
+                    _ => assert!(!disk && !block, "{label}: {err}"),
+                }
             }
             if code == 0 {
                 assert!(err.contains("Failed Writes: 1"), "{label}: {err}");

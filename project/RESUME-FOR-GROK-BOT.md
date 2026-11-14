@@ -90,10 +90,11 @@ The user runs Grok 4.7 locally through the OpenCode CLI. The handoff/ folder (op
 
 - L-808m completes the load-smoke follow-up after push CI exposed edverify's 4 x 1000-doc scrolls crossing the 1 GB parent breaker and leaking four contexts on error. Keep the 1024m heap and full corpus/digest/leak checks; L0 verification defaults to 100 docs / one slice (configurable), bigger tiers unchanged. Scoped cleanup is awaited even after task errors/panics; cleanup failure is fatal. Three consecutive exact L0 passes and full gates are in results/local/L-808m.md; push CI/security reported separately. Next stays L-809.
 - L-645b (2026-11-14): owner decision implemented: `--httpAuthFile` wins over flags, URL and env (behaviour change, CHANGELOG Unreleased); auth-file values literal and world-readable warning unchanged.
-- L-804a (2026-11-14): exit-code review of the L-804 faults (results/local/L-804a.md); final-429 hint added; proposals P1-P6 await the owner.
+- L-804a (2026-11-14): exit-code review of the L-804 faults (results/local/L-804a.md); final-429 hint added; P1-P5 implemented in L-804b, P6 deferred (big host).
 - L-808n (2026-11-14): restore CPU profile; memchr line split + depth shortcut, CPU -24%, behaviour unchanged.
 - L-810i (2026-11-14): OpenSSH client in the images (sftp://); 22 Debian OpenSSH/Kerberos CVE ids accepted by the owner (t85u), ignored by `make scan` while unfixed. Branch `wip/L-810i` deleted 2026-11-14 with owner approval (t86u).
 - L-808o (2026-11-14): restore validates each document once (check_and_parse) instead of twice; same verdicts and messages (differential test); restore CPU -14% vs L-808n (results/local/L-808o.md)
 - L-808p (2026-11-14): restore moves the encoded batch into the bulk request instead of copying it and pre-sizes file batch buffers; CPU -12%, peak RSS -17% vs L-808o (results/local/L-808o.md)
 - L-808q (2026-11-14): file-input splitter skips non-structural bytes (SIMD/table) with identical output (proptest); restore CPU -25% vs L-808p, about half of pre-L-808n and below M6 (results/local/L-808o.md)
 - L-808r (2026-11-14): batches pass through the Sink as shared Bytes, no copy at --concurrency > 1; RSS -3% (c4) / -8% (c1), CPU level with M6 (results/local/L-808r.md)
+- L-804b (2026-11-14): exit 4 for transient, rerun-safe failures (behaviour change), typed error chain, --restartOnContextLoss for scroll dumps to a file, PIT and cluster-block/disk hints; L-804a P1-P5, P6 deferred (results/local/L-804b.md)

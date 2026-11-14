@@ -147,6 +147,7 @@ pub(crate) fn body_drops_source() -> BodySource {
 }
 
 /// Everything the Elasticsearch/OpenSearch reader needs.
+#[derive(Clone)]
 pub struct EsSourceOptions {
     pub client: EsClient,
     pub index: Option<String>,
@@ -468,7 +469,7 @@ pub async fn dump_data(
                     }
                     cancel.cancel();
                     output_target.abort().await;
-                    return Err(anyhow::anyhow!("Failed to write batch buffer: {}", e));
+                    return Err(e.context("Failed to write batch buffer"));
                 }
                 if window.is_exhausted() {
                     // --size reached: stop retrieval; the cascade counts as success.
@@ -487,7 +488,7 @@ pub async fn dump_data(
                 }
                 cancel.cancel();
                 output_target.abort().await;
-                return Err(anyhow::anyhow!("Failed to flush writer: {}", e));
+                return Err(e.context("Failed to flush writer"));
             }
             Ok((output_target, written, consumed, window))
         }
@@ -627,7 +628,7 @@ pub async fn dump_data(
     let mut worker_error: Option<anyhow::Error> = None;
     for (i, task) in worker_tasks.into_iter().enumerate() {
         if let Err(e) = task.wait().await {
-            let error = anyhow::anyhow!("Worker {} processing failed: {}", i, e);
+            let error = e.context(format!("Worker {i} processing failed"));
             if worker_error.is_none() {
                 worker_error = Some(error);
             } else {
@@ -647,7 +648,7 @@ pub async fn dump_data(
             resume_at = (consumed, window.remaining());
             None
         }
-        Ok(Err(e)) => Some(anyhow::anyhow!("Output task failed: {}", e)),
+        Ok(Err(e)) => Some(e.context("Output task failed")),
         Err(e) => Some(anyhow::anyhow!("Output task panicked: {}", e)),
     };
 

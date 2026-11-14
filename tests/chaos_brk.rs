@@ -133,7 +133,11 @@ async fn l601_reset_mid_scroll_continuation_is_not_retried() {
             "cut {cut}: a mid-body RST: {err}"
         );
         let reqs = m.requests();
-        assert_eq!(o.status.code(), Some(1), "cut {cut}: {err}");
+        assert_eq!(o.status.code(), Some(4), "cut {cut}: {err}");
+        assert!(
+            err.contains("--searchAfter --pit") && err.contains("--restartOnContextLoss"),
+            "cut {cut}: P4 hint: {err}"
+        );
         assert_eq!(
             count(&reqs, "POST", "/_search/scroll"),
             1,
@@ -454,7 +458,7 @@ async fn l603_slow_but_progressing_response_is_not_cut_off_by_timeout() {
                 docs.len()
             );
         } else {
-            assert_eq!(o.status.code(), Some(1), "{label}: {err}");
+            assert_eq!(o.status.code(), Some(4), "{label}: {err}");
             assert!(
                 err.contains("timed out") && err.contains("--timeout"),
                 "{label}: {err}"
@@ -522,7 +526,7 @@ async fn l604_half_closed_sockets_are_retried_or_fail_clearly() {
             let err = stderr(&o);
             assert!(t.elapsed() < Duration::from_secs(20), "{tag}");
             if persistent {
-                assert_eq!(o.status.code(), Some(1), "dump {tag}: {err}");
+                assert_eq!(o.status.code(), Some(4), "dump {tag}: {err}");
                 assert_eq!(
                     count(&m.requests(), "POST", "/idx/_search"),
                     3,
@@ -567,7 +571,7 @@ async fn l604_half_closed_sockets_are_retried_or_fail_clearly() {
             let err = stderr(&o);
             let bulks = count(&m.requests(), "POST", "/dst/_bulk");
             if persistent {
-                assert_eq!(o.status.code(), Some(1), "restore {tag}: {err}");
+                assert_eq!(o.status.code(), Some(4), "restore {tag}: {err}");
                 assert_eq!(bulks, 3, "restore {tag}: {err}");
             } else {
                 assert!(o.status.success(), "restore {tag}: {err}");
@@ -735,7 +739,7 @@ async fn l605_dns_failures_fail_fast_are_bounded_or_retried() {
         .unwrap();
     let err = stderr(&o);
     let took = t.elapsed();
-    assert_eq!(o.status.code(), Some(1), "{err}");
+    assert_eq!(o.status.code(), Some(4), "{err}");
     assert!(
         took < Duration::from_secs(8),
         "bounded by 2 x --timeout: {took:?}"
@@ -851,7 +855,7 @@ async fn l606_lost_search_context_says_rerun() {
         let o = run_async(a, vec![]).await;
         let err = stderr(&o);
         let kind = if pit { "point-in-time" } else { "scroll" };
-        assert_eq!(o.status.code(), Some(1), "{kind}: {err}");
+        assert_eq!(o.status.code(), Some(4), "{kind}: {err}");
         assert!(
             err.contains(&format!("the {kind} context no longer exists"))
                 && err.contains("restarted")
@@ -863,7 +867,7 @@ async fn l606_lost_search_context_says_rerun() {
 }
 
 // L-607 (TST-BRK-NET-010): a proxy answers with HTML: a 200 login page, 502/503 error pages,
-// a WAF 403. Each fails with exit 1 and a short message that says an HTML page answered
+// a WAF 403. Each fails (exit 4 for the transient 502/503 since L-804b, 1 otherwise) and a short message that says an HTML page answered
 // (with its title) instead of quoting it: the final error line stays under 4 KB though the
 // page is 50 KB. A 200 HTML page is not retried (it is not a transient failure).
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -921,7 +925,11 @@ async fn l607_html_from_a_proxy_is_named_not_dumped() {
             a.extend(s(&["--retryAttempts", "1", "--retryDelay", "1"]));
             let o = run_async(a, vec![]).await;
             let err = stderr(&o);
-            assert_eq!(o.status.code(), Some(1), "{tag}: {err}");
+            assert_eq!(
+                o.status.code(),
+                Some(if status >= 500 { 4 } else { 1 }),
+                "{tag}: {err}"
+            );
             let last = err.lines().rfind(|l| l.starts_with("Error")).unwrap_or("");
             assert!(last.contains(want) && last.contains(title), "{tag}: {last}");
             assert!(last.len() < 4096, "{tag}: {} bytes", last.len());
@@ -1038,7 +1046,15 @@ async fn l608_broken_encodings_fail_clearly_or_are_retried() {
                     assert_eq!(ids, want, "{tag}");
                     eprintln!("L-608 {tag}: exit 0 with every document (the body was intact)");
                 } else if persistent {
-                    assert_eq!(o.status.code(), Some(1), "{tag}: {err}");
+                    // L-804b: a body cut short is transient (4), one that does not decode is not (1)
+                    let code = if label == "Content-Length long"
+                        || (label == "gzip stream cut" && compress)
+                    {
+                        4
+                    } else {
+                        1
+                    };
+                    assert_eq!(o.status.code(), Some(code), "{tag}: {err}");
                     assert!(!out.exists(), "{tag}");
                     let last = err
                         .lines()
@@ -1470,7 +1486,15 @@ async fn l612_protocol_mismatches_fail_clearly_and_fast() {
             "L-612 {name}: {took:?}: {}",
             err.lines().rfind(|l| l.starts_with("Error")).unwrap_or("")
         );
-        assert_eq!(o.status.code(), Some(1), "{name}: {err}");
+        assert_eq!(
+            o.status.code(),
+            Some(if name == "https to a silent port" {
+                4
+            } else {
+                1
+            }),
+            "{name}: {err}"
+        );
         assert!(err.contains(want), "{name}: want {want:?}: {err}");
         assert!(took < Duration::from_secs(10), "{name}: bounded: {took:?}");
         if name != "https to a silent port" {
@@ -1638,7 +1662,7 @@ async fn l614_bulk_5xx_beyond_the_retry_budget_is_counted() {
                 );
                 assert_eq!(count(&m.requests(), "POST", "/dst/_bulk"), 9, "{tag}");
             } else {
-                assert_eq!(o.status.code(), Some(1), "{tag}: {err}");
+                assert_eq!(o.status.code(), Some(4), "{tag}: {err}");
                 assert!(err.contains(&format!("HTTP {status}")), "{tag}: {err}");
             }
         }
@@ -6275,4 +6299,96 @@ async fn l653_ism_to_ilm_is_refused_naming_the_policies_with_nothing_written() {
             assert!(sent.is_empty(), "{tag}: sent {sent:?}");
         }
     }
+}
+
+// L-804b (P3): --restartOnContextLoss N restarts a scroll dump into a file from the start when
+// the scroll context is lost (here: the first continuation answers 404 search_context_missing);
+// without the flag the run exits 4 (transient); the flag is a usage error outside scroll-to-file.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn l804b_restart_on_context_loss_restarts_a_scroll_dump_into_a_file() {
+    let missing = r#"{"error":{"root_cause":[{"type":"search_context_missing_exception","reason":"No search context found for id [7]"}],"type":"search_phase_execution_exception","reason":"all shards failed"},"status":404}"#;
+    let es = r#"{"version":{"number":"8.19.0","build_flavor":"default"},"tagline":"You Know, for Search"}"#;
+    let first = page("s1", &[hit("1", r#"{"n":1}"#)], 2);
+    let second = page("s1", &[hit("2", r#"{"n":2}"#)], 2);
+    let empty = page("s1", &[], 2);
+    for restart in [false, true] {
+        let m = RouterMock::builder()
+            .route(Route::exact("GET", "/").reply(Reply::ok(es)))
+            .route(Route::contains("POST", "/idx/_search").reply(Reply::ok(&first)))
+            .route(
+                Route::exact("POST", "/_search/scroll")
+                    .reply(Reply::json(404, missing))
+                    .once(),
+            )
+            .route(
+                Route::exact("POST", "/_search/scroll")
+                    .replies([Reply::ok(&second), Reply::ok(&empty)]),
+            )
+            .fallback(Reply::ok(CLEARED))
+            .start()
+            .await;
+        let dir = tempfile::tempdir().unwrap();
+        let out = dir.path().join("d.json");
+        let mut a = s(&[
+            "--input",
+            &format!("{}/idx", m.url()),
+            "--output",
+            out.to_str().unwrap(),
+            "--limit",
+            "1",
+            "--retryDelay",
+            "1",
+        ]);
+        if restart {
+            a.extend(s(&["--restartOnContextLoss", "2"]));
+        }
+        let o = run_async(a, vec![]).await;
+        let err = stderr(&o);
+        if restart {
+            assert_eq!(o.status.code(), Some(0), "{err}");
+            assert!(err.contains("Restarting the dump from the start"), "{err}");
+            let got = std::fs::read_to_string(&out).unwrap();
+            assert_eq!(got.lines().count(), 2, "{got}");
+            let searches = m
+                .requests()
+                .iter()
+                .filter(|r| r.method == "POST" && r.path.starts_with("/idx/_search"))
+                .count();
+            assert_eq!(searches, 2, "one initial search per attempt");
+        } else {
+            assert_eq!(o.status.code(), Some(4), "{err}");
+            assert!(!out.exists());
+        }
+    }
+    for bad in [vec!["--searchType", "pit"], vec!["--scrollId", "abc"]] {
+        let dir = tempfile::tempdir().unwrap();
+        let mut a = s(&[
+            "--input",
+            "http://127.0.0.1:9/idx",
+            "--output",
+            dir.path().join("d.json").to_str().unwrap(),
+            "--restartOnContextLoss",
+            "1",
+        ]);
+        a.extend(s(&bad));
+        let o = run_async(a, vec![]).await;
+        assert_eq!(o.status.code(), Some(2), "{bad:?}: {}", stderr(&o));
+        assert!(
+            stderr(&o).contains("--restartOnContextLoss applies only"),
+            "{bad:?}"
+        );
+    }
+    let o = run_async(
+        s(&[
+            "--input",
+            "http://127.0.0.1:9/idx",
+            "--output",
+            "http://127.0.0.1:9/dst",
+            "--restartOnContextLoss",
+            "1",
+        ]),
+        vec![],
+    )
+    .await;
+    assert_eq!(o.status.code(), Some(2), "copy: {}", stderr(&o));
 }

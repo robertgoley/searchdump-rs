@@ -35,9 +35,9 @@ fn continuation_failure(error: anyhow::Error, slice_id: usize) -> anyhow::Error 
     if status.is_some_and(|s| (400..500).contains(&s) && s != 408) {
         return error;
     }
-    error.context(format!(
-        "Slice {slice_id}: the scroll continuation was not retried, because the server may already have advanced the scroll cursor and a retry could skip a page (a larger --retryAttempts cannot help); nothing was committed. Re-run the dump (the scroll context was cleared; --scrollId resumes only from a still-open scroll and the page in flight may be missing)"
-    ))
+    error.context(crate::http::ContextLoss(format!(
+        "Slice {slice_id}: the scroll continuation was not retried, because the server may already have advanced the scroll cursor and a retry could skip a page (a larger --retryAttempts cannot help); nothing was committed. Re-run the dump (the scroll context was cleared; --scrollId resumes only from a still-open scroll and the page in flight may be missing). A point-in-time dump (--searchAfter --pit, ES 7.10+ / OpenSearch 2.4+) retries a failed page safely; --restartOnContextLoss N restarts a scroll dump into a file automatically"
+    )))
 }
 
 /// `--scrollId` named a scroll the cluster no longer has (L-650): rerunning

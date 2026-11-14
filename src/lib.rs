@@ -138,7 +138,9 @@ fn parse_extra_fields(raw: &str) -> Result<Vec<String>> {
 /// The run finished, but documents were not written and the user did not accept that
 /// explicitly (TST-BRK-SRV-001, Q3): exit status 3.
 #[derive(Debug)]
-pub struct WriteFailures(pub u64);
+/// Failed documents of a finished run: `.0` all of them; `.1` those refused by a
+/// `cluster_block_exception`, `.2` of those the disk flood-stage block (L-804b, P5).
+pub struct WriteFailures(pub u64, pub u64, pub u64);
 
 impl std::fmt::Display for WriteFailures {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -146,14 +148,27 @@ impl std::fmt::Display for WriteFailures {
             f,
             "{} document(s) were not written (see Failed Writes and the item errors above); the run continued past them. Exit status 3 means \"finished with failed writes\": pass --ignore-es-write-errors explicitly to accept them with status 0 (Node elasticdump's default), or --ignore-es-write-errors false to stop at the first one",
             self.0
-        )
+        )?;
+        let (failed, blocked, disk) = (self.0, self.1, self.2);
+        if disk > 0 && disk * 2 > failed {
+            write!(
+                f,
+                ". Most of them ({disk} of {failed}) were refused by the read-only-allow-delete block (cluster_block_exception) that a node sets when its disk passes the flood-stage watermark: free disk space on the cluster (Elasticsearch 7.4+ lifts the block by itself once usage drops; older versions and OpenSearch may need index.blocks.read_only_allow_delete reset to null), then re-run, with a larger --retryAttempts / --retryDelay to ride out a short block"
+            )?;
+        } else if blocked > 0 && blocked * 2 > failed {
+            write!(
+                f,
+                ". Most of them ({blocked} of {failed}) were refused by an index or cluster block (cluster_block_exception, e.g. index.blocks.write or read_only): lift the block, then re-run"
+            )?;
+        }
+        Ok(())
     }
 }
 
 impl std::error::Error for WriteFailures {}
 
 /// Exit status for an error returned by [`run`]: 2 usage, 3 finished with failed writes,
-/// 1 anything else. Precedence: a run-level failure (e.g. the target index deleted, or
+/// 4 transient failure that a rerun can fix (L-804b, [`is_transient`]), 1 anything else. Precedence: a run-level failure (e.g. the target index deleted, or
 /// deleted and re-created, mid-restore, TST-BRK-SRV-008) is returned by the writer's drain
 /// before [`WriteFailures`] is ever built, so it exits 1 even when documents were also
 /// rejected (their item errors are still on stderr): the restore is invalid as a whole,
@@ -167,9 +182,29 @@ pub fn exit_code(error: &anyhow::Error) -> i32 {
         128 + sig
     } else if let Some(stopped) = error.downcast_ref::<signals::Stopped>() {
         128 + stopped.sig
+    } else if is_transient(error) {
+        4
     } else {
         1
     }
+}
+
+/// L-804b (owner decision 2026-11-14, behaviour change): the run stopped on a condition that
+/// may clear by itself and a rerun is safe: a network failure (refused, reset, timeout, cut
+/// body; not TLS or a DNS name that does not exist), HTTP 429 or 5xx after the retries, or a
+/// lost scroll / point-in-time context. Nothing a rerun would duplicate was committed: file
+/// outputs are staged and removed, bulk writes carry `_id` (a run that already wrote
+/// documents without `_id` is marked [`http::NotRerunSafe`] and stays 1). A cancellation
+/// cascade is not transient.
+pub fn is_transient(error: &anyhow::Error) -> bool {
+    if error.downcast_ref::<http::NotRerunSafe>().is_some() || http::is_cancelled(error) {
+        return false;
+    }
+    error.downcast_ref::<http::Transient>().is_some()
+        || error.downcast_ref::<http::ContextLoss>().is_some()
+        || error
+            .downcast_ref::<http::EsHttpError>()
+            .is_some_and(|h| h.status == 429 || (500..600).contains(&h.status))
 }
 
 fn init_logging(cli: &Cli) {
@@ -197,6 +232,18 @@ fn init_logging(cli: &Cli) {
 }
 
 fn validate(cli: &Cli, input: &Endpoint, output: &Endpoint) -> Result<()> {
+    if cli.restart_on_context_loss > 0 {
+        let scroll_dump_to_file = matches!(cli.r#type, DumpType::Data)
+            && matches!(input, Endpoint::Es(_))
+            && matches!(output, Endpoint::File(_))
+            && cli.effective_search() == cli::EffectiveSearch::Scroll
+            && cli.scroll_id.is_none();
+        if !scroll_dump_to_file {
+            return Err(usage(
+                "--restartOnContextLoss applies only to a scroll data dump from a cluster into a file (no --scrollId, no --searchAfter/--pit, not stdout or a cluster or remote output): only there is nothing committed before a restart",
+            ));
+        }
+    }
     if let Some(extra) = &cli.parse_extra_fields {
         parse_extra_fields(extra)?;
     }
@@ -946,7 +993,26 @@ async fn transfer(
                     }
                     retrieval::set_require_source(!cli.allow_missing_source);
                     retrieval::set_body_drops_source(retrieval::BodySource::of(&opts.search_body));
-                    retrieval::dump_data(opts, sink, window).await?
+                    // L-804b (P3): validate() allows the flag only for scroll dumps into a file
+                    let mut restarts_left = cli.restart_on_context_loss;
+                    let mut sink = sink;
+                    loop {
+                        match retrieval::dump_data(opts.clone(), sink, window.clone()).await {
+                            Err(e)
+                                if restarts_left > 0
+                                    && e.downcast_ref::<http::ContextLoss>().is_some()
+                                    && !http::is_cancelled(&e)
+                                    && signals::received().is_none() =>
+                            {
+                                restarts_left -= 1;
+                                log::warn!(
+                                    "{e:#}. Restarting the dump from the start (--restartOnContextLoss; {restarts_left} restart(s) left)"
+                                );
+                                sink = build_sink(cli, output, retry, gate.clone()).await?;
+                            }
+                            r => break r?,
+                        }
+                    }
                 }
                 inp => {
                     pipeline::file_to_sink(
@@ -1197,7 +1263,11 @@ pub async fn run() -> Result<()> {
     // into exit status 0 (Q3, safest option).
     let accepted = cli.ignore_es_write_errors == Some(true) || cli.ignore_errors();
     if report.failed > 0 && !accepted {
-        return Err(anyhow::Error::new(WriteFailures(report.failed)));
+        return Err(anyhow::Error::new(WriteFailures(
+            report.failed,
+            report.blocked,
+            report.disk_blocked,
+        )));
     }
     Ok(())
 }
@@ -1294,5 +1364,109 @@ mod compression_default_tests {
         assert!(help.contains("--fsCompress"), "{help}");
         assert!(help.contains("off by default"), "{help}");
         assert!(help.contains("only when given explicitly"), "{help}");
+    }
+}
+
+#[cfg(test)]
+mod exit_code_tests {
+    //! L-804b (P1, P2, P5): exit status classes.
+    use super::*;
+
+    fn http(status: u16) -> anyhow::Error {
+        anyhow::Error::new(http::EsHttpError {
+            prefix: String::new(),
+            operation: "bulk".into(),
+            status,
+            body: "{}".into(),
+            endpoint: String::new(),
+        })
+    }
+
+    #[test]
+    fn transient_failures_exit_4_and_permanent_ones_1() {
+        let net = || anyhow::Error::msg(http::Transient("connection refused".into()));
+        let cases: Vec<(&str, anyhow::Error, i32)> = vec![
+            ("network", net(), 4),
+            // P2: the typed cause survives the pipeline's context layers
+            (
+                "network via output task",
+                net()
+                    .context("Failed to write batch buffer")
+                    .context("Output task failed"),
+                4,
+            ),
+            ("429", http(429), 4),
+            ("500", http(500), 4),
+            (
+                "503 in context",
+                http(503).context("Retrieval task failed"),
+                4,
+            ),
+            (
+                "context lost",
+                http(404).context(http::ContextLoss("scroll context gone".into())),
+                4,
+            ),
+            ("404", http(404), 1),
+            ("400", http(400), 1),
+            ("401", http(401), 1),
+            ("plain", anyhow::anyhow!("mapping refused"), 1),
+            (
+                "auto ids already written",
+                http(429).context(http::NotRerunSafe("duplicates".into())),
+                1,
+            ),
+            (
+                "cancelled",
+                anyhow::Error::new(http::DumpCancelled).context(http::ContextLoss("x".into())),
+                1,
+            ),
+            ("usage", usage("bad flag"), 2),
+            (
+                "write failures",
+                anyhow::Error::new(WriteFailures(3, 0, 0)),
+                3,
+            ),
+        ];
+        for (name, e, want) in cases {
+            assert_eq!(exit_code(&e), want, "{name}: {e:#}");
+        }
+        // the marker only adds a type: the message reads as before
+        assert_eq!(
+            format!("{:#}", net().context("Output task failed")),
+            "Output task failed: connection refused"
+        );
+    }
+
+    #[test]
+    fn exit_3_summary_names_a_dominant_block() {
+        let plain = WriteFailures(4, 1, 1).to_string();
+        assert!(!plain.contains("Most of them"), "{plain}");
+        let disk = WriteFailures(4, 3, 3).to_string();
+        assert!(
+            disk.contains("Most of them (3 of 4)")
+                && disk.contains("flood-stage watermark")
+                && disk.contains("free disk space")
+                && disk.contains("--retryAttempts"),
+            "{disk}"
+        );
+        let block = WriteFailures(4, 3, 0).to_string();
+        assert!(
+            block.contains("index or cluster block") && !block.contains("disk"),
+            "{block}"
+        );
+    }
+
+    #[test]
+    fn disk_blocks_are_recognised_in_every_version_wording() {
+        for reason in [
+            "index [i] blocked by: [FORBIDDEN/12/index read-only / allow delete (api)];",
+            "index [i] blocked by: [TOO_MANY_REQUESTS/12/disk usage exceeded flood-stage watermark, index has read-only-allow-delete block];",
+        ] {
+            assert!(pipeline::bulk::is_disk_block(reason), "{reason}");
+        }
+        assert!(!pipeline::bulk::is_disk_block(
+            "index [i] blocked by: [FORBIDDEN/8/index write (api)];"
+        ));
     }
 }

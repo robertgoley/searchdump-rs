@@ -9,6 +9,7 @@ pub mod tls;
 pub use client::{Body, ClientOptions, EsClient, SendError};
 pub use info::{ClusterInfo, Flavor, PitApi};
 pub use retry::{
-    Backoff, DEFAULT_MAX_RESPONSE_MB, DumpCancelled, EsHttpError, RetryMode, RetryOn, RetryPolicy,
-    is_cancelled, send_checked_with_retry, send_with_retry,
+    Backoff, ContextLoss, DEFAULT_MAX_RESPONSE_MB, DumpCancelled, EsHttpError, NotRerunSafe,
+    RetryMode, RetryOn, RetryPolicy, Transient, is_cancelled, send_checked_with_retry,
+    send_with_retry,
 };
