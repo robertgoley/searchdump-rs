@@ -545,7 +545,7 @@ fn leftover_warning(root: &Path, overwrite: bool) -> Option<String> {
 /// Pretty-print each line; numbers keep their exact text.
 fn humanize(buf: &[u8]) -> Vec<u8> {
     let mut out = Vec::with_capacity(buf.len() * 2);
-    for line in buf.split(|b| *b == b'\n').filter(|l| !l.is_empty()) {
+    for line in crate::pipeline::bulk::nonempty_lines(buf) {
         match serde_json::from_slice::<serde_json::Value>(line) {
             Ok(v) => {
                 let s = serde_json::to_string_pretty(&v).expect("serialize");

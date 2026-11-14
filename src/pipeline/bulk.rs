@@ -307,6 +307,22 @@ impl<'a> Top<'a> {
 
 /// A bulk input line must be exactly one complete JSON object: no truncated
 /// or trailing fragment and no other value type (INJ-F1, TST-INJ-003).
+/// The non-empty `\n`-separated lines of `buf`, found with SIMD `memchr` (L-808n). Same
+/// result as `buf.split(|b| *b == b'\n').filter(|l| !l.is_empty())`, whose byte-by-byte
+/// predicate was a measurable share of restore CPU.
+pub(crate) fn nonempty_lines(buf: &[u8]) -> impl Iterator<Item = &[u8]> {
+    let mut start = 0usize;
+    memchr::memchr_iter(b'\n', buf)
+        .map(Some)
+        .chain(std::iter::once(None))
+        .filter_map(move |nl| {
+            let end = nl.unwrap_or(buf.len());
+            let line = &buf[start.min(end)..end];
+            start = end + 1;
+            (!line.is_empty()).then_some(line)
+        })
+}
+
 pub(crate) fn check_doc_line(line: &[u8]) -> std::result::Result<(), String> {
     if line.iter().find(|b| !b.is_ascii_whitespace()) != Some(&b'{') {
         return Err("not a JSON object".to_string());
@@ -333,6 +349,9 @@ pub(crate) const MAX_DOC_DEPTH: usize = 1000;
 /// Byte offset where `line` first nests deeper than `max`, scanning linearly (strings
 /// skipped), so the check itself cannot overflow the stack.
 pub(crate) fn too_deep(line: &[u8], max: usize) -> Option<usize> {
+    // L-808n: the depth can never exceed the number of `[`/`{` bytes (inside strings too),
+    // so a line with at most `max` of them needs no byte-by-byte scan (SIMD count instead).
+    memchr::memchr2_iter(b'[', b'{', line).nth(max)?;
     let (mut depth, mut in_str, mut esc) = (0usize, false, false);
     for (i, &b) in line.iter().enumerate() {
         if in_str {
@@ -701,7 +720,7 @@ impl BulkSink {
     pub async fn write_batch(&mut self, buf: &[u8]) -> Result<()> {
         self.note_target_uuid().await;
         let first = self.next_doc;
-        self.next_doc += buf.split(|b| *b == b'\n').filter(|l| !l.is_empty()).count() as u64;
+        self.next_doc += nonempty_lines(buf).count() as u64;
         if self.pipelined() {
             // 1.1-6: encode this batch while the previous one is still being sent, then send
             // it once that send is done. Sends never overlap, so the cluster sees the same
@@ -1494,6 +1513,84 @@ fn source_bytes<'a>(line: &'a [u8], source: Option<&'a LazyValue<'_>>, is_hit: b
 
 #[cfg(test)]
 mod tests {
+    /// L-808n: the memchr line splitter matches the byte-by-byte split it replaced.
+    #[test]
+    fn nonempty_lines_matches_split_filter() {
+        for buf in [
+            &b""[..],
+            b"\n",
+            b"\n\n\n",
+            b"a",
+            b"a\n",
+            b"\na",
+            b"a\nb",
+            b"a\n\nb\n",
+            b"{\"x\":1}\n{\"y\":2}",
+            b"\n\n{}\n\n{}\n\n",
+        ] {
+            let want: Vec<&[u8]> = buf
+                .split(|b| *b == b'\n')
+                .filter(|l| !l.is_empty())
+                .collect();
+            let got: Vec<&[u8]> = nonempty_lines(buf).collect();
+            assert_eq!(got, want, "{:?}", String::from_utf8_lossy(buf));
+        }
+    }
+
+    /// L-808n: the bracket-count shortcut never changes the depth verdict.
+    #[test]
+    fn too_deep_shortcut_keeps_the_verdict() {
+        fn slow(line: &[u8], max: usize) -> Option<usize> {
+            let (mut depth, mut in_str, mut esc) = (0usize, false, false);
+            for (i, &b) in line.iter().enumerate() {
+                if in_str {
+                    if esc {
+                        esc = false;
+                    } else if b == b'\\' {
+                        esc = true;
+                    } else if b == b'"' {
+                        in_str = false;
+                    }
+                    continue;
+                }
+                match b {
+                    b'"' => in_str = true,
+                    b'[' | b'{' => {
+                        depth += 1;
+                        if depth > max {
+                            return Some(i);
+                        }
+                    }
+                    b']' | b'}' => depth = depth.saturating_sub(1),
+                    _ => {}
+                }
+            }
+            None
+        }
+        let deep = |n: usize| format!("{}{}", "[".repeat(n), "]".repeat(n));
+        let cases = [
+            deep(3),
+            deep(4),
+            deep(5),
+            format!("{{\"s\":\"{}\"}}", "[".repeat(10)),
+            format!("{{\"a\":{}}}", deep(3)),
+            "[[]][[]][[]]".to_string(),
+            "{}".to_string(),
+            String::new(),
+        ];
+        for line in &cases {
+            for max in [0, 1, 2, 3, 4, 5, 10] {
+                assert_eq!(
+                    too_deep(line.as_bytes(), max),
+                    slow(line.as_bytes(), max),
+                    "{line} max {max}"
+                );
+            }
+        }
+        assert_eq!(too_deep(deep(1001).as_bytes(), MAX_DOC_DEPTH), Some(1000));
+        assert_eq!(too_deep(deep(1000).as_bytes(), MAX_DOC_DEPTH), None);
+    }
+
     use super::*;
     use crate::http::{ClientOptions, Flavor, gate::RequestGate};
 

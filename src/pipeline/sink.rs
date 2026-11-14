@@ -21,7 +21,7 @@ pub fn source_of(line: &[u8]) -> Option<sonic_rs::LazyValue<'_>> {
 
 fn source_only_lines(buf: &[u8], out: &mut Vec<u8>) {
     out.clear();
-    for line in buf.split(|b| *b == b'\n').filter(|l| !l.is_empty()) {
+    for line in crate::pipeline::bulk::nonempty_lines(buf) {
         match source_of(line) {
             Some(src) => out.extend_from_slice(&single_line_slice(src.as_raw_str().as_bytes())),
             None => {
