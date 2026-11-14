@@ -142,9 +142,14 @@ async fn l618_lost_search_context_names_the_keep_alive_flag() {
         )
         .await;
     assert_eq!(survived, 200, "unrelated scroll must survive: {next}");
-    assert_eq!(o.status.code(), Some(1), "scroll: {err}");
+    // L-804b/L-804c: a lost context is transient and safe to rerun (exit 4), and the message
+    // names the keep-alive flag and the point-in-time way out
+    assert_eq!(o.status.code(), Some(4), "scroll: {err}");
     assert!(
-        err.contains("the scroll context no longer exists") && err.contains("--scrollTime"),
+        err.contains("the scroll context no longer exists")
+            && err.contains("--scrollTime")
+            && err.contains("--searchAfter --pit")
+            && err.contains("--restartOnContextLoss"),
         "scroll: {err}"
     );
     assert!(!out.exists(), "scroll: nothing committed");
@@ -174,7 +179,7 @@ async fn l618_lost_search_context_names_the_keep_alive_flag() {
             )
             .await;
         assert_eq!(survived, 200, "unrelated PIT must survive: {next}");
-        assert_eq!(o.status.code(), Some(1), "pit: {err}");
+        assert_eq!(o.status.code(), Some(4), "pit: {err}");
         assert!(
             err.contains("the point-in-time context no longer exists")
                 && err.contains("--pitKeepAlive"),

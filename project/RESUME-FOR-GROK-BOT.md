@@ -101,3 +101,4 @@ The user runs Grok 4.7 locally through the OpenCode CLI. The handoff/ folder (op
 - L-809 (2026-11-14): LOAD-014 A (300 indices, 5,000-field mapping, 100 aliases): PASS, meta types under 11 s each, data and meta round-trip exactly; scroll-context-limit errors now exit 1 at once with a PIT hint (results/local/L-809.md)
 - L-810 (2026-11-14): LOAD-015 large documents (pmc 20k, 1-10 MB, one 90 MB): PASS, digests equal; 413 now names http.max_content_length and --maxBulkBytes; ~5.3x RSS per very large document noted (results/local/L-810.md)
 - L-812 (2026-11-14): LOAD-018 data streams 1M (rollover, dump, host-only, rename): PASS, digests equal; routed documents into a data stream now warned once (results/local/L-812.md)
+- L-804c (2026-11-14): CI it jobs fixed: l618 expects exit 4 for a lost context; scroll context-lost error names the PIT way out; real per-profile IT results (results/local/L-804c.md)

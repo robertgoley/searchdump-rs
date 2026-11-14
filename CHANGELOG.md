@@ -16,6 +16,7 @@ GitHub release.
 
 ### Fixed
 
+- **A lost scroll context names the point-in-time way out** (L-804c). When the scroll context is gone (expired, index deleted, node restarted), the error now suggests `--searchAfter --pit` and `--restartOnContextLoss N`, as the failed-continuation error already did. Exit 4, as since L-804b.
 - **Routed documents into a data stream are explained once** (L-812). A data stream refuses documents that carry a routing value unless its index template sets `data_stream.allow_custom_routing: true` (Elasticsearch 8.1+); each such document failed with only the cluster's item error. The restore now warns once that every routed document will fail and suggests a regular index or removing the routing. The failed writes still count (exit 3).
 - **HTTP 413 (request too large) names the limit** (L-810). Elasticsearch and OpenSearch answer a bulk larger than `http.max_content_length` (100mb by default) with 413 and an empty body; the error now says so, suggests a lower `--maxBulkBytes`, and notes that a single document above the limit needs the setting raised. Still exit 1, not retried.
 - **Scroll dumps that pass the cluster's open scroll limit** (L-809). When the cluster refuses a scroll with "too many scroll contexts" (`search.max_open_scroll_context`, 500 by default; one context per shard and slice), the dump is no longer retried and exits 1 instead of 4, with a message that names the setting, `--slices`, and the point-in-time dump (`--searchAfter --pit`) that opens no scroll contexts.
