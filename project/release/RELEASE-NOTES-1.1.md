@@ -217,6 +217,18 @@ Net, last step against the first measured one (geomean wall ratio): es710 1.08 v
 es819 0.85 and os3 0.91 vs 1.1-2. The README Performance tables in
 [README Performance](../../README.md#performance) are still the older 0.1 s-timer numbers and are not 1.1 numbers.
 
+**Second host (`kvmsvr1`), same harness `c4b1b34`, full beta1 on all three engines.** Finished
+2026-11-14 16:04 ET. 27/27 steps passed (exit 0). Node 6.125.1 was compared on the beta1 step only.
+Tables: [`scripts/perf/results/v1.1-pit-kvmsvr1.md`](../../scripts/perf/results/v1.1-pit-kvmsvr1.md).
+This run does not include 1.1-4a.
+
+Versus Node (25 cases each; no compared case slower than Node): ES 7.10 median 2.41×, ES 8.19 1.97×,
+OpenSearch 3 1.99×. Versus beta1 at the 1.1 head, geometric-mean wall was 0.866 / 0.956 / 1.011
+(below 1 is faster). `restore-none` ended −29% / −33% / −27% versus beta1. The slice cap again
+sped ES 7.10 `dump-scroll-s2` (−71% at that step) and slowed ES 8.19 / OpenSearch 3 where extra
+slices had been faster (`s8` 0.62 s → 2.05 s and 0.63 s → 1.83 s), which is why 1.1-4a limits the
+default cap to ES 7.10. Compression-thread and multi changes still had no clear L0 win.
+
 ## See also
 
 - [`CHANGELOG.md`](../../CHANGELOG.md) — Unreleased (1.1)

@@ -157,7 +157,9 @@ restore yourself (restore it, compare document counts) before you rely on it. Se
 
 Point-in-time results for each 1.1 commit (es710, es819, os3; plain) finished 2026-11-14: see
 [`project/release/RELEASE-NOTES-1.1.md`](project/release/RELEASE-NOTES-1.1.md#performance) and the full tables in
-[`scripts/perf/results/pit-1.1.md`](scripts/perf/results/pit-1.1.md). Short version: the 5 s refresh
+[`scripts/perf/results/pit-1.1.md`](scripts/perf/results/pit-1.1.md) (grokbox) and
+[`scripts/perf/results/v1.1-pit-kvmsvr1.md`](scripts/perf/results/v1.1-pit-kvmsvr1.md) (kvmsvr1, 27/27 pass,
+beta1 on every engine, Node median 2.41× / 1.97× / 1.99×). Short version: the 5 s refresh
 cadence (1.1-1) cut restore wall time by roughly 20-40%; the slice cap (1.1-4) fixes the es710 over-sliced
 scroll dumps (-34..-63%) but slowed already-fast scroll slices on ES 8.19 / OpenSearch 3, so 1.1-4a limits the
 default cap to ES 7.10 (not re-measured with the full batch); the other items are within noise.

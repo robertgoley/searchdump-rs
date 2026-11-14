@@ -1,5 +1,12 @@
 # Cold-start handoff: release/1.1 and the beta1 perf suite
 
+**kvmsvr1 confirmation (2026-11-14 16:04 America/New_York).** A second full PIT
+batch on harness `c4b1b34` (before 1.1-4a) passed 27/27, including beta1 on
+es710, es819 and os3, with Node 6.125.1 on the beta1 step. Report:
+`scripts/perf/results/v1.1-pit-kvmsvr1.md`. It confirms the grokbox shape:
+refresh cadence is the restore win; the slice cap helps ES 7.10 and slows
+ES 8.19 / OS 3 over-sliced scrolls. It does not re-measure 1.1-4a (`2fe3d0b`).
+
 **PIT batch finished (2026-11-14 02:47 America/New_York).** All 3 engines x 9
 steps ran (`es710-plain`, `es819-plain`, `os3-plain`; Node skipped).
 `pit.sh aggregate` was run and the report is committed as
