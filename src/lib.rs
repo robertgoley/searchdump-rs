@@ -202,9 +202,9 @@ pub fn is_transient(error: &anyhow::Error) -> bool {
     }
     error.downcast_ref::<http::Transient>().is_some()
         || error.downcast_ref::<http::ContextLoss>().is_some()
-        || error
-            .downcast_ref::<http::EsHttpError>()
-            .is_some_and(|h| h.status == 429 || (500..600).contains(&h.status))
+        || error.downcast_ref::<http::EsHttpError>().is_some_and(|h| {
+            (h.status == 429 || (500..600).contains(&h.status)) && !h.is_scroll_context_limit()
+        })
 }
 
 fn init_logging(cli: &Cli) {
@@ -1408,6 +1408,18 @@ mod exit_code_tests {
                 4,
             ),
             ("404", http(404), 1),
+            // L-809: the same dump would hit the same open-scroll limit again
+            (
+                "500 scroll context limit",
+                anyhow::Error::new(http::EsHttpError {
+                    prefix: String::new(),
+                    operation: "initial search".into(),
+                    status: 500,
+                    body: r#"{"error":{"reason":"Trying to create too many scroll contexts. Must be less than or equal to: [500]. This limit can be set by changing the [search.max_open_scroll_context] setting."}}"#.into(),
+                    endpoint: String::new(),
+                }),
+                1,
+            ),
             ("400", http(400), 1),
             ("401", http(401), 1),
             ("plain", anyhow::anyhow!("mapping refused"), 1),

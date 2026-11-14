@@ -1,0 +1,504 @@
+{
+ "schema": "edrs-manyidx/v1",
+ "run_id": "20261114T145905-manyidx",
+ "engine": "es717-plain",
+ "heap": "2048m",
+ "indices": 300,
+ "docs_per_index": 100,
+ "aliases": 100,
+ "fields": 5000,
+ "wide_docs": 50,
+ "meta_limit_s": 300,
+ "git": "7e6b7e6",
+ "tool": "searchdump 1.0.0",
+ "started": "2026-11-14T14:59:05-05:00",
+ "runs": [
+  {
+   "run": "dump-data",
+   "args": [
+    "--input",
+    "$URL/many-*",
+    "--output",
+    "$WORK/dump-data.json",
+    "--type=data"
+   ],
+   "exit": 0,
+   "wall_s": 1.28,
+   "peak_rss_mb": 43.9
+  },
+  {
+   "run": "dump-mapping",
+   "args": [
+    "--input",
+    "$URL/many-*",
+    "--output",
+    "$WORK/dump-mapping.json",
+    "--type=mapping"
+   ],
+   "exit": 0,
+   "wall_s": 0.03,
+   "peak_rss_mb": 27.6
+  },
+  {
+   "run": "dump-settings",
+   "args": [
+    "--input",
+    "$URL/many-*",
+    "--output",
+    "$WORK/dump-settings.json",
+    "--type=settings"
+   ],
+   "exit": 0,
+   "wall_s": 0.03,
+   "peak_rss_mb": 27.9
+  },
+  {
+   "run": "dump-index",
+   "args": [
+    "--input",
+    "$URL/many-*",
+    "--output",
+    "$WORK/dump-index.json",
+    "--type=index"
+   ],
+   "exit": 0,
+   "wall_s": 0.04,
+   "peak_rss_mb": 44.0
+  },
+  {
+   "run": "dump-alias",
+   "args": [
+    "--input",
+    "$URL/many-*",
+    "--output",
+    "$WORK/dump-alias.json",
+    "--type=alias"
+   ],
+   "exit": 0,
+   "wall_s": 0.02,
+   "peak_rss_mb": 22.0
+  },
+  {
+   "run": "dump-wide-data",
+   "args": [
+    "--input",
+    "$URL/wide-5000",
+    "--output",
+    "$WORK/dump-wide-data.json",
+    "--type=data"
+   ],
+   "exit": 0,
+   "wall_s": 0.06,
+   "peak_rss_mb": 42.3
+  },
+  {
+   "run": "dump-wide-mapping",
+   "args": [
+    "--input",
+    "$URL/wide-5000",
+    "--output",
+    "$WORK/dump-wide-mapping.json",
+    "--type=mapping"
+   ],
+   "exit": 0,
+   "wall_s": 0.02,
+   "peak_rss_mb": 17.3
+  },
+  {
+   "run": "dump-wide-settings",
+   "args": [
+    "--input",
+    "$URL/wide-5000",
+    "--output",
+    "$WORK/dump-wide-settings.json",
+    "--type=settings"
+   ],
+   "exit": 0,
+   "wall_s": 0.01,
+   "peak_rss_mb": 0.0
+  },
+  {
+   "run": "probe-pit",
+   "args": [
+    "--input",
+    "$URL/many-*",
+    "--output",
+    "$WORK/dump-pit.json",
+    "--type=data",
+    "--searchType=pit"
+   ],
+   "exit": 0,
+   "wall_s": 2.08,
+   "peak_rss_mb": 58.0
+  },
+  {
+   "run": "probe-slices2",
+   "args": [
+    "--input",
+    "$URL/many-*",
+    "--output",
+    "$WORK/dump-s2.json",
+    "--type=data",
+    "--slices=2"
+   ],
+   "exit": 1,
+   "wall_s": 0.04,
+   "peak_rss_mb": 19.9,
+   "err": [
+    "[2026-11-14T19:59:43Z ERROR] Suppressed additional retrieval task failure: Retrieval task failed: Slice 1: Elasticsearch initial search failed with HTTP 500: search_phase_execution_exception: Partial shards failure; body: {\"error\":{\"root_cause\":[{\"type\":\"exception\",\"reason\":\"Trying to create too many scroll contexts. Must be less than or equal to: [500]. This limit can be set by changing the [search.max_open_scroll_context] setting.\"},{\"type\":\"exception\",\"reason\":\"Trying to create too many scroll contexts. Must be less than or equal to: [500]. This limit can be set by changing the [search.max_open_scroll_context] setting.\"},{\"type\":\"exception\",\"reason\":\"Trying to create too many scroll contexts. Must be less than or equal to: [500]. This limit can be set by changing the [search.max_open_scroll_context] setting.\"},{\"type\":\"exception\",\"reason\":\"Trying to create too many scroll contexts. Must be less than or equal to: [500]. This limit can be set by changing the [search.max_open_scroll_context] setting.\"},{\"type\":\"exception\",\"reason\":\"Trying to create too many scroll contexts. Must be less than or equal to: [500]. This limit can be set by changing the [search.max_open_scroll_context] setting.\"},{\"type\":\"exception\",\"reason\":\"Trying to create too many scroll contexts. Must be less than or equal to: [500]. This limit can be set by changing the [search.max_open_scroll_context] setting.\"},{\"type\":\"exception\",\"reason\":\"Trying to create too many scroll contexts. Must be less than or equal to: [500]. This limit can be set by changing the [search.max_open_scroll_context] setting.\"},{\"type\":\"exception\",\"reason\":\"Trying to create too many scroll contexts. Must be less than or equal to: [500]. This limit can be set by changing the [search.max_open_scroll_context] setting.\"},{\"type\":\"exception\",\"reason\":\"Trying to create too many scroll contexts. Must be less than or equal to: [500]. This limit can be set by changing the [search.max_open_scroll_context] setting.\"},{\"type\":\"exception\",\"reason\":\"Trying to create too many scroll contexts. Must be less than or equal to: [500]. This limit can be set by changing the [search.max_open_scroll_context] setting.\"},{\"type\":\"exception\",\"reason\":\"Trying to create too many scroll contexts. Must be less than or \u2026 (25138 more bytes) (the cluster's open scroll limit was reached: search.max_open_scroll_context, 500 by default; a scroll dump holds one context per shard and slice, so shards x --slices must stay below it, minus other open scrolls. Lower --slices, dump fewer indices per run, use a point-in-time dump (--searchAfter --pit, which opens no scroll contexts), or raise search.max_open_scroll_context)",
+    "Error: Retrieval task failed: Slice 0: Elasticsearch initial search failed with HTTP 500: search_phase_execution_exception: Partial shards failure; body: {\"error\":{\"root_cause\":[{\"type\":\"exception\",\"reason\":\"Trying to create too many scroll contexts. Must be less than or equal to: [500]. This limit can be set by changing the [search.max_open_scroll_context] setting.\"},{\"type\":\"exception\",\"reason\":\"Trying to create too many scroll contexts. Must be less than or equal to: [500]. This limit can be set by changing the [search.max_open_scroll_context] setting.\"},{\"type\":\"exception\",\"reason\":\"Trying to create too many scroll contexts. Must be less than or equal to: [500]. This limit can be set by changing the [search.max_open_scroll_context] setting.\"},{\"type\":\"exception\",\"reason\":\"Trying to create too many scroll contexts. Must be less than or equal to: [500]. This limit can be set by changing the [search.max_open_scroll_context] setting.\"},{\"type\":\"exception\",\"reason\":\"Trying to create too many scroll contexts. Must be less than or equal to: [500]. This limit can be set by changing the [search.max_open_scroll_context] setting.\"},{\"type\":\"exception\",\"reason\":\"Trying to create too many scroll contexts. Must be less than or equal to: [500]. This limit can be set by changing the [search.max_open_scroll_context] setting.\"},{\"type\":\"exception\",\"reason\":\"Trying to create too many scroll contexts. Must be less than or equal to: [500]. This limit can be set by changing the [search.max_open_scroll_context] setting.\"},{\"type\":\"exception\",\"reason\":\"Trying to create too many scroll contexts. Must be less than or equal to: [500]. This limit can be set by changing the [search.max_open_scroll_context] setting.\"},{\"type\":\"exception\",\"reason\":\"Trying to create too many scroll contexts. Must be less than or equal to: [500]. This limit can be set by changing the [search.max_open_scroll_context] setting.\"},{\"type\":\"exception\",\"reason\":\"Trying to create too many scroll contexts. Must be less than or equal to: [500]. This limit can be set by changing the [search.max_open_scroll_context] setting.\"},{\"type\":\"exception\",\"reason\":\"Trying to create too many scroll contexts. Must be less than or \u2026 (16894 more bytes) (the cluster's open scroll limit was reached: search.max_open_scroll_context, 500 by default; a scroll dump holds one context per shard and slice, so shards x --slices must stay below it, minus other open scrolls. Lower --slices, dump fewer indices per run, use a point-in-time dump (--searchAfter --pit, which opens no scroll contexts), or raise search.max_open_scroll_context)"
+   ]
+  },
+  {
+   "run": "A-restore-settings",
+   "args": [
+    "--input",
+    "$WORK/dump-settings.json",
+    "--output",
+    "$URL",
+    "--type=settings"
+   ],
+   "exit": 0,
+   "wall_s": 10.89,
+   "peak_rss_mb": 23.7
+  },
+  {
+   "run": "A-restore-mapping",
+   "args": [
+    "--input",
+    "$WORK/dump-mapping.json",
+    "--output",
+    "$URL",
+    "--type=mapping"
+   ],
+   "exit": 0,
+   "wall_s": 5.05,
+   "peak_rss_mb": 29.8
+  },
+  {
+   "run": "A-restore-alias",
+   "args": [
+    "--input",
+    "$WORK/dump-alias.json",
+    "--output",
+    "$URL",
+    "--type=alias"
+   ],
+   "exit": 0,
+   "wall_s": 0.05,
+   "peak_rss_mb": 23.9
+  },
+  {
+   "run": "A-restore-data",
+   "args": [
+    "--input",
+    "$WORK/dump-data.json",
+    "--output",
+    "$URL",
+    "--type=data",
+    "--limit=1000",
+    "--concurrency=4"
+   ],
+   "exit": 0,
+   "wall_s": 0.98,
+   "peak_rss_mb": 111.9
+  },
+  {
+   "run": "A-restore-wide-settings",
+   "args": [
+    "--input",
+    "$WORK/dump-wide-settings.json",
+    "--output",
+    "$URL",
+    "--type=settings"
+   ],
+   "exit": 0,
+   "wall_s": 0.06,
+   "peak_rss_mb": 19.8
+  },
+  {
+   "run": "A-restore-wide-mapping",
+   "args": [
+    "--input",
+    "$WORK/dump-wide-mapping.json",
+    "--output",
+    "$URL",
+    "--type=mapping"
+   ],
+   "exit": 0,
+   "wall_s": 0.09,
+   "peak_rss_mb": 31.9
+  },
+  {
+   "run": "A-restore-wide-data",
+   "args": [
+    "--input",
+    "$WORK/dump-wide-data.json",
+    "--output",
+    "$URL",
+    "--type=data",
+    "--limit=1000",
+    "--concurrency=4"
+   ],
+   "exit": 0,
+   "wall_s": 0.57,
+   "peak_rss_mb": 47.7
+  },
+  {
+   "run": "A-redump-mapping",
+   "args": [
+    "--input",
+    "$URL/many-*",
+    "--output",
+    "$WORK/A-redump-mapping.json",
+    "--type=mapping"
+   ],
+   "exit": 0,
+   "wall_s": 0.04,
+   "peak_rss_mb": 37.8
+  },
+  {
+   "run": "A-redump-settings",
+   "args": [
+    "--input",
+    "$URL/many-*",
+    "--output",
+    "$WORK/A-redump-settings.json",
+    "--type=settings"
+   ],
+   "exit": 0,
+   "wall_s": 0.03,
+   "peak_rss_mb": 27.9
+  },
+  {
+   "run": "A-redump-index",
+   "args": [
+    "--input",
+    "$URL/many-*",
+    "--output",
+    "$WORK/A-redump-index.json",
+    "--type=index"
+   ],
+   "exit": 0,
+   "wall_s": 0.03,
+   "peak_rss_mb": 35.6
+  },
+  {
+   "run": "A-redump-alias",
+   "args": [
+    "--input",
+    "$URL/many-*",
+    "--output",
+    "$WORK/A-redump-alias.json",
+    "--type=alias"
+   ],
+   "exit": 0,
+   "wall_s": 0.02,
+   "peak_rss_mb": 21.8
+  },
+  {
+   "run": "A-redump-wide-mapping",
+   "args": [
+    "--input",
+    "$URL/wide-5000",
+    "--output",
+    "$WORK/A-redump-wide-mapping.json",
+    "--type=mapping"
+   ],
+   "exit": 0,
+   "wall_s": 0.02,
+   "peak_rss_mb": 17.5
+  },
+  {
+   "run": "B-restore-index",
+   "args": [
+    "--input",
+    "$WORK/dump-index.json",
+    "--output",
+    "$URL",
+    "--type=index"
+   ],
+   "exit": 0,
+   "wall_s": 10.53,
+   "peak_rss_mb": 35.8
+  },
+  {
+   "run": "B-restore-data",
+   "args": [
+    "--input",
+    "$WORK/dump-data.json",
+    "--output",
+    "$URL",
+    "--type=data",
+    "--limit=1000",
+    "--concurrency=4"
+   ],
+   "exit": 0,
+   "wall_s": 0.7,
+   "peak_rss_mb": 104.0
+  },
+  {
+   "run": "B-restore-wide-settings",
+   "args": [
+    "--input",
+    "$WORK/dump-wide-settings.json",
+    "--output",
+    "$URL",
+    "--type=settings"
+   ],
+   "exit": 0,
+   "wall_s": 0.05,
+   "peak_rss_mb": 19.7
+  },
+  {
+   "run": "B-restore-wide-mapping",
+   "args": [
+    "--input",
+    "$WORK/dump-wide-mapping.json",
+    "--output",
+    "$URL",
+    "--type=mapping"
+   ],
+   "exit": 0,
+   "wall_s": 0.09,
+   "peak_rss_mb": 32.0
+  },
+  {
+   "run": "B-restore-wide-data",
+   "args": [
+    "--input",
+    "$WORK/dump-wide-data.json",
+    "--output",
+    "$URL",
+    "--type=data",
+    "--limit=1000",
+    "--concurrency=4"
+   ],
+   "exit": 0,
+   "wall_s": 0.55,
+   "peak_rss_mb": 47.9
+  },
+  {
+   "run": "B-redump-mapping",
+   "args": [
+    "--input",
+    "$URL/many-*",
+    "--output",
+    "$WORK/B-redump-mapping.json",
+    "--type=mapping"
+   ],
+   "exit": 0,
+   "wall_s": 0.03,
+   "peak_rss_mb": 37.9
+  },
+  {
+   "run": "B-redump-settings",
+   "args": [
+    "--input",
+    "$URL/many-*",
+    "--output",
+    "$WORK/B-redump-settings.json",
+    "--type=settings"
+   ],
+   "exit": 0,
+   "wall_s": 0.02,
+   "peak_rss_mb": 17.7
+  },
+  {
+   "run": "B-redump-index",
+   "args": [
+    "--input",
+    "$URL/many-*",
+    "--output",
+    "$WORK/B-redump-index.json",
+    "--type=index"
+   ],
+   "exit": 0,
+   "wall_s": 0.03,
+   "peak_rss_mb": 35.7
+  },
+  {
+   "run": "B-redump-alias",
+   "args": [
+    "--input",
+    "$URL/many-*",
+    "--output",
+    "$WORK/B-redump-alias.json",
+    "--type=alias"
+   ],
+   "exit": 0,
+   "wall_s": 0.02,
+   "peak_rss_mb": 21.9
+  },
+  {
+   "run": "B-redump-wide-mapping",
+   "args": [
+    "--input",
+    "$URL/wide-5000",
+    "--output",
+    "$WORK/B-redump-wide-mapping.json",
+    "--type=mapping"
+   ],
+   "exit": 0,
+   "wall_s": 0.02,
+   "peak_rss_mb": 17.7
+  }
+ ],
+ "checks": {
+  "dump_docs": 30000,
+  "mapping_lines": 1,
+  "settings_lines": 1,
+  "index_lines": 1,
+  "alias_lines": 1,
+  "digest-source": true,
+  "digest-source-wide": true,
+  "digest-pit": true,
+  "slices2": {
+   "exit": 1,
+   "err": [
+    "[2026-11-14T19:59:43Z ERROR] Suppressed additional retrieval task failure: Retrieval task failed: Slice 1: Elasticsearch initial search failed with HTTP 500: search_phase_execution_exception: Partial shards failure; body: {\"error\":{\"root_cause\":[{\"type\":\"exception\",\"reason\":\"Trying to create too many scroll contexts. Must be less than or equal to: [500]. This limit can be set by changing the [search.max_open_scroll_context] setting.\"},{\"type\":\"exception\",\"reason\":\"Trying to create too many scroll contexts. Must be less than or equal to: [500]. This limit can be set by changing the [search.max_open_scroll_context] setting.\"},{\"type\":\"exception\",\"reason\":\"Trying to create too many scroll contexts. Must be less than or equal to: [500]. This limit can be set by changing the [search.max_open_scroll_context] setting.\"},{\"type\":\"exception\",\"reason\":\"Trying to create too many scroll contexts. Must be less than or equal to: [500]. This limit can be set by changing the [search.max_open_scroll_context] setting.\"},{\"type\":\"exception\",\"reason\":\"Trying to create too many scroll contexts. Must be less than or equal to: [500]. This limit can be set by changing the [search.max_open_scroll_context] setting.\"},{\"type\":\"exception\",\"reason\":\"Trying to create too many scroll contexts. Must be less than or equal to: [500]. This limit can be set by changing the [search.max_open_scroll_context] setting.\"},{\"type\":\"exception\",\"reason\":\"Trying to create too many scroll contexts. Must be less than or equal to: [500]. This limit can be set by changing the [search.max_open_scroll_context] setting.\"},{\"type\":\"exception\",\"reason\":\"Trying to create too many scroll contexts. Must be less than or equal to: [500]. This limit can be set by changing the [search.max_open_scroll_context] setting.\"},{\"type\":\"exception\",\"reason\":\"Trying to create too many scroll contexts. Must be less than or equal to: [500]. This limit can be set by changing the [search.max_open_scroll_context] setting.\"},{\"type\":\"exception\",\"reason\":\"Trying to create too many scroll contexts. Must be less than or equal to: [500]. This limit can be set by changing the [search.max_open_scroll_context] setting.\"},{\"type\":\"exception\",\"reason\":\"Trying to create too many scroll contexts. Must be less than or \u2026 (25138 more bytes) (the cluster's open scroll limit was reached: search.max_open_scroll_context, 500 by default; a scroll dump holds one context per shard and slice, so shards x --slices must stay below it, minus other open scrolls. Lower --slices, dump fewer indices per run, use a point-in-time dump (--searchAfter --pit, which opens no scroll contexts), or raise search.max_open_scroll_context)",
+    "Error: Retrieval task failed: Slice 0: Elasticsearch initial search failed with HTTP 500: search_phase_execution_exception: Partial shards failure; body: {\"error\":{\"root_cause\":[{\"type\":\"exception\",\"reason\":\"Trying to create too many scroll contexts. Must be less than or equal to: [500]. This limit can be set by changing the [search.max_open_scroll_context] setting.\"},{\"type\":\"exception\",\"reason\":\"Trying to create too many scroll contexts. Must be less than or equal to: [500]. This limit can be set by changing the [search.max_open_scroll_context] setting.\"},{\"type\":\"exception\",\"reason\":\"Trying to create too many scroll contexts. Must be less than or equal to: [500]. This limit can be set by changing the [search.max_open_scroll_context] setting.\"},{\"type\":\"exception\",\"reason\":\"Trying to create too many scroll contexts. Must be less than or equal to: [500]. This limit can be set by changing the [search.max_open_scroll_context] setting.\"},{\"type\":\"exception\",\"reason\":\"Trying to create too many scroll contexts. Must be less than or equal to: [500]. This limit can be set by changing the [search.max_open_scroll_context] setting.\"},{\"type\":\"exception\",\"reason\":\"Trying to create too many scroll contexts. Must be less than or equal to: [500]. This limit can be set by changing the [search.max_open_scroll_context] setting.\"},{\"type\":\"exception\",\"reason\":\"Trying to create too many scroll contexts. Must be less than or equal to: [500]. This limit can be set by changing the [search.max_open_scroll_context] setting.\"},{\"type\":\"exception\",\"reason\":\"Trying to create too many scroll contexts. Must be less than or equal to: [500]. This limit can be set by changing the [search.max_open_scroll_context] setting.\"},{\"type\":\"exception\",\"reason\":\"Trying to create too many scroll contexts. Must be less than or equal to: [500]. This limit can be set by changing the [search.max_open_scroll_context] setting.\"},{\"type\":\"exception\",\"reason\":\"Trying to create too many scroll contexts. Must be less than or equal to: [500]. This limit can be set by changing the [search.max_open_scroll_context] setting.\"},{\"type\":\"exception\",\"reason\":\"Trying to create too many scroll contexts. Must be less than or \u2026 (16894 more bytes) (the cluster's open scroll limit was reached: search.max_open_scroll_context, 500 by default; a scroll dump holds one context per shard and slice, so shards x --slices must stay below it, minus other open scrolls. Lower --slices, dump fewer indices per run, use a point-in-time dump (--searchAfter --pit, which opens no scroll contexts), or raise search.max_open_scroll_context)"
+   ]
+  },
+  "digest-A": true,
+  "digest-A-wide": true,
+  "A-meta-mapping-equal": true,
+  "A-meta-settings-equal": true,
+  "A-meta-index-equal": true,
+  "A-meta-alias-equal": true,
+  "A-wide-mapping-equal": true,
+  "digest-B": true,
+  "digest-B-wide": true,
+  "B-meta-mapping-equal": true,
+  "B-meta-settings-equal": true,
+  "B-meta-index-equal": true,
+  "B-meta-alias-equal": true,
+  "B-wide-mapping-equal": true
+ },
+ "failures": [],
+ "engine_version": "7.17.29",
+ "seed": {
+  "indices": 300,
+  "docs": 30000,
+  "seconds": 22.8,
+  "wide_docs": 50,
+  "wide_fields": 5000,
+  "aliases": 100,
+  "shards": 302
+ },
+ "leak": {
+  "scroll_current": 0,
+  "pit_current": null,
+  "other_open_contexts": 0,
+  "part_files": [],
+  "part_files_n": 0,
+  "unexpected_indices": [],
+  "new_system_indices": [
+   ".ds-.logs-deprecation.elasticsearch-default-2026.11.14-000001",
+   ".ds-ilm-history-5-2026.11.14-000001"
+  ],
+  "new_hidden_indices": []
+ },
+ "finished": "2026-11-14T15:00:15-05:00",
+ "pass": true
+}

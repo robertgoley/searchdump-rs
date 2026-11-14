@@ -58,7 +58,7 @@ LOAD_PLACE=runner scripts/load/run.sh L1R dump-restore-logs
 
 **Metrics (LOAD-003).** Each tool step runs under `measure.sh` and is schema-validated. The tool's max RSS must stay under the place's `tool_mem_mb`. `Total Writes` must equal the source count, and `Failed Writes` must be 0.
 
-**Leak check (LOAD-017).** Every load script (`run.py`, `split.py`, `resume.py`, `faults.py`, `curves.py`, `compress.py`, `allocbench.py`, `nodecmp.py`) calls `run.leak_check` before its teardown and fails the run on a leak (L-811). At the end of a run there must be:
+**Leak check (LOAD-017).** Every load script (`run.py`, `split.py`, `resume.py`, `faults.py`, `curves.py`, `compress.py`, `allocbench.py`, `nodecmp.py`, `manyidx.py`) calls `run.leak_check` before its teardown and fails the run on a leak (L-811). At the end of a run there must be:
 
 - no open scroll or PIT contexts: `scroll_current` and, on OpenSearch, `point_in_time_current` reach 0 within 15 s. Elasticsearch has no PIT stat, so there `open_contexts` minus the scrolls (`other_open_contexts`, which counts PITs) must reach 0. `nodecmp.py` only records the contexts, because Node elasticdump may leave scrolls open; its Rust runs must leave none;
 - no `.part` files in the work directory, hidden staging files (`.name.part-*`) included. Cluster data dirs (`it`, `it-*`) are skipped; `split.py` allows the parts its kill cases leave on purpose;
@@ -302,3 +302,15 @@ Checks:
 Output goes to `results/load/<run-id>/nodecmp.json`. The ratios are reported against the §8 targets, not asserted:
 on the shared box, one engine node next to both tools bounds restore and copy. Node at 10M on a quiet machine is
 Phase B.
+
+## Many indices, fields and aliases (LOAD-014, L-809, `manyidx.py`)
+
+`python3 scripts/load/manyidx.py [--engine es717-plain] [--indices 300] [--docs 100] [--aliases 100] [--fields 5000] [--heap 2048m] [--run-id ID] [--keep]`
+
+Creates `many-000`.. (edgen logs, 1 shard, 0 replicas), aliases over three indices each (some filtered or
+routed) and one `wide-<fields>` index; dumps `many-*` as data, mapping, settings, index and alias, restores
+twice (settings -> mapping -> alias -> data, then index -> data) into the host-only URL, checks every data set
+with `edverify diff` and every re-dumped meta type against the first dump. Probes: a point-in-time dump of
+`many-*`, and `--slices 2` (2 scroll contexts per shard, past ES's default `search.max_open_scroll_context`
+500), which must fail at once with exit 1 and a hint. Meta types must finish within 300 s each. Run it with the
+isolated podman store on PATH on the shared box. 1,000 indices is Phase B.

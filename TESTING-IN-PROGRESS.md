@@ -2,7 +2,7 @@
 
 The task plan delegated to the other agent (Grok 4.7 through OpenCode, using [`project/handoff/HANDOFF-GROK-OPENCODE.md`](project/handoff/HANDOFF-GROK-OPENCODE.md)). Everything below is assigned to it; it commits each task to `main` as `L-NNN: ...` and adds a row to [`project/plan/PROGRESS.md`](project/plan/PROGRESS.md). Finished tasks move to [TESTING-COMPLETED.md](TESTING-COMPLETED.md). Tests outside this plan are in [TESTING-TODO.md](TESTING-TODO.md).
 
-Status as of 2026-11-14: work through L-808m (2026-11-09) is recorded in [TESTING-COMPLETED.md](TESTING-COMPLETED.md) and in the dated note in [`project/plan/PROGRESS.md`](project/plan/PROGRESS.md). Later work on this tree includes L-809 (OpenDAL storage), the searchdump-rs rename, 1.0.0-beta1/1.0.0, and the owner's 2026-11-14 decisions: L-645b (`--httpAuthFile` wins; done), L-810i (OpenSSH client in the images; CVEs accepted 2026-11-14, merged), release/1.1 1.1-4a (slice cap only on ES 7.10; done on release/1.1), L-804a (exit-code review; done), L-804b (proposals P1-P5 done: exit 4 for transient rerun-safe failures, `--restartOnContextLoss`, PIT and cluster-block hints; P6 deferred until a big host is available). L-808n to L-808r (restore CPU profile and fixes; CPU about half, level with M6; done). **Still open from this plan: L-703** (seccomp/Landlock). Owner decision item D-1 is still not started. Deferred for later owner review (2026-11-14): see the table in section 1. **Next:** L-809 (LOAD-014: 300 indices, a 5,000-field index and 100 aliases; approved t87u; design notes on `wip/L-809`).
+Status as of 2026-11-14: work through L-808m (2026-11-09) is recorded in [TESTING-COMPLETED.md](TESTING-COMPLETED.md) and in the dated note in [`project/plan/PROGRESS.md`](project/plan/PROGRESS.md). Later work on this tree includes L-809 (OpenDAL storage), the searchdump-rs rename, 1.0.0-beta1/1.0.0, and the owner's 2026-11-14 decisions: L-645b (`--httpAuthFile` wins; done), L-810i (OpenSSH client in the images; CVEs accepted 2026-11-14, merged), release/1.1 1.1-4a (slice cap only on ES 7.10; done on release/1.1), L-804a (exit-code review; done), L-804b (proposals P1-P5 done: exit 4 for transient rerun-safe failures, `--restartOnContextLoss`, PIT and cluster-block hints; P6 deferred until a big host is available). L-808n to L-808r (restore CPU profile and fixes; CPU about half, level with M6; done). **Still open from this plan: L-703** (seccomp/Landlock). Owner decision item D-1 is still not started. Deferred for later owner review (2026-11-14): see the table in section 1. L-809 (LOAD-014 A: 300 indices, 5,000-field mapping, 100 aliases; done, PASS). **Next:** L-810 (LOAD-015, large documents), awaiting the owner's go-ahead.
 
 Who: impl = bounded code card, runner = scripted campaign, lead = supervised session for security-sensitive work, review = independent read-only review of every change.
 
@@ -41,7 +41,7 @@ Scale: L0 100k docs and L1-lite 1M docs, disk at most 12 GB.
 
 | Item | Req | Who | Note |
 |---|---|---|---|
-| L-809 | LOAD-014 | runner | 300 indices campaign |
+| L-809 | LOAD-014 | runner | done (L-809): 300 indices, 5,000-field mapping, 100 aliases PASS; 1,000 indices is Phase B (needs PIT or a raised `search.max_open_scroll_context`) |
 | L-810 | LOAD-015 | impl/runner → lead | large docs; 413/limit wording is lead's |
 | L-811 | LOAD-017 | impl | done (L-811): leak check in teardown of each run (script change in scripts/load) |
 | L-812 | LOAD-018 | runner | data streams 1M |

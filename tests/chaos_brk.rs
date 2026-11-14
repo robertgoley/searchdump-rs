@@ -6392,3 +6392,41 @@ async fn l804b_restart_on_context_loss_restarts_a_scroll_dump_into_a_file() {
     .await;
     assert_eq!(o.status.code(), Some(2), "copy: {}", stderr(&o));
 }
+
+// L-809 (LOAD-014): a wildcard scroll dump over many shards can pass the cluster's
+// search.max_open_scroll_context (500). The same dump would hit it again, so it is not retried,
+// exits 1 and names the setting, --slices and the point-in-time alternative.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn l809_scroll_context_limit_fails_once_with_a_hint() {
+    let limit = r#"{"error":{"root_cause":[{"type":"exception","reason":"Trying to create too many scroll contexts. Must be less than or equal to: [500]. This limit can be set by changing the [search.max_open_scroll_context] setting."}],"type":"search_phase_execution_exception","reason":"Partial shards failure"},"status":500}"#;
+    let m = RouterMock::builder()
+        .route(Route::exact("GET", "/").reply(Reply::ok(INFO)))
+        .route(Route::contains("POST", "/many-*/_search").reply(Reply::json(500, limit)))
+        .fallback(Reply::ok(CLEARED))
+        .start()
+        .await;
+    let dir = tempfile::tempdir().unwrap();
+    let out = dir.path().join("d.json");
+    let o = run_async(
+        s(&[
+            "--input",
+            &format!("{}/many-*", m.url()),
+            "--output",
+            out.to_str().unwrap(),
+            "--retryAttempts",
+            "3",
+            "--retryDelay",
+            "1",
+        ]),
+        vec![],
+    )
+    .await;
+    let err = stderr(&o);
+    assert_eq!(o.status.code(), Some(1), "{err}");
+    assert_eq!(count(&m.requests(), "POST", "/many-*/_search"), 1, "{err}");
+    assert!(
+        err.contains("search.max_open_scroll_context") && err.contains("--searchAfter --pit"),
+        "{err}"
+    );
+    assert!(!out.exists(), "{err}");
+}

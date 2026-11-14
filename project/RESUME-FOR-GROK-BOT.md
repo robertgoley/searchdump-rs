@@ -48,7 +48,7 @@ Keep project/plan/ and project/handoff/plan/PROGRESS.md in sync with /workspace/
 - Sudo scope that was approved in the old account. **Re-confirm it with the user in the new account before using it:** cgroup memory-limit OOM tests; switching apt to HTTPS and installing strace/perf/valgrind; tc network fault injection on test containers only; tmpfs/loop mounts for disk-full tests.
 
 ## Queue (2026-11-01)
-- Order (D-2 and L-811 were taken first on 2026-11-01 because L-809 did not fit the usage check; both done): L-809, L-810 (impl/runner parts; the 413/limit wording is marked for lead review), L-811, L-812, L-814, L-815 (expectations marked for lead review), L-816, L-817, L-811a (end-of-run leak check for the Rust IT runs; user decision 2026-11-01), then D-1.
+- Order (D-2 and L-811 were taken first on 2026-11-01 because L-809 did not fit the usage check; both done): L-809, L-810 (impl/runner parts; the 413/limit wording is marked for lead review), L-811, L-812, L-814, L-815 (expectations marked for lead review), L-816, L-817, L-811a (end-of-run leak check for the Rust IT runs; user decision 2026-11-01), then D-1. L-809 done 2026-11-14; next is L-810, awaiting the owner. Branch `wip/L-809` (design notes) is now superseded; deleting it needs owner approval.
 - Skip (lead-only or blocked): L-703, L-813, H4, Final, the B campaigns (B0-B13).
 - Each task: one squashed `L-NNN` commit, a PROGRESS.md row, root docs (TESTING-COMPLETED Total = row count, Next line), full gates, `scripts/check-clean-tree.sh`, `scripts/sup/secret-scan.sh`, the credential grep, normal push to the fork's `main`.
 
@@ -98,3 +98,4 @@ The user runs Grok 4.7 locally through the OpenCode CLI. The handoff/ folder (op
 - L-808q (2026-11-14): file-input splitter skips non-structural bytes (SIMD/table) with identical output (proptest); restore CPU -25% vs L-808p, about half of pre-L-808n and below M6 (results/local/L-808o.md)
 - L-808r (2026-11-14): batches pass through the Sink as shared Bytes, no copy at --concurrency > 1; RSS -3% (c4) / -8% (c1), CPU level with M6 (results/local/L-808r.md)
 - L-804b (2026-11-14): exit 4 for transient, rerun-safe failures (behaviour change), typed error chain, --restartOnContextLoss for scroll dumps to a file, PIT and cluster-block/disk hints; L-804a P1-P5, P6 deferred (results/local/L-804b.md)
+- L-809 (2026-11-14): LOAD-014 A (300 indices, 5,000-field mapping, 100 aliases): PASS, meta types under 11 s each, data and meta round-trip exactly; scroll-context-limit errors now exit 1 at once with a PIT hint (results/local/L-809.md)

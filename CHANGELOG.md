@@ -16,6 +16,7 @@ GitHub release.
 
 ### Fixed
 
+- **Scroll dumps that pass the cluster's open scroll limit** (L-809). When the cluster refuses a scroll with "too many scroll contexts" (`search.max_open_scroll_context`, 500 by default; one context per shard and slice), the dump is no longer retried and exits 1 instead of 4, with a message that names the setting, `--slices`, and the point-in-time dump (`--searchAfter --pit`) that opens no scroll contexts.
 - **`sftp://` inside the container images** (owner decision 2026-11-14, L-810i). The runtime stage installs the
   OpenSSH client that OpenDAL's SFTP backend runs: `openssh-client` (no recommends, `ssh-keysign` setuid bit
   removed) on Debian-based images, `openssh-client-default` on Alpine-based images. The COPY-only `dhi-static`
