@@ -85,6 +85,16 @@ pub struct EsHttpError {
     pub endpoint: String,
 }
 
+impl EsHttpError {
+    /// L-809: the cluster refused a new scroll because `search.max_open_scroll_context` is
+    /// reached. A rerun of the same dump opens the same number of contexts, so it is not
+    /// retried and exits 1.
+    pub fn is_scroll_context_limit(&self) -> bool {
+        self.body.contains("max_open_scroll_context")
+            || self.body.contains("too many scroll contexts")
+    }
+}
+
 impl fmt::Display for EsHttpError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
@@ -119,6 +129,10 @@ impl fmt::Display for EsHttpError {
             400 if self.body.contains("max_result_window") => write!(
                 f,
                 " (--limit is larger than the index allows per page: index.max_result_window, 10000 by default; lower --limit)"
+            ),
+            _ if self.is_scroll_context_limit() => write!(
+                f,
+                " (the cluster's open scroll limit was reached: search.max_open_scroll_context, 500 by default; a scroll dump holds one context per shard and slice, so shards x --slices must stay below it, minus other open scrolls. Lower --slices, dump fewer indices per run, use a point-in-time dump (--searchAfter --pit, which opens no scroll contexts), or raise search.max_open_scroll_context)"
             ),
             400 if self.body.contains("max_slices_per_scroll") => write!(
                 f,
@@ -823,14 +837,20 @@ where
                     }
                     Ok(bytes) if status.is_success() => return Ok(bytes),
                     Ok(bytes) => {
-                        let error = anyhow::Error::new(EsHttpError {
+                        let http = EsHttpError {
                             prefix: prefix.clone(),
                             operation: operation.to_string(),
                             status: status.as_u16(),
                             body: String::from_utf8_lossy(bytes.as_ref()).into_owned(),
                             endpoint,
-                        });
-                        (RetryOutcome::Status(status.as_u16()), error)
+                        };
+                        if http.is_scroll_context_limit() {
+                            return Err(anyhow::Error::new(http));
+                        }
+                        (
+                            RetryOutcome::Status(status.as_u16()),
+                            anyhow::Error::new(http),
+                        )
                     }
                 }
             }
