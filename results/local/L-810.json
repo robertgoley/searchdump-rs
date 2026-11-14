@@ -1,0 +1,263 @@
+{
+ "schema": "edrs-largedocs/v1",
+ "run_id": "20261114T155815-largedocs",
+ "engine": "es717-plain",
+ "heap": "2048m",
+ "git": "7b89522",
+ "tool": "searchdump 1.0.0",
+ "started": "2026-11-14T15:58:15-05:00",
+ "datasets": {
+  "pmc": {
+   "docs": 20000,
+   "bytes": 456880098,
+   "avg_kb": 22.3
+  },
+  "huge": {
+   "docs": 60,
+   "bytes": 316073646,
+   "min_mb": 1,
+   "max_mb": 10
+  },
+  "doc90": {
+   "docs": 1,
+   "bytes": 94376250,
+   "min_mb": 90,
+   "max_mb": 90
+  },
+  "doc110": {
+   "docs": 1,
+   "bytes": 115348732,
+   "min_mb": 110,
+   "max_mb": 110
+  },
+  "two60": {
+   "docs": 2,
+   "bytes": 125835060,
+   "min_mb": 60,
+   "max_mb": 60
+  }
+ },
+ "runs": [
+  {
+   "run": "pmc-restore",
+   "args": [
+    "--input",
+    "$WORK/pmc.json",
+    "--output",
+    "$URL/pmc",
+    "--type=data",
+    "--limit=500",
+    "--concurrency=4"
+   ],
+   "exit": 0,
+   "want": 0,
+   "wall_s": 13.03,
+   "peak_rss_mb": 281.2,
+   "error": "",
+   "retries": 0
+  },
+  {
+   "run": "pmc-dump",
+   "args": [
+    "--input",
+    "$URL/pmc",
+    "--output",
+    "$WORK/pmc-dump.json",
+    "--type=data",
+    "--limit=500"
+   ],
+   "exit": 0,
+   "want": 0,
+   "wall_s": 4.18,
+   "peak_rss_mb": 140.6,
+   "error": "",
+   "retries": 0
+  },
+  {
+   "run": "huge-restore",
+   "args": [
+    "--input",
+    "$WORK/huge.json",
+    "--output",
+    "$URL/huge",
+    "--type=data",
+    "--limit=100"
+   ],
+   "exit": 0,
+   "want": 0,
+   "wall_s": 10.63,
+   "peak_rss_mb": 745.7,
+   "error": "",
+   "retries": 0
+  },
+  {
+   "run": "huge-dump",
+   "args": [
+    "--input",
+    "$URL/huge",
+    "--output",
+    "$WORK/huge-dump.json",
+    "--type=data",
+    "--limit=10"
+   ],
+   "exit": 0,
+   "want": 0,
+   "wall_s": 1.69,
+   "peak_rss_mb": 273.9,
+   "error": "",
+   "retries": 0
+  },
+  {
+   "run": "doc90-maxbulk95-restore",
+   "args": [
+    "--input",
+    "$WORK/doc90.json",
+    "--output",
+    "$URL/doc90",
+    "--type=data",
+    "--maxBulkBytes=95mb"
+   ],
+   "exit": 0,
+   "want": 0,
+   "wall_s": 2.8,
+   "peak_rss_mb": 500.1,
+   "error": "",
+   "retries": 0
+  },
+  {
+   "run": "doc90-default-restore",
+   "args": [
+    "--input",
+    "$WORK/doc90.json",
+    "--output",
+    "$URL/doc90",
+    "--type=data"
+   ],
+   "exit": 0,
+   "want": 0,
+   "wall_s": 2.64,
+   "peak_rss_mb": 499.7,
+   "error": "",
+   "retries": 0
+  },
+  {
+   "run": "doc90-dump",
+   "args": [
+    "--input",
+    "$URL/doc90",
+    "--output",
+    "$WORK/doc90-dump.json",
+    "--type=data"
+   ],
+   "exit": 0,
+   "want": 0,
+   "wall_s": 0.68,
+   "peak_rss_mb": 252.1,
+   "error": "",
+   "retries": 0
+  },
+  {
+   "run": "doc110-default",
+   "args": [
+    "--input",
+    "$WORK/doc110.json",
+    "--output",
+    "$URL/doc110",
+    "--type=data"
+   ],
+   "exit": 1,
+   "want": 1,
+   "wall_s": 0.21,
+   "peak_rss_mb": 249.2,
+   "error": "Error: /var/tmp/searchdump-load/20261114T155815-largedocs/doc110.json: document 1 of the input: a single document is larger than 100 MB (it was not read further); the 0 documents before it were read. Raise --maxDocMb (0 = unlimited) if the destination accepts requests that big (Elasticsearch/OpenSearch refuse bodies over http.max_content_length, 100 MB by default), or remove the document from the input",
+   "retries": 0
+  },
+  {
+   "run": "doc110-maxDocMb0",
+   "args": [
+    "--input",
+    "$WORK/doc110.json",
+    "--output",
+    "$URL/doc110",
+    "--type=data",
+    "--maxDocMb=0",
+    "--retryAttempts=2",
+    "--retryDelay=1"
+   ],
+   "exit": 1,
+   "want": 1,
+   "wall_s": 0.74,
+   "peak_rss_mb": 567.0,
+   "error": "Error: Elasticsearch bulk failed with HTTP 413:  (the request is larger than the cluster accepts: http.max_content_length, 100mb by default; lower --maxBulkBytes below it. A single document larger than the limit cannot be indexed until http.max_content_length is raised)",
+   "retries": 0
+  },
+  {
+   "run": "two60-maxbulk200",
+   "args": [
+    "--input",
+    "$WORK/two60.json",
+    "--output",
+    "$URL/two60",
+    "--type=data",
+    "--maxBulkBytes=200mb",
+    "--retryAttempts=2",
+    "--retryDelay=1"
+   ],
+   "exit": 1,
+   "want": 1,
+   "wall_s": 0.5,
+   "peak_rss_mb": 517.7,
+   "error": "Error: Elasticsearch bulk failed with HTTP 413:  (the request is larger than the cluster accepts: http.max_content_length, 100mb by default; lower --maxBulkBytes below it. A single document larger than the limit cannot be indexed until http.max_content_length is raised)",
+   "retries": 0
+  },
+  {
+   "run": "two60-default",
+   "args": [
+    "--input",
+    "$WORK/two60.json",
+    "--output",
+    "$URL/two60",
+    "--type=data"
+   ],
+   "exit": 0,
+   "want": 0,
+   "wall_s": 3.45,
+   "peak_rss_mb": 517.9,
+   "error": "",
+   "retries": 0
+  }
+ ],
+ "checks": {
+  "digest-pmc-restore": true,
+  "digest-pmc-dump": true,
+  "digest-huge-restore": true,
+  "digest-huge-dump": true,
+  "digest-doc90-maxbulk95": true,
+  "digest-doc90-default": true,
+  "digest-doc90-dump": true,
+  "doc110-default-names-maxDocMb": true,
+  "doc110-413-clear": true,
+  "doc110-413-not-retried": true,
+  "two60-413-clear": true,
+  "two60-413-not-retried": true,
+  "digest-two60-default": true
+ },
+ "failures": [],
+ "engine_version": "7.17.29",
+ "node": {
+  "heap_used_in_bytes": 1948254240,
+  "heap_max_in_bytes": 2147483648
+ },
+ "leak": {
+  "scroll_current": 0,
+  "pit_current": null,
+  "other_open_contexts": 0,
+  "part_files": [],
+  "part_files_n": 0,
+  "unexpected_indices": [],
+  "new_system_indices": [],
+  "new_hidden_indices": []
+ },
+ "finished": "2026-11-14T16:00:18-05:00",
+ "pass": true
+}

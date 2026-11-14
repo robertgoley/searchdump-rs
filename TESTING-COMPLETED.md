@@ -6,7 +6,7 @@ A one-screen engine coverage matrix (dump, restore, PIT, slices, storage, TLS) i
 
 Every test task with a commit on `main`, oldest first within each group. The commit message is the short result; full results, numbers and findings for each task are in [`project/plan/PROGRESS.md`](project/plan/PROGRESS.md), and the requirement IDs are in [`project/plan/TEST-REQUIREMENTS.md`](project/plan/TEST-REQUIREMENTS.md).
 
-Total: 219 task commits (including follow-up fixes with a letter suffix). Last updated from commit L-809 (`git log -1 --grep '^L-809'`; the next commit fills in its sha).
+Total: 220 task commits (including follow-up fixes with a letter suffix). Last updated from commit L-810 (`git log -1 --grep '^L-810'`; the next commit fills in its sha).
 
 ## Setup and planning (L-0xx)
 
@@ -271,7 +271,8 @@ Total: 219 task commits (including follow-up fixes with a letter suffix). Last u
 | L-808q | f875663 | 2026-11-14 | file-input splitter skips non-structural bytes (SIMD/table) with identical output (proptest); restore CPU -25% vs L-808p, about half of pre-L-808n and below M6 (results/local/L-808o.md) |
 | L-808r | 1f528d7 | 2026-11-14 | batches pass through the Sink as shared Bytes, no copy at --concurrency > 1; RSS -3% (c4) / -8% (c1), CPU level with M6 (results/local/L-808r.md) |
 | L-804b | 7e6b7e6 | 2026-11-14 | exit 4 for transient, rerun-safe failures (behaviour change), typed error chain, --restartOnContextLoss for scroll dumps to a file, PIT and cluster-block/disk hints; L-804a P1-P5, P6 deferred (results/local/L-804b.md) |
-| L-809 | this commit | 2026-11-14 | LOAD-014 A (300 indices, 5,000-field mapping, 100 aliases): PASS, meta types under 11 s each, data and meta round-trip exactly; scroll-context-limit errors now exit 1 at once with a PIT hint (results/local/L-809.md) |
+| L-809 | 7b89522 | 2026-11-14 | LOAD-014 A (300 indices, 5,000-field mapping, 100 aliases): PASS, meta types under 11 s each, data and meta round-trip exactly; scroll-context-limit errors now exit 1 at once with a PIT hint (results/local/L-809.md) |
+| L-810 | this commit | 2026-11-14 | LOAD-015 large documents (pmc 20k, 1-10 MB, one 90 MB): PASS, digests equal; 413 now names http.max_content_length and --maxBulkBytes; ~5.3x RSS per very large document noted (results/local/L-810.md) |
 
 ## Supply-chain scans (Grok Bot)
 
