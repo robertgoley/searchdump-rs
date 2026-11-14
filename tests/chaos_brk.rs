@@ -6556,3 +6556,64 @@ async fn l810_payload_too_large_names_the_limit() {
         "{err}"
     );
 }
+
+// L-812 (LOAD-018): a data stream refuses documents with a routing value (unless the template
+// allows custom routing); the failure is named once, the others are still written.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn l812_routed_documents_into_a_data_stream_are_named_once() {
+    let item = |id: &str, routed: bool| {
+        if routed {
+            format!(
+                r#"{{"create":{{"_index":".ds-ds-1","_id":"{id}","status":400,"error":{{"type":"illegal_argument_exception","reason":"index request targeting data stream [ds] specifies a custom routing. target the backing indices directly or remove the custom routing."}}}}}}"#
+            )
+        } else {
+            format!(r#"{{"create":{{"_index":".ds-ds-1","_id":"{id}","status":201}}}}"#)
+        }
+    };
+    let reply = format!(
+        r#"{{"took":1,"errors":true,"items":[{},{},{}]}}"#,
+        item("1", true),
+        item("2", false),
+        item("3", true)
+    );
+    let m = RouterMock::builder()
+        .route(Route::exact("GET", "/").reply(Reply::ok(INFO)))
+        .route(Route::contains("POST", "/_bulk").reply(Reply::ok(&reply)))
+        .fallback(Reply::ok(
+            r#"{"_shards":{"total":1,"successful":1,"failed":0}}"#,
+        ))
+        .start()
+        .await;
+    let dir = tempfile::tempdir().unwrap();
+    let input = dir.path().join("in.json");
+    let doc = |id: &str, routing: Option<&str>| match routing {
+        Some(r) => format!(r#"{{"_index":"x","_id":"{id}","_routing":"{r}","_source":{{"n":1}}}}"#),
+        None => format!(r#"{{"_index":"x","_id":"{id}","_source":{{"n":1}}}}"#),
+    };
+    std::fs::write(
+        &input,
+        format!(
+            "{}\n{}\n{}\n",
+            doc("1", Some("a")),
+            doc("2", None),
+            doc("3", Some("b"))
+        ),
+    )
+    .unwrap();
+    let o = run_async(
+        s(&[
+            "--input",
+            input.to_str().unwrap(),
+            "--output",
+            &format!("{}/ds", m.url()),
+            "--bulkAction",
+            "create",
+        ]),
+        vec![],
+    )
+    .await;
+    let err = stderr(&o);
+    assert_eq!(o.status.code(), Some(3), "{err}");
+    assert_eq!(err.matches("allow_custom_routing").count(), 1, "{err}");
+    assert!(err.contains("Failed Writes: 2"), "{err}");
+}
