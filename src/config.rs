@@ -179,8 +179,10 @@ pub fn request_gate(cli: &Cli) -> RequestGate {
     RequestGate::new(cli.max_sockets, interval)
 }
 
-/// Resolve credentials for an ES endpoint: `--{input,output}-username/-password`
-/// over the URL over `--httpAuthFile`/env (see [`endpoint::resolve_auth`]).
+/// Resolve credentials for an ES endpoint: `--httpAuthFile` over
+/// `--{input,output}-username/-password` over the URL over env (L-645b; see
+/// [`endpoint::resolve_auth`]). Warns, naming the sources only, when the auth
+/// file replaced credentials given another way.
 pub fn resolve_endpoint_auth(
     cli: &Cli,
     ep: &mut EsEndpoint,
@@ -195,7 +197,10 @@ pub fn resolve_endpoint_auth(
             cli.output_password.as_deref(),
         ),
     };
-    endpoint::resolve_auth(ep, dir, auth_file, &env, u, p);
+    let ignored = endpoint::resolve_auth(ep, dir, auth_file, &env, u, p);
+    if let Some(w) = endpoint::auth_file_override_warning(dir, &ignored) {
+        log::warn!("{w}");
+    }
 }
 
 pub fn build_client(

@@ -376,9 +376,33 @@ async fn credential_flags_pick_their_endpoint_and_never_leak() {
             Some(format!("url-u:{hostile_out}")),
         ),
         (
-            "URL beats auth file and env",
+            "L-645b: auth file beats URL and env",
             false,
             s(&["--httpAuthFile", &crlf]),
+            vec![
+                ("SEARCHDUMP_OUTPUT_USERNAME", "env-u".into()),
+                ("SEARCHDUMP_OUTPUT_PASSWORD", "FAKE-env-pw-5".into()),
+            ],
+            Some("file-u:FAKE-file-pw-4".into()),
+        ),
+        (
+            "L-645b: auth file beats the output flags",
+            false,
+            s(&[
+                "--httpAuthFile",
+                &crlf,
+                "--output-username",
+                "out-u",
+                "--output-password",
+                hostile_out,
+            ]),
+            vec![],
+            Some("file-u:FAKE-file-pw-4".into()),
+        ),
+        (
+            "URL beats env without an auth file",
+            false,
+            s(&[]),
             vec![
                 ("SEARCHDUMP_OUTPUT_USERNAME", "env-u".into()),
                 ("SEARCHDUMP_OUTPUT_PASSWORD", "FAKE-env-pw-5".into()),
@@ -466,6 +490,12 @@ async fn credential_flags_pick_their_endpoint_and_never_leak() {
                 want.as_ref().map(|w| format!("Basic {}", b64(w))),
                 "{label}"
             );
+            if label.starts_with("L-645b") {
+                assert!(
+                    err.contains("--httpAuthFile overrides"),
+                    "{label}: no override warning: {err}"
+                );
+            }
             let mut secrets: Vec<String> = vec![
                 hostile_in.into(),
                 hostile_out.into(),

@@ -443,17 +443,23 @@ fn strip_eol(v: &str) -> String {
 }
 
 /// Resolve the basic-auth credentials of an endpoint. Precedence, highest
-/// first (README "Credentials"):
+/// first (README "Credentials"; owner decision 2026-11-14, L-645b, a
+/// behaviour change from L-645):
 ///
-/// 1. `--{input,output}-username` / `--{input,output}-password`
+/// 1. `--httpAuthFile`: when given, its `user=`/`password=` pair is used for
+///    both directions and replaces every other source, field by field
+///    included;
+/// 2. `--{input,output}-username` / `--{input,output}-password`
 ///    (`--username`/`--password` are aliases of the input pair), each
 ///    overriding one field;
-/// 2. `user:password@` in the URL;
-/// 3. `--httpAuthFile`, and otherwise
-///    `SEARCHDUMP_{INPUT,OUTPUT}_{USERNAME,PASSWORD}` (used when its
-///    username is set): only when 1 and 2 together do not give both a
-///    username and a password (Node applies the auth file when the URL
-///    lacks either), and then as a pair, with any flag still winning.
+/// 3. `user:password@` in the URL;
+/// 4. `SEARCHDUMP_{INPUT,OUTPUT}_{USERNAME,PASSWORD}` (used when its
+///    username is set), only when 2 and 3 together do not give both a
+///    username and a password, and then as a pair, with any flag still
+///    winning.
+///
+/// Returns the sources that held a value and were overridden by the auth
+/// file (names only, never values), so the caller can say so.
 ///
 /// A trailing CR/LF is removed from every value; an empty password is sent
 /// as is (`user:`).
@@ -464,7 +470,28 @@ pub fn resolve_auth(
     env: &dyn Fn(&str) -> Option<String>,
     cli_user: Option<&str>,
     cli_pass: Option<&str>,
-) {
+) -> Vec<String> {
+    let user_key = format!("{}_USERNAME", dir.env_prefix());
+    let pass_key = format!("{}_PASSWORD", dir.env_prefix());
+    if let Some((u, p)) = auth_file {
+        let d = dir.as_str();
+        let mut ignored = Vec::new();
+        if ep.username.is_some() || ep.password.is_some() {
+            ignored.push(format!("the {d} URL credentials"));
+        }
+        if cli_user.is_some() {
+            ignored.push(format!("--{d}-username"));
+        }
+        if cli_pass.is_some() {
+            ignored.push(format!("--{d}-password"));
+        }
+        if env(&user_key).is_some() || env(&pass_key).is_some() {
+            ignored.push(format!("{}_*", dir.env_prefix()));
+        }
+        ep.username = Some(strip_eol(u));
+        ep.password = Some(strip_eol(p));
+        return ignored;
+    }
     let apply_flags = |ep: &mut EsEndpoint| {
         if let Some(u) = cli_user {
             ep.username = Some(strip_eol(u));
@@ -475,20 +502,26 @@ pub fn resolve_auth(
     };
     apply_flags(ep);
     if ep.username.is_some() && ep.password.is_some() {
-        return;
+        return Vec::new();
     }
-    if let Some((u, p)) = auth_file {
-        ep.username = Some(strip_eol(u));
-        ep.password = Some(strip_eol(p));
-    } else {
-        let user = env(&format!("{}_USERNAME", dir.env_prefix()));
-        let pass = env(&format!("{}_PASSWORD", dir.env_prefix()));
-        if let Some(u) = user {
-            ep.username = Some(strip_eol(&u));
-            ep.password = pass.as_deref().map(strip_eol);
-        }
+    if let Some(u) = env(&user_key) {
+        ep.username = Some(strip_eol(&u));
+        ep.password = env(&pass_key).as_deref().map(strip_eol);
     }
     apply_flags(ep);
+    Vec::new()
+}
+
+/// The warning printed when `--httpAuthFile` replaced other credential
+/// sources of one direction (names only).
+pub fn auth_file_override_warning(dir: Direction, ignored: &[String]) -> Option<String> {
+    (!ignored.is_empty()).then(|| {
+        format!(
+            "--httpAuthFile overrides {} for the {}: the auth file's user and password are used",
+            ignored.join(", "),
+            dir.as_str()
+        )
+    })
 }
 
 #[cfg(test)]
@@ -565,7 +598,7 @@ mod tests {
     }
 
     #[test]
-    fn auth_precedence_url_then_file_then_env_then_cli_override() {
+    fn auth_precedence_file_then_cli_then_url_then_env() {
         let env = |k: &str| match k {
             "SEARCHDUMP_INPUT_USERNAME" => Some("envu".to_string()),
             "SEARCHDUMP_INPUT_PASSWORD" => Some("envp".to_string()),
@@ -573,9 +606,10 @@ mod tests {
         };
         let file = ("fileu".to_string(), "filep".to_string());
 
+        // L-645b: the auth file beats the URL
         let mut e = es("http://urlu:urlp@h/i", None);
         resolve_auth(&mut e, Direction::Input, Some(&file), &env, None, None);
-        assert_eq!(e.username.as_deref(), Some("urlu"));
+        assert_eq!(e.username.as_deref(), Some("fileu"));
 
         let mut e = es("http://h/i", None);
         resolve_auth(&mut e, Direction::Input, Some(&file), &env, None, None);
@@ -635,8 +669,10 @@ mod tests {
         (Option<String>, Option<String>),
     );
 
-    /// L-645 / D-4: per-direction flags beat the URL, the URL beats the auth
-    /// file and env, and the auth file/env fill in only an incomplete pair.
+    /// L-645b (owner decision 2026-11-14): the auth file, when given, beats
+    /// every other source in both directions; without it, per-direction flags
+    /// beat the URL, the URL beats env, and env fills in only an incomplete
+    /// pair (L-645 / D-4).
     #[test]
     fn auth_precedence_matrix_for_both_directions() {
         let env = |k: &str| match k {
@@ -647,39 +683,75 @@ mod tests {
             _ => None,
         };
         let no_env = |_: &str| None;
-        let file = ("file-u".to_string(), "FAKE-file".to_string());
+        let file = ("file-u".to_string(), "FAKE-file\r\n".to_string());
         let pair = |e: &EsEndpoint| (e.username.clone(), e.password.clone());
         let p = |u: &str, pw: &str| (Some(u.to_string()), Some(pw.to_string()));
         for dir in [Direction::Input, Direction::Output] {
             let d = dir.as_str();
             let env_pair = p(&format!("env-{d}-u"), &format!("FAKE-env-{d}"));
+            let file_pair = p("file-u", "FAKE-file");
             let cases: Vec<Case> = vec![
                 ("http://h/i", false, false, None, None, (None, None)),
                 ("http://h/i", false, true, None, None, env_pair.clone()),
-                (
-                    "http://h/i",
-                    true,
-                    true,
-                    None,
-                    None,
-                    p("file-u", "FAKE-file"),
-                ),
+                // the auth file wins over everything, as a pair
+                ("http://h/i", true, true, None, None, file_pair.clone()),
+                ("http://h/i", true, false, None, None, file_pair.clone()),
                 (
                     "http://url-u:FAKE-url@h/i",
                     true,
                     true,
                     None,
                     None,
-                    p("url-u", "FAKE-url"),
+                    file_pair.clone(),
                 ),
-                // Node parity: a URL with only a username takes the auth file pair
                 (
                     "http://url-u@h/i",
                     true,
                     false,
                     None,
                     None,
-                    p("file-u", "FAKE-file"),
+                    file_pair.clone(),
+                ),
+                (
+                    "http://url-u:FAKE-url@h/i",
+                    true,
+                    true,
+                    Some("flag-u"),
+                    Some("FAKE-flag"),
+                    file_pair.clone(),
+                ),
+                (
+                    "http://url-u:FAKE-url@h/i",
+                    true,
+                    false,
+                    None,
+                    Some("FAKE-flag"),
+                    file_pair.clone(),
+                ),
+                (
+                    "http://h/i",
+                    true,
+                    false,
+                    Some("flag-u"),
+                    None,
+                    file_pair.clone(),
+                ),
+                (
+                    "http://h/i",
+                    true,
+                    true,
+                    Some("flag-u"),
+                    Some(""),
+                    file_pair.clone(),
+                ),
+                // without an auth file: the URL beats env
+                (
+                    "http://url-u:FAKE-url@h/i",
+                    false,
+                    true,
+                    None,
+                    None,
+                    p("url-u", "FAKE-url"),
                 ),
                 (
                     "http://url-u@h/i",
@@ -689,10 +761,10 @@ mod tests {
                     None,
                     (Some("url-u".into()), None),
                 ),
-                // flags win over everything, field by field
+                // flags beat the URL and env, field by field
                 (
                     "http://url-u:FAKE-url@h/i",
-                    true,
+                    false,
                     true,
                     Some("flag-u"),
                     Some("FAKE-flag"),
@@ -700,7 +772,7 @@ mod tests {
                 ),
                 (
                     "http://url-u:FAKE-url@h/i",
-                    true,
+                    false,
                     true,
                     None,
                     Some("FAKE-flag"),
@@ -708,7 +780,7 @@ mod tests {
                 ),
                 (
                     "http://url-u:FAKE-url@h/i",
-                    true,
+                    false,
                     true,
                     Some("flag-u"),
                     None,
@@ -716,11 +788,11 @@ mod tests {
                 ),
                 (
                     "http://h/i",
-                    true,
                     false,
+                    true,
                     Some("flag-u"),
                     None,
-                    p("flag-u", "FAKE-file"),
+                    p("flag-u", &format!("FAKE-env-{d}")),
                 ),
                 (
                     "http://h/i",
@@ -733,7 +805,7 @@ mod tests {
                 // a complete pair from the flags needs nothing else
                 (
                     "http://h/i",
-                    true,
+                    false,
                     true,
                     Some("flag-u"),
                     Some(""),
@@ -751,6 +823,44 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// L-645b: the auth file names (never shows) the sources it replaced.
+    #[test]
+    fn auth_file_override_is_reported_without_values() {
+        let env = |k: &str| match k {
+            "SEARCHDUMP_OUTPUT_USERNAME" => Some("env-u".to_string()),
+            _ => None,
+        };
+        let file = ("file-u".to_string(), "FAKE-file".to_string());
+        let mut e = es("http://url-u:FAKE-url@h/i", None);
+        let ignored = resolve_auth(
+            &mut e,
+            Direction::Output,
+            Some(&file),
+            &env,
+            Some("flag-u"),
+            Some("FAKE-flag"),
+        );
+        assert_eq!(
+            ignored,
+            vec![
+                "the output URL credentials",
+                "--output-username",
+                "--output-password",
+                "SEARCHDUMP_OUTPUT_*"
+            ]
+        );
+        let w = auth_file_override_warning(Direction::Output, &ignored).unwrap();
+        for secret in ["FAKE-url", "FAKE-flag", "FAKE-file", "flag-u", "env-u"] {
+            assert!(!w.contains(secret), "{w}");
+        }
+        let mut e = es("http://h/i", None);
+        let none = resolve_auth(&mut e, Direction::Input, Some(&file), &env, None, None);
+        assert!(none.is_empty());
+        assert_eq!(auth_file_override_warning(Direction::Input, &none), None);
+        let mut e = es("http://url-u:FAKE-url@h/i", None);
+        assert!(resolve_auth(&mut e, Direction::Input, None, &env, Some("x"), None).is_empty());
     }
 
     /// TST-BRK-CLI-006: hostile characters survive the auth file and the

@@ -318,6 +318,8 @@ for every place the tool changes what is loaded, and for the tested versions, se
   use `--output-username`/`--output-password` for the output).
 * **`--httpAuthFile` values are taken literally:** `#`, `;` and `\` inside a value are kept (Node's INI parser cuts
   the password at `#`/`;`); surrounding spaces and quotes are removed as in Node.
+* **`--httpAuthFile` wins over URL credentials and the credential flags** (L-645b). Node uses the auth file only when
+  the URL lacks a username or password; searchdump uses it whenever it is given and warns about what it replaced.
 * **Metadata types** fix several Node bugs (listed in [NODE-DIFFERENCES.md](NODE-DIFFERENCES.md)); intentional
   choices: `--filterManaged` (default on), `--output-index`/`--prefix`/`--suffix` apply to alias targets,
   cluster-level types ignore the output index (warning), the source is read before the target is contacted,
@@ -897,14 +899,19 @@ redistributing them as part of your own software, which is what these images do.
 
 Each direction resolves its basic-auth username and password on its own (L-645). Highest first:
 
-1. `--input-username`/`--input-password` (aliases `--username`/`--password`) and
+1. `--httpAuthFile` (INI with `user=` and `password=`, used for both directions). **When it is given, its pair
+   wins over every other source** in both directions, including flags and URL credentials (L-645b, owner decision
+   2026-11-14; a behaviour change from 1.0.0, where the auth file only filled in missing credentials). A warning
+   names the sources it replaced (never their values).
+2. `--input-username`/`--input-password` (aliases `--username`/`--password`) and
    `--output-username`/`--output-password`; each flag overrides one field and they never apply to the other
    direction.
-2. `user:password@` in the `--input`/`--output` URL (percent-decoded).
-3. `--httpAuthFile` (INI with `user=` and `password=`, used for both directions), otherwise
-   `SEARCHDUMP_{INPUT,OUTPUT}_{USERNAME,PASSWORD}` (when its `_USERNAME` is set). These are used only when 1 and 2
-   together do not give both a username and a password; like Node, the auth file's pair replaces a URL that has only
-   a username. A flag still wins over them.
+3. `user:password@` in the `--input`/`--output` URL (percent-decoded).
+4. `SEARCHDUMP_{INPUT,OUTPUT}_{USERNAME,PASSWORD}` (when its `_USERNAME` is set), used only when 2 and 3 together
+   do not give both a username and a password; a flag still wins over them.
+
+`searchdump-multi` uses the same order for its own cluster requests (the auth file over URL userinfo over env) and
+passes `--httpAuthFile` on to every child run.
 
 * A trailing CR/LF is removed from every value (an auth file saved with CRLF line ends, `$(cat file)`), so it never
   turns into a confusing 401. An empty password is sent as is (`user:`).

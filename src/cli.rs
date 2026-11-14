@@ -490,7 +490,8 @@ pub struct Cli {
     pub no_proxy: Option<bool>,
 
     // -------------------------------------------------------- auth and TLS
-    /// INI file with user= and password= used when a URL has no (or incomplete) credentials
+    /// INI file with user= and password= for both directions; when given it wins over the URL,
+    /// the --input-/--output- credential flags and env (L-645b)
     #[arg(long = "httpAuthFile")]
     pub http_auth_file: Option<String>,
 
@@ -505,19 +506,19 @@ pub struct Cli {
     #[arg(long = "outputStorageConfig")]
     pub output_storage_config: Option<String>,
 
-    /// Basic-auth username for the input (overrides the URL, --httpAuthFile and env); alias --username
+    /// Basic-auth username for the input (overrides the URL and env; --httpAuthFile wins over it); alias --username
     #[arg(long = "input-username", alias = "username")]
     pub input_username: Option<String>,
 
-    /// Basic-auth password for the input (overrides the URL, --httpAuthFile and env); alias --password
+    /// Basic-auth password for the input (overrides the URL and env; --httpAuthFile wins over it); alias --password
     #[arg(long = "input-password", alias = "password")]
     pub input_password: Option<String>,
 
-    /// Basic-auth username for the output (overrides the URL, --httpAuthFile and env)
+    /// Basic-auth username for the output (overrides the URL and env; --httpAuthFile wins over it)
     #[arg(long = "output-username")]
     pub output_username: Option<String>,
 
-    /// Basic-auth password for the output (overrides the URL, --httpAuthFile and env)
+    /// Basic-auth password for the output (overrides the URL and env; --httpAuthFile wins over it)
     #[arg(long = "output-password")]
     pub output_password: Option<String>,
 

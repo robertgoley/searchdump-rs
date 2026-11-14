@@ -18,7 +18,8 @@
 //!
 //! Credentials: use `SEARCHDUMP_INPUT_*` / `SEARCHDUMP_OUTPUT_*` environment variables or
 //! `--httpAuthFile`; children inherit them. `user:pass@` in a URL works but puts the password on
-//! every child's command line (visible in `ps`).
+//! every child's command line (visible in `ps`). When `--httpAuthFile` is given it wins over URL
+//! userinfo and env (L-645b).
 #![forbid(unsafe_code)]
 
 use std::collections::BTreeMap;
@@ -1048,7 +1049,8 @@ pub fn mappings_body(text: &str) -> Result<serde_json::Value> {
 
 // ----------------------------------------------------------------------------- cluster
 
-/// Base URL without credentials, plus credentials (flag file, env, then URL userinfo).
+/// Base URL without credentials, plus credentials: `--httpAuthFile` wins (L-645b), then URL
+/// userinfo, then env.
 pub fn split_url(
     raw: &str,
     env_prefix: &str,
@@ -1077,15 +1079,16 @@ pub fn split_url(
         let p = format!("{}/", url.path());
         url.set_path(&p);
     }
-    if user.is_none() || pass.is_none() {
-        if let Some((u, p)) = auth_file {
-            user = Some(u.clone());
-            pass = Some(p.clone());
-        } else if let Some(u) = env(&format!("{env_prefix}_USERNAME")) {
-            user = Some(u.trim_end_matches(['\r', '\n']).to_string());
-            pass = env(&format!("{env_prefix}_PASSWORD"))
-                .map(|p| p.trim_end_matches(['\r', '\n']).to_string());
-        }
+    if let Some((u, p)) = auth_file {
+        // L-645b (owner decision 2026-11-14): the auth file wins over the URL and env
+        user = Some(u.trim_end_matches(['\r', '\n']).to_string());
+        pass = Some(p.trim_end_matches(['\r', '\n']).to_string());
+    } else if (user.is_none() || pass.is_none())
+        && let Some(u) = env(&format!("{env_prefix}_USERNAME"))
+    {
+        user = Some(u.trim_end_matches(['\r', '\n']).to_string());
+        pass = env(&format!("{env_prefix}_PASSWORD"))
+            .map(|p| p.trim_end_matches(['\r', '\n']).to_string());
     }
     Ok((url, user, pass))
 }
@@ -3015,6 +3018,11 @@ mod tests {
         let (_, user, _) =
             split_url("https://h:9200", "SEARCHDUMP_INPUT", Some(&file), &env).unwrap();
         assert_eq!(user.as_deref(), Some("fu"));
+        // L-645b: the auth file also beats URL userinfo
+        let (u, user, pass) =
+            split_url("https://a:b@h:9200", "SEARCHDUMP_INPUT", Some(&file), &env).unwrap();
+        assert_eq!(u.as_str(), "https://h:9200/");
+        assert_eq!((user.as_deref(), pass.as_deref()), (Some("fu"), Some("fp")));
         assert!(split_url("ftp://h", "SEARCHDUMP_INPUT", None, &env).is_err());
     }
 

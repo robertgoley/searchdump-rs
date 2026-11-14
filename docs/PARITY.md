@@ -90,7 +90,7 @@ Legend:
 |---|---|---|---|---|
 | URL basic auth | – | ✅ | keep (percent-decoding, redacted logs) | – |
 | `SEARCHDUMP_INPUT_USERNAME/PASSWORD`, `SEARCHDUMP_OUTPUT_…` | – | ✅ | Used when the URL has no credentials | M1 |
-| `--httpAuthFile` | null | ✅ | INI `user=`/`password=`. Applies to both endpoints when the URL (plus `--{input,output}-username/-password`) lacks a username or password. Error `Malformed Auth File`. Warns when world-readable; CRLF trimmed (L-645) | M1 |
+| `--httpAuthFile` | null | ✅ | INI `user=`/`password=`. Applies to both endpoints and, when given, wins over the URL, `--{input,output}-username/-password` and env (L-645b, owner decision 2026-11-14; Node uses it only when the URL lacks a username or password). Error `Malformed Auth File`. Warns when world-readable; CRLF trimmed (L-645) | M1 |
 | `--tlsAuth` | false | ✅ | Accepted. Rust **always** honours `--ca/--cert/--key` when given; Node silently ignores them without `--tlsAuth` (divergence). Warn when cert flags are set without `--tlsAuth` | M1 |
 | `--ca`, `--input-ca`, `--output-ca` | null | ✅ | PEM bundle per direction. The shared `--ca` wins over the direction flag when both are set (Node assignment order) | M1 |
 | `--cert` / `--key` (+ input/output) | null | ✅ | PEM client cert chain and key (PKCS#8 / PKCS#1 / SEC1) → rustls client auth | M1 |
