@@ -206,7 +206,13 @@ async fn l619_index_deleted_mid_dump_or_mid_restore_is_reported() {
     )
     .await;
     let err = String::from_utf8_lossy(&o.stderr).into_owned();
-    assert_eq!(o.status.code(), Some(1), "dump: {err}");
+    // L-804b: a lost scroll context exits 4 (rerun-safe); an index_not_found answer stays 1
+    let code = if err.contains("scroll context no longer exists") {
+        4
+    } else {
+        1
+    };
+    assert_eq!(o.status.code(), Some(code), "dump: {err}");
     assert!(
         err.contains("index was deleted") || err.contains("index_not_found"),
         "dump: {err}"
@@ -334,7 +340,8 @@ async fn l622_red_index_fails_clearly() {
     let started = std::time::Instant::now();
     let o = run_loud(a).await;
     let err = String::from_utf8_lossy(&o.stderr).into_owned();
-    assert_eq!(o.status.code(), Some(1), "{err}");
+    // L-804b: HTTP 503 after the retries is transient: the shards may come back
+    assert_eq!(o.status.code(), Some(4), "{err}");
     assert!(err.contains("the index is red"), "{err}");
     assert!(started.elapsed() < Duration::from_secs(60), "bounded");
     assert!(!out.exists(), "nothing committed");

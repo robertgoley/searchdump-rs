@@ -75,9 +75,9 @@ pub(crate) fn context_lost_error(
     } else {
         "--pitKeepAlive"
     };
-    error.context(format!(
+    error.context(crate::http::ContextLoss(format!(
         "Slice {slice_id}: the {kind} context no longer exists on the cluster: it expired (raise {knob} when pages are slow to write), the index was deleted, or the node holding it restarted; nothing was committed. Re-run the dump"
-    ))
+    )))
 }
 
 /// A point-in-time page that failed for good (TST-BRK-NET-009): say whether the context is

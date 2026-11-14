@@ -31,6 +31,42 @@ impl fmt::Display for DumpCancelled {
 
 impl std::error::Error for DumpCancelled {}
 
+/// L-804b: a failure caused by a condition that may clear by itself (a cut or refused
+/// connection, a timeout, a dropped body). Displays exactly its message; only its type is
+/// new, so [`crate::exit_code`] can tell it from a permanent error (exit 4 instead of 1).
+#[derive(Debug, Clone)]
+pub struct Transient(pub String);
+
+impl fmt::Display for Transient {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+/// L-804b: the scroll or point-in-time context of a dump was lost (expired, node restart)
+/// or a scroll continuation could not be retried safely. Nothing was committed; a dump from
+/// the start can succeed. Transient for the exit code; `--restartOnContextLoss` restarts
+/// scroll dumps into a file on it.
+#[derive(Debug, Clone)]
+pub struct ContextLoss(pub String);
+
+impl fmt::Display for ContextLoss {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+/// L-804b: part of the run is already committed in a way a rerun would duplicate (bulk
+/// documents without `_id`), so a transient cause still exits 1, not 4.
+#[derive(Debug, Clone)]
+pub struct NotRerunSafe(pub String);
+
+impl fmt::Display for NotRerunSafe {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
 /// `true` when `error` is (or wraps) the [`DumpCancelled`] sentinel.
 pub fn is_cancelled(error: &anyhow::Error) -> bool {
     error.downcast_ref::<DumpCancelled>().is_some()
@@ -483,6 +519,25 @@ pub fn tls_hint(chain: &str, plain_http: bool) -> Option<(bool, &'static str)> {
     })
 }
 
+/// A body read that failed because the connection stalled or closed (L-804b), not because
+/// the bytes did not decode.
+fn body_cut_off(e: &reqwest::Error, chain: &str) -> bool {
+    e.is_timeout()
+        || [
+            "end of file",
+            "connection reset",
+            "Connection reset",
+            "connection closed",
+            "broken pipe",
+            "Broken pipe",
+            "timed out",
+            "unexpected EOF",
+            "UnexpectedEof",
+        ]
+        .iter()
+        .any(|n| chain.contains(n))
+}
+
 enum ReadError {
     TooLarge(usize),
     Http(reqwest::Error),
@@ -741,14 +796,23 @@ where
                             cap >> 20
                         ));
                     }
-                    Err(ReadError::Http(e)) => (
-                        RetryOutcome::TransportError,
-                        anyhow!(
-                            "{prefix}Failed to read {operation} response bytes: {}{}",
-                            error_chain(&e),
+                    Err(ReadError::Http(e)) => {
+                        let chain = error_chain(&e);
+                        let msg = format!(
+                            "{prefix}Failed to read {operation} response bytes: {chain}{}",
                             timeout_hint(&e)
-                        ),
-                    ),
+                        );
+                        // L-804b: a body cut off or stalled mid-transfer may not happen again; a body
+                        // that does not decode (broken gzip/deflate/zstd) will
+                        (
+                            RetryOutcome::TransportError,
+                            if body_cut_off(&e, &chain) {
+                                anyhow::Error::msg(Transient(msg))
+                            } else {
+                                anyhow!(msg)
+                            },
+                        )
+                    }
                     Ok(bytes) if status.is_success() && content_type.contains("text/html") => {
                         // permanent: a login page or proxy answered, not the cluster (BRK-NET-010)
                         return Err(anyhow!(
@@ -786,14 +850,23 @@ where
                     continue;
                 }
                 if let Some((permanent, msg)) = dns_failure(&e, &chain) {
-                    let error = anyhow!("{prefix}Elasticsearch {operation} request failed: {msg}");
+                    let msg = format!("{prefix}Elasticsearch {operation} request failed: {msg}");
                     if permanent {
-                        return Err(error);
+                        return Err(anyhow!(msg));
                     }
-                    (RetryOutcome::ConnectError, error)
+                    (
+                        RetryOutcome::ConnectError,
+                        anyhow::Error::msg(Transient(msg)),
+                    )
                 } else {
                     let http = e.url().is_some_and(|u| u.scheme() == "http");
                     let hint = tls_hint(&chain, http);
+                    // L-804b: a TLS or protocol mismatch, or a local file-descriptor limit, needs a
+                    // change before a rerun can work; a closed connection alone may be transient
+                    let needs_change = hint.is_some_and(|(permanent, _)| permanent)
+                        || (http && chain.contains("invalid HTTP version"))
+                        || chain.contains("Too many open files")
+                        || chain.contains("os error 24");
                     let outcome = if hint.is_some_and(|(permanent, _)| permanent) {
                         RetryOutcome::Tls
                     } else {
@@ -806,10 +879,16 @@ where
                             timeout_hint(&e).to_string()
                         }
                     });
-                    (
-                        outcome,
-                        anyhow!("{prefix}Elasticsearch {operation} request failed: {chain}{hint}"),
-                    )
+                    let msg =
+                        format!("{prefix}Elasticsearch {operation} request failed: {chain}{hint}");
+                    // L-804b: every other transport failure (refused, reset, timeout, body cut)
+                    // may clear by itself
+                    let error = if outcome == RetryOutcome::Tls || needs_change {
+                        anyhow!(msg)
+                    } else {
+                        anyhow::Error::msg(Transient(msg))
+                    };
+                    (outcome, error)
                 }
             }
         };
