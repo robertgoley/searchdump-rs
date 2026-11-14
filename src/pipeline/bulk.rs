@@ -265,7 +265,7 @@ fn push_json_str(out: &mut Vec<u8>, s: &str) {
 /// The top-level members of one document line, parsed in a single pass
 /// (a hit has a handful of keys; looking each one up with `sonic_rs::get`
 /// rescanned the whole line per lookup).
-struct Top<'a> {
+pub(crate) struct Top<'a> {
     members: Vec<(std::borrow::Cow<'a, str>, LazyValue<'a>)>,
 }
 
@@ -282,6 +282,33 @@ impl<'a> Top<'a> {
             }
         }
         Ok(Self { members })
+    }
+
+    /// L-808o: one checked pass that both validates the line and collects its members, for
+    /// the hot path of [`check_and_parse`]. `Some` only when the checked sonic-rs iterator
+    /// accepted every member (it validates each value and the UTF-8) *and* only `[ \t]* }
+    /// [ \t]*` follows the last value, i.e. the line is exactly one JSON object as the full
+    /// `from_slice` check in [`check_doc_line`] requires. Any doubt returns `None` and the
+    /// caller takes the old two-pass path, so verdicts and messages stay the same.
+    fn parse_strict(line: &'a [u8]) -> Option<Self> {
+        let base = line.as_ptr() as usize;
+        let mut end = memchr::memchr(b'{', line)? + 1;
+        let mut members = Vec::new();
+        for m in sonic_rs::to_object_iter(line) {
+            let (k, v) = m.ok()?;
+            let raw = v.as_raw_str();
+            let off = (raw.as_ptr() as usize).checked_sub(base)?;
+            let stop = off.checked_add(raw.len()).filter(|&e| e <= line.len())?;
+            end = end.max(stop);
+            if !v.is_null() {
+                members.push((k, v));
+            }
+        }
+        let mut tail = line[end..].iter().skip_while(|b| matches!(b, b' ' | b'\t'));
+        if tail.next() != Some(&b'}') || !tail.all(|b| matches!(b, b' ' | b'\t')) {
+            return None;
+        }
+        Some(Self { members })
     }
 
     /// The first top-level key that appears more than once. Rust would use
@@ -323,7 +350,39 @@ pub(crate) fn nonempty_lines(buf: &[u8]) -> impl Iterator<Item = &[u8]> {
         })
 }
 
+#[cfg_attr(not(any(feature = "fuzz", test)), allow(dead_code))]
 pub(crate) fn check_doc_line(line: &[u8]) -> std::result::Result<(), String> {
+    precheck_doc_line(line)?;
+    sonic_rs::from_slice::<serde::de::IgnoredAny>(line)
+        .map_err(|e| format!("not exactly one JSON object: {e}"))?;
+    check_escapes(line)
+}
+
+/// Why [`check_and_parse`] refused a line: `Line` is the [`check_doc_line`] reason,
+/// `Parse` the error [`BulkSink::encode_doc`] would have returned for it.
+pub(crate) enum CheckErr {
+    Line(String),
+    Parse(anyhow::Error),
+}
+
+/// [`check_doc_line`] followed by the member parse of [`BulkSink::encode_doc`], with the
+/// line walked once instead of twice on the common path (L-808o). Same verdicts and
+/// messages as the two calls in sequence: a line the single pass is not sure about goes
+/// through exactly those two calls.
+pub(crate) fn check_and_parse(line: &[u8]) -> std::result::Result<Top<'_>, CheckErr> {
+    precheck_doc_line(line).map_err(CheckErr::Line)?;
+    if let Some(top) = Top::parse_strict(line) {
+        check_escapes(line).map_err(CheckErr::Line)?;
+        return Ok(top);
+    }
+    sonic_rs::from_slice::<serde::de::IgnoredAny>(line)
+        .map_err(|e| CheckErr::Line(format!("not exactly one JSON object: {e}")))?;
+    check_escapes(line).map_err(CheckErr::Line)?;
+    Top::parse(line).map_err(CheckErr::Parse)
+}
+
+/// The cheap checks of [`check_doc_line`] that run before any parse.
+fn precheck_doc_line(line: &[u8]) -> std::result::Result<(), String> {
     if line.iter().find(|b| !b.is_ascii_whitespace()) != Some(&b'{') {
         return Err("not a JSON object".to_string());
     }
@@ -336,9 +395,7 @@ pub(crate) fn check_doc_line(line: &[u8]) -> std::result::Result<(), String> {
             "nested more than {MAX_DOC_DEPTH} levels deep (at byte {at}); Elasticsearch and OpenSearch refuse such documents too"
         ));
     }
-    sonic_rs::from_slice::<serde::de::IgnoredAny>(line)
-        .map_err(|e| format!("not exactly one JSON object: {e}"))?;
-    check_escapes(line)
+    Ok(())
 }
 
 /// Deepest `[`/`{` nesting a document line may have (TST-BRK-IN-008). Elasticsearch and
@@ -877,8 +934,13 @@ impl BulkSink {
 
     /// Append the action (and body) lines for one document.
     pub fn encode_doc(&mut self, line: &[u8], out: &mut Vec<u8>) -> Result<()> {
-        let action = self.opts.action;
         let top = Top::parse(line)?;
+        self.encode_top(line, &top, out)
+    }
+
+    /// [`BulkSink::encode_doc`] for a line whose members are already parsed.
+    fn encode_top(&mut self, line: &[u8], top: &Top<'_>, out: &mut Vec<u8>) -> Result<()> {
+        let action = self.opts.action;
         if let Some(k) = top.duplicate_key() {
             bail!("duplicate key {k:?} in the document (ambiguous; rejected)");
         }
@@ -897,7 +959,7 @@ impl BulkSink {
         out.extend_from_slice(b"{\"");
         out.extend_from_slice(action.as_str().as_bytes());
         out.extend_from_slice(b"\":{\"_index\":");
-        let index = self.index_for(&top)?;
+        let index = self.index_for(top)?;
         push_json_str(out, &index);
         if self.opts.index.is_none() && !self.batch_indices.contains(index.as_str()) {
             self.batch_indices.insert(index);
@@ -921,13 +983,12 @@ impl BulkSink {
                 if matches!(name.as_str(), "timestamp" | "ttl")
                     && !self.opts.info.supports_ttl_meta()
                 {
-                    if meta(&top, name).is_some() && !self.warned_ttl.swap(true, Ordering::Relaxed)
-                    {
+                    if meta(top, name).is_some() && !self.warned_ttl.swap(true, Ordering::Relaxed) {
                         log::warn!("Dropping _{name}: not supported by the target cluster");
                     }
                     continue;
                 }
-                if let Some(v) = meta(&top, name) {
+                if let Some(v) = meta(top, name) {
                     out.push(b',');
                     push_json_str(out, name);
                     out.push(b':');
@@ -1064,12 +1125,16 @@ impl BulkSink {
             let line = &lines[range.clone()];
             let this = no;
             no += 1;
-            if let Err(reason) = check_doc_line(line) {
-                self.reject_line(line, &reason, this)?;
-                continue;
-            }
+            let parsed = match check_and_parse(line) {
+                Ok(top) => Ok(top),
+                Err(CheckErr::Line(reason)) => {
+                    self.reject_line(line, &reason, this)?;
+                    continue;
+                }
+                Err(CheckErr::Parse(e)) => Err(e),
+            };
             let at = encoded.len();
-            match self.encode_doc(line, &mut encoded) {
+            match parsed.and_then(|top| self.encode_top(line, &top, &mut encoded)) {
                 Ok(()) => docs.push((range, at..encoded.len())),
                 Err(e) => {
                     encoded.truncate(at);
@@ -1538,6 +1603,92 @@ mod tests {
     }
 
     /// L-808n: the bracket-count shortcut never changes the depth verdict.
+    /// L-808o: `check_and_parse` gives the verdict, message and members of `check_doc_line`
+    /// followed by `Top::parse` on valid lines, malformed ones and byte-level mutations.
+    #[test]
+    fn check_and_parse_matches_the_two_pass_path() {
+        fn old(line: &[u8]) -> String {
+            match check_doc_line(line) {
+                Err(r) => format!("line: {r}"),
+                Ok(()) => match Top::parse(line) {
+                    Err(e) => format!("parse: {e:#}"),
+                    Ok(t) => format!("ok: {:?}", members(&t)),
+                },
+            }
+        }
+        fn new(line: &[u8]) -> String {
+            match check_and_parse(line) {
+                Err(CheckErr::Line(r)) => format!("line: {r}"),
+                Err(CheckErr::Parse(e)) => format!("parse: {e:#}"),
+                Ok(t) => format!("ok: {:?}", members(&t)),
+            }
+        }
+        fn members(t: &Top) -> Vec<(String, String)> {
+            t.members
+                .iter()
+                .map(|(k, v)| (k.to_string(), v.as_raw_str().to_string()))
+                .collect()
+        }
+        let seeds: &[&str] = &[
+            r#"{"_index":"a","_id":"1","_source":{"x":[1,2.5e3,{"y":"z\u00e9\n"}],"t":true,"n":null}}"#,
+            r#"{}"#,
+            r#"{ }"#,
+            "\t{ \"a\" : 1 }\t ",
+            r#"{"a":1}  "#,
+            r#"{"a":1}x"#,
+            r#"{"a":1}}"#,
+            r#"{"a":1,}"#,
+            r#"{"a":1}{"b":2}"#,
+            r#"{"a":"\uZZZZ"}"#,
+            r#"{"a":"\q"}"#,
+            r#"{"a":1,"a":2}"#,
+            r#"{"a":nul}"#,
+            r#"{"a":01}"#,
+            r#"{"a":-}"#,
+            r#"{"a":1e}"#,
+            r#"{"a":"x"#,
+            r#"{"a" 1}"#,
+            r#"{"a":[1,2}"#,
+            r#"{"a":{"b":{"c":[[[]]]}}}"#,
+            r#"{"_source":"s","_id":7,"n":null}"#,
+            r#"{"k\"q":"v\\"}"#,
+            "{\"a\":\"\u{1}\"}",
+            "{\"a\":\"\u{e9}\"}",
+            r#"[1]"#,
+            r#""s""#,
+        ];
+        let mut lines: Vec<Vec<u8>> = seeds.iter().map(|s| s.as_bytes().to_vec()).collect();
+        lines.push(b"{\"a\":\"\xff\"}".to_vec());
+        lines.push(b"{\"a\":1}\x00".to_vec());
+        let mut x: u64 = 0x9e37_79b9_7f4a_7c15;
+        let mut rnd = |n: usize| {
+            x ^= x << 13;
+            x ^= x >> 7;
+            x ^= x << 17;
+            (x % n as u64) as usize
+        };
+        let alphabet = b" \t{}[]\",:\\0123456789-+.eEtrufalsn\xff\x00ab";
+        for seed in seeds {
+            for _ in 0..400 {
+                let mut l = seed.as_bytes().to_vec();
+                for _ in 0..1 + rnd(3) {
+                    let i = rnd(l.len() + 1);
+                    match rnd(3) {
+                        0 if i < l.len() => l[i] = alphabet[rnd(alphabet.len())],
+                        1 if i < l.len() => {
+                            l.remove(i);
+                        }
+                        _ => l.insert(i, alphabet[rnd(alphabet.len())]),
+                    }
+                }
+                lines.push(l);
+            }
+        }
+        for l in &lines {
+            assert_eq!(new(l), old(l), "{:?}", String::from_utf8_lossy(l));
+        }
+    }
+
     #[test]
     fn too_deep_shortcut_keeps_the_verdict() {
         fn slow(line: &[u8], max: usize) -> Option<usize> {
