@@ -179,6 +179,7 @@ pub struct BulkSink {
     /// The 409 explanation is printed once per run (TST-BRK-SRV-011).
     conflict_hint_shown: bool,
     data_stream_hint_shown: bool,
+    routing_hint_shown: bool,
 }
 
 fn get<'a>(line: &'a [u8], path: &[&str]) -> Option<LazyValue<'a>> {
@@ -528,6 +529,7 @@ impl BulkSink {
             target_gone_mid_run: false,
             conflict_hint_shown: false,
             data_stream_hint_shown: false,
+            routing_hint_shown: false,
         }
     }
 
@@ -667,6 +669,7 @@ impl BulkSink {
             target_gone_mid_run: false,
             conflict_hint_shown: false,
             data_stream_hint_shown: false,
+            routing_hint_shown: false,
         }
     }
 
@@ -1213,6 +1216,17 @@ impl BulkSink {
                     self.data_stream_hint_shown = true;
                     log::warn!(
                         "the target is a data stream, which accepts only `create`: every document written with --bulkAction index fails; re-run with --bulkAction create"
+                    );
+                }
+                if status == 400
+                    && !self.routing_hint_shown
+                    && item.as_raw_str().contains("targeting data stream")
+                    && item.as_raw_str().contains("custom routing")
+                {
+                    // L-812: documents dumped from a routed index keep their routing
+                    self.routing_hint_shown = true;
+                    log::warn!(
+                        "the target is a data stream, which refuses documents that carry a routing value unless its index template sets data_stream.allow_custom_routing: true (Elasticsearch 8.1+); every routed document fails. Restore them into a regular index, or remove the routing from the input"
                     );
                 }
                 if status == 409 && !self.conflict_hint_shown {

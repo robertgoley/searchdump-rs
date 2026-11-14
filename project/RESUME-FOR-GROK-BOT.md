@@ -48,7 +48,7 @@ Keep project/plan/ and project/handoff/plan/PROGRESS.md in sync with /workspace/
 - Sudo scope that was approved in the old account. **Re-confirm it with the user in the new account before using it:** cgroup memory-limit OOM tests; switching apt to HTTPS and installing strace/perf/valgrind; tc network fault injection on test containers only; tmpfs/loop mounts for disk-full tests.
 
 ## Queue (2026-11-01)
-- Order (D-2 and L-811 were taken first on 2026-11-01 because L-809 did not fit the usage check; both done): L-809, L-810 (impl/runner parts; the 413/limit wording is marked for lead review), L-811, L-812, L-814, L-815 (expectations marked for lead review), L-816, L-817, L-811a (end-of-run leak check for the Rust IT runs; user decision 2026-11-01), then D-1. L-809 and L-810 done 2026-11-14; next is L-812, awaiting the owner. Branch `wip/L-809` (design notes) is now superseded; deleting it needs owner approval.
+- Order (D-2 and L-811 were taken first on 2026-11-01 because L-809 did not fit the usage check; both done): L-809, L-810 (impl/runner parts; the 413/limit wording is marked for lead review), L-811, L-812, L-814, L-815 (expectations marked for lead review), L-816, L-817, L-811a (end-of-run leak check for the Rust IT runs; user decision 2026-11-01), then D-1. L-809, L-810 and L-812 done 2026-11-14; next is L-814 (L-813 is lead-only), awaiting the owner. Branch `wip/L-809` (design notes) is now superseded; deleting it needs owner approval.
 - Skip (lead-only or blocked): L-703, L-813, H4, Final, the B campaigns (B0-B13).
 - Each task: one squashed `L-NNN` commit, a PROGRESS.md row, root docs (TESTING-COMPLETED Total = row count, Next line), full gates, `scripts/check-clean-tree.sh`, `scripts/sup/secret-scan.sh`, the credential grep, normal push to the fork's `main`.
 
@@ -67,7 +67,7 @@ Keep project/plan/ and project/handoff/plan/PROGRESS.md in sync with /workspace/
 - L-802 README memory formula (×3 + 15 MB) awaits lead review; L-808b allocbench showed no need to change memplan.rs.
 - L-804 exit codes reviewed in L-804a (2026-11-14, results/local/L-804a.md): all correct; proposals P1-P6 await the owner (P1 = distinct exit code for transient failures, a behaviour change).
 - L-808: Rust restore CPU profiled in L-808n (2026-11-14): -24% from a memchr line split; still ~1.35x M6 CPU and 2.5x RSS; next candidates in results/local/L-808n.md await the owner.
-- Deferred by the owner 2026-11-14 for later review: Q5 filterManaged skip line, Q6 ES 7.10 managed policies, ES 9.1.2 reruns (to do later), 1.1-8 flaky rep, table in TESTING-IN-PROGRESS.md section 1.
+- Deferred by the owner 2026-11-14 for later review: Q5 filterManaged skip line, Q6 ES 7.10 managed policies, (the ES 9.1.2 reruns listed here were already done on `main` in bcc655c, 2026-11-13: 576 PASS, 0 FAIL), 1.1-8 flaky rep, table in TESTING-IN-PROGRESS.md section 1.
 - L-811: TST-LOAD-017 also names IT runs; the Rust IT suite checks open contexts per test index but had no per-run teardown leak check. User decision 2026-11-01: add it as L-811a (queued after L-817). Branches `wip/D-2` and `wip/L-811` deleted with user approval; `wip/L-809` kept.
 - Lead-only/blocked: L-703, L-813, H4, Final, B campaigns; the sudo scope must be re-confirmed (below).
 
@@ -100,3 +100,4 @@ The user runs Grok 4.7 locally through the OpenCode CLI. The handoff/ folder (op
 - L-804b (2026-11-14): exit 4 for transient, rerun-safe failures (behaviour change), typed error chain, --restartOnContextLoss for scroll dumps to a file, PIT and cluster-block/disk hints; L-804a P1-P5, P6 deferred (results/local/L-804b.md)
 - L-809 (2026-11-14): LOAD-014 A (300 indices, 5,000-field mapping, 100 aliases): PASS, meta types under 11 s each, data and meta round-trip exactly; scroll-context-limit errors now exit 1 at once with a PIT hint (results/local/L-809.md)
 - L-810 (2026-11-14): LOAD-015 large documents (pmc 20k, 1-10 MB, one 90 MB): PASS, digests equal; 413 now names http.max_content_length and --maxBulkBytes; ~5.3x RSS per very large document noted (results/local/L-810.md)
+- L-812 (2026-11-14): LOAD-018 data streams 1M (rollover, dump, host-only, rename): PASS, digests equal; routed documents into a data stream now warned once (results/local/L-812.md)

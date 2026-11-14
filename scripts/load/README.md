@@ -58,7 +58,7 @@ LOAD_PLACE=runner scripts/load/run.sh L1R dump-restore-logs
 
 **Metrics (LOAD-003).** Each tool step runs under `measure.sh` and is schema-validated. The tool's max RSS must stay under the place's `tool_mem_mb`. `Total Writes` must equal the source count, and `Failed Writes` must be 0.
 
-**Leak check (LOAD-017).** Every load script (`run.py`, `split.py`, `resume.py`, `faults.py`, `curves.py`, `compress.py`, `allocbench.py`, `nodecmp.py`, `manyidx.py`, `largedocs.py`) calls `run.leak_check` before its teardown and fails the run on a leak (L-811). At the end of a run there must be:
+**Leak check (LOAD-017).** Every load script (`run.py`, `split.py`, `resume.py`, `faults.py`, `curves.py`, `compress.py`, `allocbench.py`, `nodecmp.py`, `manyidx.py`, `largedocs.py`, `datastreams.py`) calls `run.leak_check` before its teardown and fails the run on a leak (L-811). At the end of a run there must be:
 
 - no open scroll or PIT contexts: `scroll_current` and, on OpenSearch, `point_in_time_current` reach 0 within 15 s. Elasticsearch has no PIT stat, so there `open_contexts` minus the scrolls (`other_open_contexts`, which counts PITs) must reach 0. `nodecmp.py` only records the contexts, because Node elasticdump may leave scrolls open; its Rust runs must leave none;
 - no `.part` files in the work directory, hidden staging files (`.name.part-*`) included. Cluster data dirs (`it`, `it-*`) are skipped; `split.py` allows the parts its kill cases leave on purpose;
@@ -324,3 +324,16 @@ Restores and dumps Rally pmc articles (`--pmc`: one source document per line, e.
 one 90 MB document, each checked with `edverify diff`. Over the 100 MB `http.max_content_length`: a 110 MB document
 (refused by `--maxDocMb`, then 413 with `--maxDocMb 0`) and a 120 MB bulk (`--maxBulkBytes 200mb`) must exit 1 at
 once with a message naming the limit. Needs a 2 GB heap; run it with an isolated podman store on PATH.
+
+## Data streams (LOAD-018, L-812, `datastreams.py`)
+
+`python3 scripts/load/datastreams.py [--engine es717-plain] [--docs 1000000] [--heap 2048m] [--run-id ID] [--keep]`
+
+Adds a composable template (`ds-l812-*`, data_stream) and generates `--docs` edgen logs documents without routing.
+Probes: 1000 documents into a stream with the default `--bulkAction index` (exit 3, the create hint once, nothing
+stored) and 1000 documents with 10% routed into a stream with `--bulkAction create` (exit 3, the routing hint once,
+the unrouted ones stored). Then restores the file into `ds-l812-a` with `--bulkAction create`, rolling the stream
+over at half the documents (two backing indices), dumps it (every `_index` is a backing index), restores the dump
+into the host-only URL (`index` must exit 1 naming the stream; after the stream is deleted, `create` recreates it)
+and into a renamed stream; every copy is checked with `edverify diff`. Needs a 2 GB heap; run it with an isolated
+podman store on PATH.

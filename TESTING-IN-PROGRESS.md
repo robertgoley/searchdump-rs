@@ -2,7 +2,7 @@
 
 The task plan delegated to the other agent (Grok 4.7 through OpenCode, using [`project/handoff/HANDOFF-GROK-OPENCODE.md`](project/handoff/HANDOFF-GROK-OPENCODE.md)). Everything below is assigned to it; it commits each task to `main` as `L-NNN: ...` and adds a row to [`project/plan/PROGRESS.md`](project/plan/PROGRESS.md). Finished tasks move to [TESTING-COMPLETED.md](TESTING-COMPLETED.md). Tests outside this plan are in [TESTING-TODO.md](TESTING-TODO.md).
 
-Status as of 2026-11-14: work through L-808m (2026-11-09) is recorded in [TESTING-COMPLETED.md](TESTING-COMPLETED.md) and in the dated note in [`project/plan/PROGRESS.md`](project/plan/PROGRESS.md). Later work on this tree includes L-809 (OpenDAL storage), the searchdump-rs rename, 1.0.0-beta1/1.0.0, and the owner's 2026-11-14 decisions: L-645b (`--httpAuthFile` wins; done), L-810i (OpenSSH client in the images; CVEs accepted 2026-11-14, merged), release/1.1 1.1-4a (slice cap only on ES 7.10; done on release/1.1), L-804a (exit-code review; done), L-804b (proposals P1-P5 done: exit 4 for transient rerun-safe failures, `--restartOnContextLoss`, PIT and cluster-block hints; P6 deferred until a big host is available). L-808n to L-808r (restore CPU profile and fixes; CPU about half, level with M6; done). **Still open from this plan: L-703** (seccomp/Landlock). Owner decision item D-1 is still not started. Deferred for later owner review (2026-11-14): see the table in section 1. L-809 (LOAD-014 A: 300 indices, 5,000-field mapping, 100 aliases; done, PASS), L-810 (LOAD-015 large documents; done, PASS). **Next:** L-812 (LOAD-018, data streams 1M; L-811 is done), awaiting the owner's go-ahead.
+Status as of 2026-11-14: work through L-808m (2026-11-09) is recorded in [TESTING-COMPLETED.md](TESTING-COMPLETED.md) and in the dated note in [`project/plan/PROGRESS.md`](project/plan/PROGRESS.md). Later work on this tree includes L-809 (OpenDAL storage), the searchdump-rs rename, 1.0.0-beta1/1.0.0, and the owner's 2026-11-14 decisions: L-645b (`--httpAuthFile` wins; done), L-810i (OpenSSH client in the images; CVEs accepted 2026-11-14, merged), release/1.1 1.1-4a (slice cap only on ES 7.10; done on release/1.1), L-804a (exit-code review; done), L-804b (proposals P1-P5 done: exit 4 for transient rerun-safe failures, `--restartOnContextLoss`, PIT and cluster-block hints; P6 deferred until a big host is available). L-808n to L-808r (restore CPU profile and fixes; CPU about half, level with M6; done). **Still open from this plan: L-703** (seccomp/Landlock). Owner decision item D-1 is still not started. Deferred for later owner review (2026-11-14): see the table in section 1. L-809 (LOAD-014 A: 300 indices, 5,000-field mapping, 100 aliases; done, PASS), L-810 (LOAD-015 large documents; done, PASS), L-812 (LOAD-018 data streams 1M; done, PASS). **Next:** L-814 (L-813 is lead-only), awaiting the owner's go-ahead.
 
 Who: impl = bounded code card, runner = scripted campaign, lead = supervised session for security-sensitive work, review = independent read-only review of every change.
 
@@ -20,7 +20,7 @@ Deferred by the owner on 2026-11-14 (t83u), kept for later review:
 |---|---|---|
 | Q5 `--filterManaged` skip line | deferred | The "skipped managed policy" line only shows under `--debug`; make it an info line? |
 | Q6 ES 7.10 managed policies | deferred | ES 7.10 built-ins and `.monitoring-8-ilm-policy` lack the `managed` marker and are copied; skip by name? |
-| ES 9.1.2 reruns | deferred, to be done later | Earlier failures traced to the harness stalling. |
+| ES 9.1.2 reruns | done on `main` in bcc655c (2026-11-13), before the deferral | The isolated reruns of the three ES 9.1.2 failures (plain dump-edge/restore-edge, secure dump-zstd) all passed; the v1.0.0-beta1 L0 report has 576 PASS, 0 FAIL. Listing them as pending on 2026-11-14 was a tracking error. |
 | 1.1-8 flaky ES 7.10 rep | skipped for now | dump-split-gzip rep2 edverify diff (34 PASS / 1 FAIL). |
 | policy_round_trip flake, `--ca` script test, B2/AWS real tests, dhi.io token rotation | skipped for now | Need owner input or accounts. |
 | L-804a P1-P6 | awaiting owner | results/local/L-804a.md. |
@@ -44,7 +44,7 @@ Scale: L0 100k docs and L1-lite 1M docs, disk at most 12 GB.
 | L-809 | LOAD-014 | runner | done (L-809): 300 indices, 5,000-field mapping, 100 aliases PASS; 1,000 indices is Phase B (needs PIT or a raised `search.max_open_scroll_context`) |
 | L-810 | LOAD-015 | impl/runner → lead | done (L-810): large docs PASS; 413 message now names the limit (wording for lead review); ~5.3x RSS per very large document noted |
 | L-811 | LOAD-017 | impl | done (L-811): leak check in teardown of each run (script change in scripts/load) |
-| L-812 | LOAD-018 | runner | data streams 1M |
+| L-812 | LOAD-018 | runner | done (L-812): 1M into a data stream with rollover, dump, host-only and rename PASS; routed documents into a data stream now warned once |
 | L-813 | LOAD-020 | lead | trend store / regression gate design (CI) |
 | L-814 | DATA-002 | impl | edgen mapping/settings per engine (single crate tools/edgen) |
 | L-815 | DATA-003 | impl/runner → lead | edge catalogue `--profile edge` (tools/edgen/src/edge.rs exists; check first); expectations reviewed by lead |
