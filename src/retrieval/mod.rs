@@ -455,7 +455,9 @@ pub async fn dump_data(
                 }
                 let docs = memchr::memchr_iter(b'\n', &processed.buffer).count() as u64;
                 consumed += docs;
-                let (slice, docs) = window.apply(&processed.buffer, docs);
+                let data = bytes::Bytes::from(processed.buffer);
+                let (slice, docs) = window.apply(&data, docs);
+                let slice = data.slice_ref(slice);
                 written += docs;
                 if let Err(e) = output_target.write_all(slice).await {
                     if output_target.is_stdout() && crate::output::is_broken_pipe(&e) {

@@ -41,7 +41,9 @@ pub async fn file_to_sink(
             let Some(batch) = batch else { break };
             let batch = batch?;
             let skipped = window.pending_skip().min(batch.docs);
-            let (slice, docs) = window.apply(&batch.buf, batch.docs);
+            let data = bytes::Bytes::from(batch.buf);
+            let (slice, docs) = window.apply(&data, batch.docs);
+            let slice = data.slice_ref(slice);
             sink.set_next_doc(seen + skipped + 1);
             seen += batch.docs;
             if docs > 0

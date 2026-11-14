@@ -38,7 +38,10 @@ fn source_only_lines(buf: &[u8], out: &mut Vec<u8>) {
 }
 
 impl Sink {
-    pub async fn write_all(&mut self, buf: &[u8]) -> Result<()> {
+    /// Write one batch of `\n`-terminated documents. The batch is shared (`Bytes`) so a bulk
+    /// sink with `--concurrency` > 1 hands it to its worker task without copying it (L-808r).
+    pub async fn write_all(&mut self, data: bytes::Bytes) -> Result<()> {
+        let buf: &[u8] = &data;
         crate::memplan::observe(buf);
         match self {
             Sink::File(f) => {
@@ -57,7 +60,7 @@ impl Sink {
                 f.written += docs;
                 Ok(())
             }
-            Sink::Bulk(b) => b.write_batch(buf).await,
+            Sink::Bulk(b) => b.write_batch(data).await,
         }
     }
 

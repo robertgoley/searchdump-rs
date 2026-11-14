@@ -659,12 +659,12 @@ impl BulkSink {
     }
 
     /// Hand one batch to the writer. Sequential with `--concurrency 1`.
-    pub async fn write_batch(&mut self, buf: &[u8]) -> Result<()> {
+    pub async fn write_batch(&mut self, data: Bytes) -> Result<()> {
         self.note_target_uuid().await;
         let first = self.next_doc;
-        self.next_doc += nonempty_lines(buf).count() as u64;
+        self.next_doc += nonempty_lines(&data).count() as u64;
         if self.concurrency <= 1 {
-            self.process_batch(buf, first).await?;
+            self.process_batch(&data, first).await?;
         } else {
             while self.inflight.len() >= self.concurrency {
                 let joined = self.inflight.join_next().await.expect("non-empty");
@@ -674,7 +674,7 @@ impl BulkSink {
                 }
             }
             let mut worker = self.worker();
-            let data = Bytes::copy_from_slice(buf);
+            // L-808r: the shared batch moves into the worker; it used to be copied here
             self.inflight.spawn(async move {
                 worker.process_batch(&data, first).await?;
                 Ok(worker.report)

@@ -6,7 +6,7 @@ A one-screen engine coverage matrix (dump, restore, PIT, slices, storage, TLS) i
 
 Every test task with a commit on `main`, oldest first within each group. The commit message is the short result; full results, numbers and findings for each task are in [`project/plan/PROGRESS.md`](project/plan/PROGRESS.md), and the requirement IDs are in [`project/plan/TEST-REQUIREMENTS.md`](project/plan/TEST-REQUIREMENTS.md).
 
-Total: 216 task commits (including follow-up fixes with a letter suffix). Last updated from commit L-808q (`git log -1 --grep '^L-808q'`; the next commit fills in its sha).
+Total: 217 task commits (including follow-up fixes with a letter suffix). Last updated from commit L-808r (`git log -1 --grep '^L-808r'`; the next commit fills in its sha).
 
 ## Setup and planning (L-0xx)
 
@@ -268,7 +268,8 @@ Total: 216 task commits (including follow-up fixes with a letter suffix). Last u
 | L-810i | 15f049f | 2026-11-14 | OpenSSH client in the Debian/Alpine images for sftp:// (dhi-static unchanged); SFTP round trip OK in public Debian and Alpine builds; 22 OpenSSH/Kerberos High/Critical ids accepted by the owner (t85u) and ignored by `make scan` only while unfixed |
 | L-808o | b1af6c0 | 2026-11-14 | restore validates each document once (check_and_parse) instead of twice; same verdicts and messages (differential test); restore CPU -14% vs L-808n (results/local/L-808o.md) |
 | L-808p | 7c5391f | 2026-11-14 | restore moves the encoded batch into the bulk request instead of copying it and pre-sizes file batch buffers; CPU -12%, peak RSS -17% vs L-808o (results/local/L-808o.md) |
-| L-808q | this commit | 2026-11-14 | file-input splitter skips non-structural bytes (SIMD/table) with identical output (proptest); restore CPU -25% vs L-808p, about half of pre-L-808n and below M6 (results/local/L-808o.md) |
+| L-808q | f875663 | 2026-11-14 | file-input splitter skips non-structural bytes (SIMD/table) with identical output (proptest); restore CPU -25% vs L-808p, about half of pre-L-808n and below M6 (results/local/L-808o.md) |
+| L-808r | this commit | 2026-11-14 | batches pass through the Sink as shared Bytes, no copy at --concurrency > 1; RSS -3% (c4) / -8% (c1), CPU level with M6 (results/local/L-808r.md) |
 
 ## Supply-chain scans (Grok Bot)
 

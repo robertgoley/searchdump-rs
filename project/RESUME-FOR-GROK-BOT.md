@@ -92,7 +92,8 @@ The user runs Grok 4.7 locally through the OpenCode CLI. The handoff/ folder (op
 - L-645b (2026-11-14): owner decision implemented: `--httpAuthFile` wins over flags, URL and env (behaviour change, CHANGELOG Unreleased); auth-file values literal and world-readable warning unchanged.
 - L-804a (2026-11-14): exit-code review of the L-804 faults (results/local/L-804a.md); final-429 hint added; proposals P1-P6 await the owner.
 - L-808n (2026-11-14): restore CPU profile; memchr line split + depth shortcut, CPU -24%, behaviour unchanged.
-- L-810i (2026-11-14): OpenSSH client in the images (sftp://); 22 Debian OpenSSH/Kerberos CVE ids accepted by the owner (t85u), ignored by `make scan` while unfixed. Branch `wip/L-810i` kept; deleting it needs owner approval.
+- L-810i (2026-11-14): OpenSSH client in the images (sftp://); 22 Debian OpenSSH/Kerberos CVE ids accepted by the owner (t85u), ignored by `make scan` while unfixed. Branch `wip/L-810i` deleted 2026-11-14 with owner approval (t86u).
 - L-808o (2026-11-14): restore validates each document once (check_and_parse) instead of twice; same verdicts and messages (differential test); restore CPU -14% vs L-808n (results/local/L-808o.md)
 - L-808p (2026-11-14): restore moves the encoded batch into the bulk request instead of copying it and pre-sizes file batch buffers; CPU -12%, peak RSS -17% vs L-808o (results/local/L-808o.md)
 - L-808q (2026-11-14): file-input splitter skips non-structural bytes (SIMD/table) with identical output (proptest); restore CPU -25% vs L-808p, about half of pre-L-808n and below M6 (results/local/L-808o.md)
+- L-808r (2026-11-14): batches pass through the Sink as shared Bytes, no copy at --concurrency > 1; RSS -3% (c4) / -8% (c1), CPU level with M6 (results/local/L-808r.md)
