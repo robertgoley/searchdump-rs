@@ -104,3 +104,4 @@ The user runs Grok 4.7 locally through the OpenCode CLI. The handoff/ folder (op
 - L-804c (2026-11-14): CI it jobs fixed: l618 expects exit 4 for a lost context; scroll context-lost error names the PIT way out; real per-profile IT results (results/local/L-804c.md)
 - L-810j (2026-11-14): Image hardening: no user-admin/init-script tools in the Debian images; executable allowlist unchanged; fixes the security image job (results/local/L-810j.md)
 - L-810k (2026-11-14): examples/ updated for the changes on main after 1.0.0; k8s env values quoted (results/local/L-810k.md)
+- L-818 (2026-11-14): low-memory engine test set lowheap.py; release/1.1 PASS 16/16 (results/local/L-818.md)
