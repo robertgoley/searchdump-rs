@@ -324,6 +324,23 @@ struct Shared {
     close_always: bool,
     idle_close: Option<(Duration, bool)>,
     idle_closed: AtomicUsize,
+    /// 1.2: route `--serverLimits` probe requests like any other (default: answer them 404
+    /// here, outside the routes and `requests()`, see [`is_limits_probe`]).
+    serve_probes: bool,
+    probes: Mutex<Vec<Recorded>>,
+}
+
+/// 1.2 (`--serverLimits`): the read-only sizing probe requests (`_nodes/stats`,
+/// `_nodes/settings`, `_cat/thread_pool`, `INDEX/_stats/docs,store`). Unless a mock opts in with
+/// [`RouterMockBuilder::serve_probes`], they get a 404 (a cluster without node stats: the probe
+/// falls back to the fixed 1.1 sizes, which is what every pre-1.2 test expects), are not routed,
+/// and are kept out of `requests()` / `request_count()` (see `probe_requests()`).
+pub fn is_limits_probe(method: &str, path: &str) -> bool {
+    method == "GET"
+        && (path.contains("/_nodes/stats")
+            || path.contains("/_nodes/settings")
+            || path.contains("/_cat/thread_pool")
+            || path.ends_with("/_stats/docs,store"))
 }
 
 /// A running router mock. Dropping it stops the accept loop.
@@ -340,9 +357,15 @@ pub struct RouterMockBuilder {
     handler: Option<Handler>,
     close_always: bool,
     idle_close: Option<(Duration, bool)>,
+    serve_probes: bool,
 }
 
 impl RouterMockBuilder {
+    /// Route the `--serverLimits` probe requests like any other request (see [`is_limits_probe`]).
+    pub fn serve_probes(mut self) -> Self {
+        self.serve_probes = true;
+        self
+    }
     pub fn route(mut self, r: Route) -> Self {
         self.routes.push(r);
         self
@@ -387,6 +410,8 @@ impl RouterMockBuilder {
             close_always: self.close_always,
             idle_close: self.idle_close,
             idle_closed: AtomicUsize::new(0),
+            serve_probes: self.serve_probes,
+            probes: Mutex::new(vec![]),
         });
         let handle = tokio::spawn({
             let shared = Arc::clone(&shared);
@@ -416,6 +441,7 @@ impl RouterMock {
             handler: None,
             close_always: false,
             idle_close: None,
+            serve_probes: false,
         }
     }
     /// `http://127.0.0.1:PORT`
@@ -430,6 +456,10 @@ impl RouterMock {
     }
     pub fn request_count(&self) -> usize {
         self.shared.recorded.lock().unwrap().len()
+    }
+    /// The `--serverLimits` probe requests answered outside the routes (see [`is_limits_probe`]).
+    pub fn probe_requests(&self) -> Vec<Recorded> {
+        self.shared.probes.lock().unwrap().clone()
     }
     pub fn connections(&self) -> usize {
         self.shared.conns.load(Ordering::SeqCst)
@@ -479,6 +509,18 @@ async fn serve_conn(mut sock: TcpStream, conn: usize, shared: Arc<Shared>) {
             return;
         };
         req.conn = conn;
+        if !shared.serve_probes && is_limits_probe(&req.method, &req.path) {
+            shared.probes.lock().unwrap().push(req);
+            let reply = Reply::json(404, r#"{"error":"router-mock: no node stats"}"#);
+            let close = client_close || shared.close_always;
+            match send_reply(&mut sock, &reply, close).await {
+                Ok(true) if !close => continue,
+                _ => {
+                    let _ = sock.shutdown().await;
+                    return;
+                }
+            }
+        }
         let route = shared.routes.iter().position(|r| r.matches(&req));
         req.route = route;
         let reply = match (route, &shared.handler) {

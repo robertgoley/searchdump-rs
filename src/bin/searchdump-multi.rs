@@ -114,39 +114,252 @@ pub enum Lifecycle {
     Convert,
 }
 
-/// Default flags for data runs (from scripts/oslogs.py; 1.1-10 made them safe on small heaps).
-/// Until 1.1 they were `--limit=5000` and `--maxResponseMb=0`: a 5000-document scroll page
-/// killed a 256 MB-heap Elasticsearch 7.10.2 / 8.6.1 (Java heap OutOfMemoryError) or tripped
-/// the 8.19 parent breaker (HTTP 429), and no response cap stopped an oversized page. Pages are
-/// now 1000 documents (fewer for large documents, see [`page_limit_for`]) and searchdump's
-/// default `--maxResponseMb` (256) applies. A load splits bulks at 16 MB: 5000 PMC articles
-/// (~105 MB) were refused with HTTP 429 by a 1 GB heap (`indexing_pressure`, 10 % of the heap)
-/// and 1000 of them by a 256 MB heap (parent breaker), until the retries ran out.
+/// Default run-control flags for data runs (from scripts/oslogs.py). 1.2 (ROADMAP-1.2 section 6):
+/// page and bulk sizes are no longer fixed here; they come from [`sizing`] per index
+/// (`--serverLimits`), and `--serverLimits=off` reproduces the 1.1.0 values exactly.
 const DATA_FLAGS: &[&str] = &[
-    "--limit=1000",
     "--scrollTime=10m",
     "--retryAttempts=5",
     "--retryDelay=2000",
     "--timeout=300000",
-    "--maxBulkBytes=16mb",
 ];
 
-/// Documents per page in [`DATA_FLAGS`].
-const DEFAULT_DATA_LIMIT: u64 = 1000;
+/// 1.2 server-aware sizing for searchdump-multi (ROADMAP-1.2 sections 3-6). The parent probes
+/// the cluster once (node stats, thread pools) and reads every index's primary docs and stored
+/// bytes in one `_stats?level=indices` call, then gives each child explicit
+/// `--limit=N --maxBulkBytes=M --serverLimits=off` (children never probe again).
+pub mod sizing {
+    use searchdump_rs::limits::{self, Budget, Limits, Mode};
 
-/// 1.1-10: stored (primary, compressed) bytes one dump page should hold. `_source` in the
-/// response is usually 1-4x the stored size, so a page stays well under the ~80 MB that a
-/// 256 MB heap survived in the 1.1-10 runs.
-const PAGE_STORE_BUDGET: u64 = 16 << 20;
+    /// The `off` profile: the 1.1.0 (1.1-10) fixed data defaults.
+    pub const OFF_LIMIT: u64 = 1000;
+    /// The `off` profile bulk size (1.1-10).
+    pub const OFF_BULK: u64 = 16 << 20;
+    /// 1.1-10: stored (primary, compressed) bytes one dump page holds in the `off` profile.
+    /// `_source` in the response is usually 1-4x the stored size, so a page stays well under the
+    /// ~80 MB that a 256 MB heap survived in the 1.1-10 runs.
+    pub const PAGE_STORE_BUDGET: u64 = 16 << 20;
 
-/// 1.1-10: documents per dump page for an index whose primary documents average
-/// `avg_doc_bytes` stored bytes: the default (1000) for small documents, fewer for large ones
-/// so a page holds about [`PAGE_STORE_BUDGET`], never less than 1.
-fn page_limit_for(avg_doc_bytes: u64) -> u64 {
-    if avg_doc_bytes == 0 {
-        return DEFAULT_DATA_LIMIT;
+    /// 1.1-10, the `off` profile: documents per dump page for an index whose primary documents
+    /// average `avg_doc_bytes` stored bytes: 1000 for small documents, fewer for large ones so a
+    /// page holds about [`PAGE_STORE_BUDGET`], never less than 1 (identical to 1.1.0).
+    pub fn page_limit_for(avg_doc_bytes: u64) -> u64 {
+        if avg_doc_bytes == 0 {
+            return OFF_LIMIT;
+        }
+        (PAGE_STORE_BUDGET / avg_doc_bytes).clamp(1, OFF_LIMIT)
     }
-    (PAGE_STORE_BUDGET / avg_doc_bytes).clamp(1, DEFAULT_DATA_LIMIT)
+
+    /// One run's sizing decision.
+    #[derive(Debug, Clone)]
+    pub struct Plan {
+        pub mode: Mode,
+        /// `--noDefaultDataFlags`: no sizing flags at all (only `--serverLimits=off`).
+        pub no_defaults: bool,
+        pub limits: Option<Limits>,
+        pub budget: Option<Budget>,
+        /// `--parallel` as asked (the upper bound).
+        pub parallel: usize,
+        /// Workers the budget fits at the largest index's page (reported; the byte semaphore
+        /// enforces it at run time, so small indices still run `parallel` at once).
+        pub fit_parallel: usize,
+        /// Largest page response in bytes after the worker-first policy.
+        pub page_cap: u64,
+        /// Bulk bytes per load worker.
+        pub bulk_bytes: u64,
+    }
+
+    /// One index's sizes.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct IndexSize {
+        pub limit: u64,
+        pub max_bulk_bytes: u64,
+        /// `default` | `large-docs` | `budget` | `off` | `fallback`
+        pub reason: &'static str,
+        /// Estimated bytes of one page in flight (for the byte semaphore; 0 = unknown).
+        pub page_bytes: u64,
+    }
+
+    /// (docs, stored bytes) of an index's primaries.
+    pub type Stats = (u64, u64);
+
+    fn avg(s: Option<Stats>) -> Option<u64> {
+        s.and_then(|(d, b)| (d > 0 && b > 0).then(|| b / d))
+    }
+
+    /// Estimated response bytes of a page of `limit` documents of an index.
+    pub fn page_estimate(limit: u64, s: Option<Stats>) -> u64 {
+        match s {
+            Some((d, _)) if avg(s).is_some() => {
+                limit.min(d.max(1)) * avg(s).unwrap_or(0) * limits::EXPANSION
+            }
+            _ => 0,
+        }
+    }
+
+    impl Plan {
+        /// Build the plan from the probe (or none for `off` / `--noDefaultDataFlags`) and the
+        /// selected indices' stats. Worker-first (ROADMAP-1.2 4.1): if `parallel` pages of the
+        /// largest index do not fit the in-flight budget, fewer workers are assumed first
+        /// (down to 2, or 1 when 1 was asked), and only then the page shrinks.
+        pub fn new(
+            mode: Mode,
+            no_defaults: bool,
+            limits: Option<Limits>,
+            parallel: usize,
+            stats: &[Option<Stats>],
+        ) -> Self {
+            let budget = limits
+                .as_ref()
+                .and_then(|l| limits::budget(l, mode, 256 << 20));
+            let mut plan = Plan {
+                mode,
+                no_defaults,
+                limits,
+                budget,
+                parallel,
+                fit_parallel: parallel,
+                page_cap: 0,
+                bulk_bytes: OFF_BULK,
+            };
+            let Some(b) = budget else {
+                return plan;
+            };
+            let biggest = stats
+                .iter()
+                .map(|s| page_estimate(limits::MULTI_MAX_PAGE, *s).min(b.page_bytes))
+                .max()
+                .unwrap_or(0)
+                .max(1);
+            let floor = parallel.min(2);
+            let mut p = parallel.max(1);
+            while p > floor && (p as u64) * biggest > b.inflight_bytes {
+                p -= 1;
+            }
+            plan.fit_parallel = p;
+            plan.page_cap = b.page_bytes.min(b.inflight_bytes / p.max(1) as u64);
+            plan.bulk_bytes = limits::bulk_bytes(&b, parallel.max(1) as u64).min(100 << 20);
+            plan
+        }
+
+        /// Sizes for a dump of one index.
+        pub fn dump(&self, s: Option<Stats>) -> IndexSize {
+            match self.budget {
+                None => {
+                    let limit = avg(s).map_or(OFF_LIMIT, page_limit_for);
+                    IndexSize {
+                        limit,
+                        max_bulk_bytes: OFF_BULK,
+                        reason: if self.limits.is_some() {
+                            "fallback"
+                        } else {
+                            "off"
+                        },
+                        page_bytes: 0,
+                    }
+                }
+                Some(b) => {
+                    let limit = limits::page_docs(self.page_cap, avg(s), limits::MULTI_MAX_PAGE);
+                    let reason = if limit >= limits::MULTI_MAX_PAGE {
+                        "default"
+                    } else if self.page_cap < b.page_bytes {
+                        "budget"
+                    } else {
+                        "large-docs"
+                    };
+                    IndexSize {
+                        limit,
+                        max_bulk_bytes: self.bulk_bytes,
+                        reason,
+                        page_bytes: page_estimate(limit, s),
+                    }
+                }
+            }
+        }
+
+        /// Sizes for a load (the file batch and the bulk bytes; the bulk bytes are the memory
+        /// control on the target).
+        pub fn load(&self) -> IndexSize {
+            match self.budget {
+                None => IndexSize {
+                    limit: OFF_LIMIT,
+                    max_bulk_bytes: OFF_BULK,
+                    reason: if self.limits.is_some() {
+                        "fallback"
+                    } else {
+                        "off"
+                    },
+                    page_bytes: 0,
+                },
+                Some(_) => IndexSize {
+                    limit: if self.bulk_bytes >= 64 << 20 {
+                        limits::MULTI_MAX_PAGE
+                    } else {
+                        OFF_LIMIT
+                    },
+                    max_bulk_bytes: self.bulk_bytes,
+                    reason: if self.bulk_bytes < OFF_BULK {
+                        "budget"
+                    } else {
+                        "default"
+                    },
+                    page_bytes: 0,
+                },
+            }
+        }
+
+        /// The child flags for `size` (before the user's flags after `--`, which win).
+        pub fn flags(&self, size: &IndexSize, child_knows_server_limits: bool) -> Vec<String> {
+            let mut v = vec![];
+            if !self.no_defaults {
+                v.push(format!("--limit={}", size.limit));
+                v.push(if size.max_bulk_bytes == OFF_BULK {
+                    "--maxBulkBytes=16mb".to_string()
+                } else {
+                    format!("--maxBulkBytes={}kb", (size.max_bulk_bytes >> 10).max(1))
+                });
+            }
+            if child_knows_server_limits {
+                v.push("--serverLimits=off".to_string());
+            }
+            v
+        }
+
+        /// The one "server limits:" line.
+        pub fn line(&self) -> String {
+            let head = match &self.limits {
+                None if self.no_defaults => {
+                    return "server limits: not used (--noDefaultDataFlags) [off]".into();
+                }
+                None => {
+                    return format!(
+                        "server limits: not probed -> fixed 1.1 defaults [{}]",
+                        self.mode.as_str()
+                    );
+                }
+                Some(l) => limits::describe(l),
+            };
+            match self.budget {
+                None => format!("server limits: {head} [{}]", self.mode.as_str()),
+                Some(b) => format!(
+                    "server limits: {head} -> page budget {} MB, in flight {} MB, bulk {} KB per worker, parallel {}{} [{}]",
+                    self.page_cap >> 20,
+                    b.inflight_bytes >> 20,
+                    self.bulk_bytes >> 10,
+                    self.parallel,
+                    if self.fit_parallel < self.parallel {
+                        format!(
+                            " (the largest index fits {} at its full page; smaller ones run {} at once)",
+                            self.fit_parallel, self.parallel
+                        )
+                    } else {
+                        String::new()
+                    },
+                    self.mode.as_str()
+                ),
+            }
+        }
+    }
 }
 
 /// The flag name of an argument (`--limit=5` / `--limit` -> `--limit`), or None for a value.
@@ -169,6 +382,58 @@ fn merge_data_flags(defaults: &[&str], extra: &[String]) -> Vec<String> {
         .map(|d| d.to_string())
         .chain(extra.iter().cloned())
         .collect()
+}
+
+/// [`merge_data_flags`] for computed (owned) defaults: `extra` (the run's data flags, ending in
+/// the user's flags after `--`) replaces a default of the same name.
+fn merge_data_flags_owned(defaults: &[String], extra: &[String]) -> Vec<String> {
+    let d: Vec<&str> = defaults.iter().map(String::as_str).collect();
+    merge_data_flags(&d, extra)
+}
+
+/// 1.2: the per-index note when an index gets a page below the 1.1 default (large documents
+/// or the budget), and a warning when the user's `-- --limit` is above the safe page.
+fn note_size(ctx: &Ctx, index: &str, st: Option<sizing::Stats>, size: &sizing::IndexSize) {
+    let user_limit = ctx.args.extra.iter().find_map(|a| {
+        a.strip_prefix("--limit=")
+            .and_then(|v| v.parse::<u64>().ok())
+    });
+    let avg_kb = st
+        .and_then(|(d, b)| (d > 0).then(|| (b / d).div_ceil(1024)))
+        .unwrap_or(0);
+    match user_limit {
+        Some(u) if ctx.plan().budget.is_some() && u > size.limit => eprintln!(
+            "warning: {index}: -- --limit={u} is above the page the cluster's limits allow ({} documents of ~{avg_kb} KB stored); kept because you chose it",
+            size.limit
+        ),
+        Some(_) => {}
+        None if ctx.plan().no_defaults => {}
+        None if size.limit < sizing::OFF_LIMIT => eprintln!(
+            "note: {index}: documents average {avg_kb} KB stored; dumping {} per page instead of {} ({}; give -- --limit=N to choose)",
+            size.limit,
+            if ctx.plan().budget.is_some() {
+                limits_max_page()
+            } else {
+                sizing::OFF_LIMIT
+            },
+            size.reason
+        ),
+        None => {}
+    }
+}
+
+fn limits_max_page() -> u64 {
+    searchdump_rs::limits::MULTI_MAX_PAGE
+}
+
+/// The manifest's per-index `sizing` object.
+fn sizing_json(size: &sizing::IndexSize, user: &[String]) -> serde_json::Value {
+    let user_limit = user.iter().any(|a| flag_name(a) == Some("--limit"));
+    serde_json::json!({
+        "limit": size.limit,
+        "max_bulk_bytes": size.max_bulk_bytes,
+        "reason": if user_limit { "user" } else { size.reason },
+    })
 }
 
 /// Per-index item types, in the order they are dumped and loaded.
@@ -362,9 +627,16 @@ pub struct Args {
     /// Where each child run's output is logged (default: a new temp directory)
     #[arg(long = "logDir")]
     pub log_dir: Option<PathBuf>,
-    /// Do not add the oslogs.py data-run defaults (--limit=5000 --scrollTime=10m ...)
+    /// Do not add the data-run defaults (--scrollTime=10m ... and the sizes); implies
+    /// --serverLimits=off for the data flags
     #[arg(long = "noDefaultDataFlags")]
     pub no_default_data_flags: bool,
+    /// 1.2: size pages, bulks and workers from the cluster's limits: off (1.1 fixed sizes), auto
+    /// (default: probe once, page up to 5000 small documents, tighten for small heaps), min
+    /// (half of auto's budget), check (print the limits and the per-index sizes, exit 0; exit 2
+    /// when a flag after -- exceeds them)
+    #[arg(long = "serverLimits", value_parser = searchdump_rs::limits::parse_mode)]
+    pub server_limits: Option<searchdump_rs::limits::Mode>,
     /// Print the selected indices and the files they map to, then exit
     #[arg(long = "dryRun", alias = "dry-run")]
     pub dry_run: bool,
@@ -808,6 +1080,9 @@ pub struct IndexEntry {
     pub status: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
+    /// 1.2: the data run's page / bulk sizes and why (`default|large-docs|budget|off|fallback|user`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sizing: Option<serde_json::Value>,
 }
 
 /// One cluster-scoped file (`_cluster/TYPE.json`).
@@ -835,6 +1110,9 @@ pub struct Manifest {
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub cluster: BTreeMap<String, ClusterEntry>,
     pub indices: BTreeMap<String, IndexEntry>,
+    /// 1.2: the run's `--serverLimits` mode, source, node limits and budget.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub server_limits: Option<serde_json::Value>,
 }
 
 impl Manifest {
@@ -1352,21 +1630,75 @@ impl Cluster {
             .ok_or_else(|| anyhow!("no count in /{index}/_count response"))
     }
 
-    /// 1.1-10: average stored bytes per primary document (`_stats/docs,store`); None when the
-    /// index is empty or the cluster does not say.
-    pub async fn avg_doc_bytes(&self, index: &str) -> Result<Option<u64>> {
+    /// 1.2: primary docs and stored bytes of every open index in ONE request
+    /// (`_stats/docs,store?level=indices`), replacing 1.1-10's per-index `_stats` call.
+    pub async fn index_stats(&self) -> Result<BTreeMap<String, sizing::Stats>> {
         let v = self
             .ok_json(
                 Method::GET,
-                &[index, "_stats", "docs,store"],
-                &[],
+                &["_stats", "docs,store"],
+                &[
+                    ("level", "indices"),
+                    ("expand_wildcards", "open,hidden"),
+                    (
+                        "filter_path",
+                        "indices.*.primaries.docs.count,indices.*.primaries.store.size_in_bytes",
+                    ),
+                ],
                 Body::Empty,
             )
             .await?;
+        let mut out = BTreeMap::new();
+        if let Some(m) = v.get("indices").and_then(|i| i.as_object()) {
+            for (name, s) in m {
+                let p = &s["primaries"];
+                out.insert(
+                    name.clone(),
+                    (
+                        p["docs"]["count"].as_u64().unwrap_or(0),
+                        p["store"]["size_in_bytes"].as_u64().unwrap_or(0),
+                    ),
+                );
+            }
+        }
+        Ok(out)
+    }
+
+    /// The stats of one target (a data stream: its backing indices summed), for a target the
+    /// one `index_stats` call did not name.
+    pub async fn target_stats(&self, name: &str) -> Option<sizing::Stats> {
+        let v = self
+            .ok_json(
+                Method::GET,
+                &[name, "_stats", "docs,store"],
+                &[("filter_path", "_all.primaries")],
+                Body::Empty,
+            )
+            .await
+            .ok()?;
         let p = &v["_all"]["primaries"];
-        let docs = p["docs"]["count"].as_u64().unwrap_or(0);
-        let bytes = p["store"]["size_in_bytes"].as_u64().unwrap_or(0);
-        Ok((docs > 0 && bytes > 0).then(|| bytes / docs))
+        Some((
+            p["docs"]["count"].as_u64().unwrap_or(0),
+            p["store"]["size_in_bytes"].as_u64().unwrap_or(0),
+        ))
+    }
+
+    /// 1.2: the node probe (once per run, by the parent).
+    pub async fn probe_limits(&self) -> searchdump_rs::limits::Limits {
+        let host = Url::parse(&self.child_base)
+            .ok()
+            .and_then(|u| u.host_str().map(String::from))
+            .unwrap_or_default();
+        searchdump_rs::limits::probe(
+            &self.client,
+            &host,
+            None,
+            searchdump_rs::limits::Need {
+                max_content_length: true,
+                thread_pools: true,
+            },
+        )
+        .await
     }
 
     pub async fn put_mapping(&self, index: &str, mappings: &serde_json::Value) -> Result<()> {
@@ -1484,6 +1816,17 @@ pub fn takes_stats_file(bin: &Path) -> bool {
 /// given with `--elasticdump-bin` has the name but not the option, and would fail every data
 /// run on it. clap rejects an unknown option before it acts on `--help`, so this exits 0 only
 /// when the option is known. Run once at startup.
+fn accepts_server_limits(bin: &Path) -> bool {
+    std::process::Command::new(bin)
+        .arg("--serverLimits=off")
+        .arg("--help")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .is_ok_and(|s| s.success())
+}
+
 fn accepts_stats_file(bin: &Path) -> bool {
     std::process::Command::new(bin)
         .arg("--statsFile=/dev/null")
@@ -1516,6 +1859,9 @@ pub struct Runner {
     pub grace: Duration,
     /// 1.1-7: data runs get `--statsFile` (the binary is searchdump, see [`takes_stats_file`]).
     pub stats: bool,
+    /// 1.2: data runs get `--serverLimits=off` (the child is searchdump 1.2+; the parent sized
+    /// them already).
+    pub server_limits: bool,
 }
 
 impl Runner {
@@ -1708,6 +2054,142 @@ struct Ctx {
     sel: Selector,
     runner: Runner,
     pacer: Pacer,
+    /// 1.2: the sizing plan (set by [`plan_sizes`] before any index starts).
+    plan: std::sync::OnceLock<sizing::Plan>,
+    /// 1.2: primary (docs, stored bytes) per selected index, from one stats call.
+    index_stats: std::sync::OnceLock<BTreeMap<String, sizing::Stats>>,
+}
+
+impl Ctx {
+    fn plan(&self) -> &sizing::Plan {
+        self.plan.get_or_init(|| {
+            sizing::Plan::new(
+                searchdump_rs::limits::Mode::Off,
+                self.args.no_default_data_flags,
+                None,
+                self.args.parallel,
+                &[],
+            )
+        })
+    }
+
+    fn stats_of(&self, index: &str) -> Option<sizing::Stats> {
+        self.index_stats.get().and_then(|m| m.get(index).copied())
+    }
+}
+
+/// 1.2: probe the cluster once, read every target's stats in one call, and set the plan
+/// (ROADMAP-1.2 section 4). `targets` are the indices to dump (empty for a load). Returns the
+/// exit code to stop with for `--serverLimits=check` (0, or 2 when a flag after `--` exceeds
+/// the limits) and the manifest's `server_limits` object.
+async fn plan_sizes(
+    ctx: &Ctx,
+    cluster: &Cluster,
+    targets: &[String],
+) -> (Option<i32>, serde_json::Value) {
+    use searchdump_rs::limits::{self, Mode};
+    let no_defaults = ctx.args.no_default_data_flags && ctx.args.server_limits.is_none();
+    let mode = ctx.args.server_limits.unwrap_or(if no_defaults {
+        Mode::Off
+    } else {
+        limits::DEFAULT_MODE
+    });
+    let probed = if mode == Mode::Off {
+        None
+    } else {
+        Some(cluster.probe_limits().await)
+    };
+    let user_limit = ctx
+        .args
+        .extra
+        .iter()
+        .any(|a| flag_name(a) == Some("--limit"));
+    let mut stats = BTreeMap::new();
+    let skip_stats = targets.is_empty() || no_defaults || (mode == Mode::Off && user_limit);
+    if !skip_stats {
+        match cluster.index_stats().await {
+            Ok(m) => stats = m,
+            Err(e) => eprintln!("note: index stats in one call failed ({e:#}); asking per index"),
+        }
+        for t in targets {
+            if !stats.contains_key(t)
+                && let Some(s) = cluster.target_stats(t).await
+            {
+                stats.insert(t.clone(), s);
+            }
+        }
+    }
+    let per: Vec<Option<sizing::Stats>> = targets.iter().map(|t| stats.get(t).copied()).collect();
+    let plan = sizing::Plan::new(mode, no_defaults, probed, ctx.args.parallel, &per);
+    eprintln!("{}", plan.line());
+    let json = match &plan.limits {
+        Some(l) => limits::to_json(l, mode, plan.budget.as_ref()),
+        None => serde_json::json!({ "mode": mode.as_str(), "source": "off" }),
+    };
+    let mut json = json;
+    if let Some(o) = json.as_object_mut() {
+        o.insert("parallel".into(), ctx.args.parallel.into());
+        o.insert("fit_parallel".into(), plan.fit_parallel.into());
+        o.insert("bulk_bytes_per_worker".into(), plan.bulk_bytes.into());
+    }
+    let mut stop = None;
+    if mode == Mode::Check {
+        let mut too_big = vec![];
+        let user_limit_v = ctx.args.extra.iter().find_map(|a| {
+            a.strip_prefix("--limit=")
+                .and_then(|v| v.parse::<u64>().ok())
+        });
+        let user_bulk = ctx.args.extra.iter().find_map(|a| {
+            a.strip_prefix("--maxBulkBytes=")
+                .and_then(|v| searchdump_rs::pipeline::file_sink::parse_size(v).ok())
+        });
+        if targets.is_empty() {
+            let l = plan.load();
+            println!(
+                "load: --limit={} --maxBulkBytes={} KB per worker ({}), parallel {}",
+                l.limit,
+                l.max_bulk_bytes >> 10,
+                l.reason,
+                ctx.args.parallel
+            );
+            if plan.budget.is_some()
+                && let Some(u) = user_bulk
+                && u > l.max_bulk_bytes
+            {
+                too_big.push(format!("--maxBulkBytes={u} > {}", l.max_bulk_bytes));
+            }
+        }
+        for (t, st) in targets.iter().zip(&per) {
+            let d = plan.dump(*st);
+            let avg = st.and_then(|(n, b)| (n > 0).then(|| b / n)).unwrap_or(0);
+            println!(
+                "  {t}: --limit={} ({}, ~{} KB stored per document, ~{} MB per page)",
+                d.limit,
+                d.reason,
+                avg.div_ceil(1024),
+                d.page_bytes >> 20
+            );
+            if plan.budget.is_some()
+                && let Some(u) = user_limit_v
+                && u > d.limit
+            {
+                too_big.push(format!("{t}: --limit={u} > {}", d.limit));
+            }
+        }
+        if too_big.is_empty() {
+            println!("server limits: check passed");
+            stop = Some(0);
+        } else {
+            eprintln!(
+                "server limits: flags after -- exceed the limits: {}",
+                too_big.join("; ")
+            );
+            stop = Some(2);
+        }
+    }
+    let _ = ctx.plan.set(plan);
+    let _ = ctx.index_stats.set(stats);
+    (stop, json)
 }
 
 /// `--interval`: a minimum gap between job starts, shared by all workers.
@@ -1830,26 +2312,16 @@ async fn dump_one(
                 if let Some(n) = ctx.args.max_rows {
                     extra.push(format!("--maxRows={n}"));
                 }
-                extra.extend(ctx.runner.data_flags.iter().cloned());
-                // 1.1-10: smaller pages for large documents, unless the user chose --limit.
-                let default_limit = format!("--limit={DEFAULT_DATA_LIMIT}");
-                if let Some(pos) = extra.iter().position(|a| *a == default_limit)
-                    && !ctx
-                        .args
-                        .extra
-                        .iter()
-                        .any(|a| flag_name(a) == Some("--limit"))
-                    && let Ok(Some(avg)) = cluster.avg_doc_bytes(index).await
-                {
-                    let limit = page_limit_for(avg);
-                    if limit < DEFAULT_DATA_LIMIT {
-                        eprintln!(
-                            "note: {index}: documents average {} KB stored; dumping {limit} per page instead of {DEFAULT_DATA_LIMIT} (give -- --limit=N to choose)",
-                            avg.div_ceil(1024)
-                        );
-                        extra[pos] = format!("--limit={limit}");
-                    }
-                }
+                // 1.2: this index's sizes from the parent's plan (one stats call for all
+                // indices, no per-index probe); the user's flags after `--` still win.
+                let st = ctx.stats_of(index);
+                let size = ctx.plan().dump(st);
+                note_size(ctx, index, st, &size);
+                entry.sizing = Some(sizing_json(&size, &ctx.args.extra));
+                extra.extend(merge_data_flags_owned(
+                    &ctx.plan().flags(&size, ctx.runner.server_limits),
+                    &ctx.runner.data_flags,
+                ));
                 // searchdump adds the codec extension to each part itself.
                 let name = if split {
                     item_file_for(node, index, "data", Compression::None)
@@ -2120,7 +2592,11 @@ async fn load_one(ctx: &Ctx, cluster: &Cluster, f: &Found) -> Outcome {
                 for (n, part) in f.data.iter().enumerate() {
                     let c = parse_data_file(&file_name(part)).map_or(Compression::None, |d| d.1);
                     let mut extra = strings(c.flags());
-                    extra.extend(ctx.runner.data_flags.iter().cloned());
+                    let size = ctx.plan().load();
+                    extra.extend(merge_data_flags_owned(
+                        &ctx.plan().flags(&size, ctx.runner.server_limits),
+                        &ctx.runner.data_flags,
+                    ));
                     if f.datastream && !extra.iter().any(|a| a.starts_with("--bulkAction")) {
                         // A data stream only accepts create.
                         extra.push("--bulkAction=create".into());
@@ -2528,6 +3004,7 @@ async fn run_local(args: Args) -> Result<i32> {
     }
     let bin = find_bin(args.elasticdump_bin.as_deref());
     let stats = takes_stats_file(&bin) && accepts_stats_file(&bin);
+    let server_limits = takes_stats_file(&bin) && accepts_server_limits(&bin);
     let runner = Runner {
         bin,
         log_dir: log_dir.clone(),
@@ -2537,6 +3014,7 @@ async fn run_local(args: Args) -> Result<i32> {
         cancel: cancel.clone(),
         grace: CHILD_GRACE,
         stats,
+        server_limits,
     };
     let pacer = Pacer::new(Duration::from_millis(args.interval));
     let meta = meta_dir(&args);
@@ -2547,6 +3025,8 @@ async fn run_local(args: Args) -> Result<i32> {
         sel,
         runner,
         pacer,
+        plan: Default::default(),
+        index_stats: Default::default(),
     });
     let started = Instant::now();
     let sem = Arc::new(tokio::sync::Semaphore::new(ctx.args.parallel));
@@ -2665,6 +3145,11 @@ async fn run_local(args: Args) -> Result<i32> {
                 );
                 return Ok(1);
             }
+            let names: Vec<String> = selected.iter().map(|t| t.name.clone()).collect();
+            let (stop, limits_json) = plan_sizes(&ctx, &cluster, &names).await;
+            if let Some(code) = stop {
+                return Ok(code);
+            }
             fs::create_dir_all(&root).with_context(|| format!("create {}", root.display()))?;
             fs::create_dir_all(&ctx.meta)
                 .with_context(|| format!("create {}", ctx.meta.display()))?;
@@ -2695,6 +3180,7 @@ async fn run_local(args: Args) -> Result<i32> {
             m.source = searchdump_rs::endpoint::redacted_endpoint(&ctx.args.input);
             m.layout = Some(ctx.args.layout);
             m.compression = Some(ctx.args.compression);
+            m.server_limits = Some(limits_json);
             let mut todo = vec![];
             for t in selected {
                 let done = m.indices.get(&t.name).is_some_and(|e| {
@@ -2745,16 +3231,34 @@ async fn run_local(args: Args) -> Result<i32> {
                 ctx.args.parallel,
                 log_dir.display()
             );
+            // 1.2: a byte budget next to the --parallel bound: a worker holds its index's
+            // estimated page bytes (KiB permits), so large-document indices run fewer at once
+            // while small ones still run --parallel at once.
+            let bytes = ctx.plan().budget.map(|b| {
+                let total = (b.inflight_bytes >> 10).clamp(1, u32::MAX as u64 / 2) as u32;
+                (Arc::new(tokio::sync::Semaphore::new(total as usize)), total)
+            });
             for t in todo {
-                let (ctx, cluster, root, manifest, sem) = (
+                let (ctx, cluster, root, manifest, sem, bytes) = (
                     ctx.clone(),
                     cluster.clone(),
                     root.clone(),
                     manifest.clone(),
                     sem.clone(),
+                    bytes.clone(),
                 );
                 set.spawn(async move {
                     let _p = sem.acquire().await;
+                    let _b = match &bytes {
+                        Some((s, total)) => {
+                            let need = ctx.plan().dump(ctx.stats_of(&t.name)).page_bytes >> 10;
+                            s.clone()
+                                .acquire_many_owned(need.clamp(1, *total as u64) as u32)
+                                .await
+                                .ok()
+                        }
+                        None => None,
+                    };
                     let o = dump_one(&ctx, &cluster, &root, &manifest, &t).await;
                     (t.name, o)
                 });
@@ -2819,6 +3323,12 @@ async fn run_local(args: Args) -> Result<i32> {
                 "SEARCHDUMP_OUTPUT",
                 &ctx.args,
             )?);
+            if ctx.types.index.contains(&"data") {
+                let (stop, _) = plan_sizes(&ctx, &cluster, &[]).await;
+                if let Some(code) = stop {
+                    return Ok(code);
+                }
+            }
             fs::create_dir_all(&log_dir)?;
             if !ctx.types.cluster.is_empty() {
                 early = load_cluster(&ctx, &cluster).await;
@@ -2915,7 +3425,6 @@ mod tests {
             .map(|s| s.to_string())
             .collect();
         let got = super::merge_data_flags(super::DATA_FLAGS, &extra);
-        assert!(!got.iter().any(|a| a == "--limit=1000"), "{got:?}");
         assert!(!got.iter().any(|a| a == "--scrollTime=10m"), "{got:?}");
         assert_eq!(got.iter().filter(|a| a.starts_with("--limit")).count(), 1);
         assert!(got.contains(&"--retryAttempts=5".to_string()));
@@ -2926,26 +3435,97 @@ mod tests {
             super::strings(super::DATA_FLAGS)
         );
         assert!(super::merge_data_flags(&[], &[]).is_empty());
+        // computed sizes: the user's --limit replaces the plan's
+        let sized = super::merge_data_flags_owned(
+            &[
+                "--limit=5000".to_string(),
+                "--maxBulkBytes=16mb".to_string(),
+            ],
+            &got,
+        );
+        assert!(!sized.contains(&"--limit=5000".to_string()), "{sized:?}");
+        assert!(
+            sized.contains(&"--maxBulkBytes=16mb".to_string()),
+            "{sized:?}"
+        );
     }
 
-    /// 1.1-10: the defaults are safe on a small heap: 1000-document pages and searchdump's
-    /// default response cap (no `--maxResponseMb=0`).
+    /// 1.2: the run-control flags are the 1.1.0 ones minus the sizes (which moved to `sizing`).
     #[test]
-    fn default_data_flags_are_small_heap_safe() {
-        let d = super::strings(super::DATA_FLAGS);
-        assert!(d.contains(&"--limit=1000".to_string()), "{d:?}");
-        assert!(!d.iter().any(|a| a.starts_with("--maxResponseMb")), "{d:?}");
-        assert!(!d.iter().any(|a| a == "--limit=5000"), "{d:?}");
-        assert!(d.contains(&"--maxBulkBytes=16mb".to_string()), "{d:?}");
-        // a user's --maxResponseMb=0 still passes through
-        let got = super::merge_data_flags(super::DATA_FLAGS, &["--maxResponseMb=0".to_string()]);
-        assert!(got.contains(&"--maxResponseMb=0".to_string()), "{got:?}");
+    fn run_control_flags_unchanged() {
+        assert_eq!(
+            super::strings(super::DATA_FLAGS),
+            [
+                "--scrollTime=10m",
+                "--retryAttempts=5",
+                "--retryDelay=2000",
+                "--timeout=300000"
+            ]
+        );
     }
 
-    /// 1.1-10: page size from the average stored document size.
+    /// 1.2: `--serverLimits=off` (and an unprobed / fallback run) gives every child exactly the
+    /// 1.1.0 data flags: `--limit=1000` (fewer for large documents, the 1.1-10 rule) and
+    /// `--maxBulkBytes=16mb`; `--noDefaultDataFlags` gives no sizes at all.
+    #[test]
+    fn server_limits_off_reproduces_1_1_0_flags() {
+        use super::sizing::Plan;
+        use searchdump_rs::limits::{Limits, Mode, Source};
+        let v110: Vec<String> = [
+            "--limit=1000",
+            "--scrollTime=10m",
+            "--retryAttempts=5",
+            "--retryDelay=2000",
+            "--timeout=300000",
+            "--maxBulkBytes=16mb",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+        let off = Plan::new(Mode::Off, false, None, 2, &[Some((6250, 6250 * 500))]);
+        let mut flags = off.flags(&off.dump(Some((6250, 6250 * 500))), true);
+        flags.extend(super::merge_data_flags(super::DATA_FLAGS, &[]));
+        let mut want = v110.clone();
+        want.push("--serverLimits=off".into());
+        let (mut a, mut b) = (flags.clone(), want.clone());
+        a.sort();
+        b.sort();
+        assert_eq!(a, b);
+        // an old child (no --serverLimits) gets exactly the 1.1.0 set
+        let mut old = off.flags(&off.dump(None), false);
+        old.extend(super::merge_data_flags(super::DATA_FLAGS, &[]));
+        old.sort();
+        let mut v = v110.clone();
+        v.sort();
+        assert_eq!(old, v);
+        // large documents: the 1.1-10 page
+        assert_eq!(off.dump(Some((10, 10 * 80 * 1024))).limit, 204);
+        assert_eq!(off.load().limit, 1000);
+        assert_eq!(off.load().max_bulk_bytes, 16 << 20);
+        // a fallback probe (403, serverless, ...) uses the same values
+        let fb = Plan::new(
+            Mode::Auto,
+            false,
+            Some(Limits::fallback(Source::Fallback403, "403")),
+            2,
+            &[],
+        );
+        assert_eq!(fb.dump(Some((10, 10 * 80 * 1024))).limit, 204);
+        assert_eq!(fb.dump(None).reason, "fallback");
+        assert_eq!(
+            fb.flags(&fb.load(), true),
+            ["--limit=1000", "--maxBulkBytes=16mb", "--serverLimits=off"]
+        );
+        // --noDefaultDataFlags: no sizes
+        let nd = Plan::new(Mode::Off, true, None, 8, &[]);
+        assert_eq!(nd.flags(&nd.dump(None), true), ["--serverLimits=off"]);
+        assert!(nd.flags(&nd.dump(None), false).is_empty());
+    }
+
+    /// 1.1-10 (the `off` profile): page size from the average stored document size.
     #[test]
     fn page_limit_shrinks_for_large_documents() {
-        use super::page_limit_for as f;
+        use super::sizing::page_limit_for as f;
         assert_eq!(f(0), 1000); // unknown
         assert_eq!(f(500), 1000); // log lines
         assert_eq!(f(12 * 1024), 1000); // PMC articles (~12 KB stored)
@@ -2954,6 +3534,59 @@ mod tests {
         assert_eq!(f(1 << 20), 16);
         assert_eq!(f(10 << 20), 1);
         assert_eq!(f(u64::MAX), 1);
+    }
+
+    /// 1.2 auto: pages grow to 5000 small documents on a roomy heap, shrink for large documents
+    /// and small heaps; worker-first keeps at least 2 workers; min is tighter than auto.
+    #[test]
+    fn auto_plan_sizes_from_fixture_limits() {
+        use super::sizing::Plan;
+        use searchdump_rs::limits::{Limits, Mode, Node, Source};
+        let node = |heap: u64| Node {
+            name: "n".into(),
+            data: true,
+            heap_max: heap,
+            parent_limit: Some(heap * 95 / 100),
+            parent_estimated: Some(heap * 40 / 100),
+            request_limit: Some(heap * 60 / 100),
+            indexing_pressure: Some(heap / 10),
+            max_content_length: Some(100 << 20),
+            search_pool: Some(13),
+            ..Default::default()
+        };
+        let lim = |heap| Limits {
+            source: Source::Probed,
+            nodes: vec![node(heap)],
+            aws: false,
+            reason: String::new(),
+        };
+        let small = Some((100_000u64, 100_000u64 * 400)); // log lines
+        let big = Some((10_000u64, 10_000u64 * 80 * 1024)); // ~80 KB documents
+        let roomy = Plan::new(Mode::Auto, false, Some(lim(1 << 30)), 8, &[small, big]);
+        assert_eq!(roomy.dump(small).limit, 5000);
+        assert_eq!(roomy.dump(small).reason, "default");
+        let b = roomy.dump(big);
+        assert!(b.limit < 1000 && b.limit >= 1, "{b:?}");
+        let tight = Plan::new(Mode::Auto, false, Some(lim(256 << 20)), 8, &[small, big]);
+        assert!(tight.dump(big).limit <= roomy.dump(big).limit);
+        assert!(tight.fit_parallel >= 2 && tight.fit_parallel <= 8);
+        assert!(tight.bulk_bytes <= roomy.bulk_bytes);
+        let min = Plan::new(Mode::Min, false, Some(lim(256 << 20)), 8, &[small, big]);
+        assert!(min.dump(big).limit <= tight.dump(big).limit);
+        assert!(min.bulk_bytes <= tight.bulk_bytes);
+        // the flags carry the sizes and stop the child probing again
+        let f = roomy.flags(&roomy.dump(small), true);
+        assert_eq!(f[0], "--limit=5000");
+        assert!(
+            f[1].starts_with("--maxBulkBytes=") && f[1].ends_with("kb"),
+            "{f:?}"
+        );
+        assert_eq!(f[2], "--serverLimits=off");
+        // parallel 1 stays 1
+        assert_eq!(
+            Plan::new(Mode::Auto, false, Some(lim(256 << 20)), 1, &[big]).fit_parallel,
+            1
+        );
     }
 
     use super::*;
@@ -3565,6 +4198,7 @@ mod tests {
             cancel: CancellationToken::new(),
             grace,
             stats: false,
+            server_limits: false,
         }
     }
 

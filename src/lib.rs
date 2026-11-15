@@ -8,6 +8,7 @@ pub mod envnames;
 #[cfg(any(feature = "fuzz", test))]
 pub mod fuzz_api;
 pub mod http;
+pub mod limits;
 pub mod memplan;
 pub mod meta;
 pub mod output;
@@ -491,7 +492,7 @@ async fn build_sink(
                     .parse::<bytesize::ByteSize>()
                     .map_err(|e| usage(format!("--maxBulkBytes: {e}")))?
                     .as_u64(),
-                None => DEFAULT_MAX_BULK_BYTES,
+                None => cli.server_bulk_bytes.unwrap_or(DEFAULT_MAX_BULK_BYTES),
             };
             let opts = pipeline::BulkOptions {
                 info,
@@ -1286,6 +1287,232 @@ async fn until_interrupted<T>(
     }
 }
 
+#[derive(Debug, PartialEq, Eq)]
+enum SizingOutcome {
+    Go,
+    /// `--serverLimits=check` printed the limits: exit 0 without moving data.
+    Stop,
+}
+
+/// 1.2 `--serverLimits` (ROADMAP-1.2 sections 2-4): probe the cluster(s) of a data run and
+/// tighten `--limit` (from the input's limits) and the bulk bytes (from the output's) unless
+/// the user chose them; `check` prints and stops (exit 2 when an explicit value is too big).
+async fn server_limits(
+    cli: &mut Cli,
+    explicit: &limits::Explicit,
+    input: &Endpoint,
+    output: &Endpoint,
+) -> Result<SizingOutcome> {
+    use limits::Mode;
+    let mode = cli.server_limits.unwrap_or(limits::DEFAULT_MODE);
+    let es_in = match input {
+        Endpoint::Es(ep) => Some(ep),
+        _ => None,
+    };
+    let es_out = match output {
+        Endpoint::Es(ep) => Some(ep),
+        _ => None,
+    };
+    if cli.r#type != DumpType::Data || (es_in.is_none() && es_out.is_none()) {
+        if mode == Mode::Check {
+            eprintln!("server limits: nothing to size (not a data run against a cluster) [check]");
+            return Ok(SizingOutcome::Stop);
+        }
+        return Ok(SizingOutcome::Go);
+    }
+    if mode == Mode::Off {
+        limits::record(serde_json::json!({"mode": "off", "source": "off"}));
+        return Ok(SizingOutcome::Go);
+    }
+    let probe_one = |ep: &endpoint::EsEndpoint, dir: Direction| {
+        let need = limits::Need {
+            max_content_length: dir == Direction::Output,
+            thread_pools: false,
+        };
+        let client = config::build_client(
+            cli,
+            ep,
+            dir,
+            crate::http::gate::RequestGate::new(None, None),
+        );
+        let host = ep.base.host_str().unwrap_or("").to_string();
+        async move {
+            let client = client?;
+            // no `GET /` here: the version check runs once, in the transfer; the probe asks
+            // for every metric and retries without `indexing_pressure` on an old version's 400
+            let l = limits::probe(&client, &host, None, need).await;
+            anyhow::Ok((client, l))
+        }
+    };
+    let response_cap = (cli.max_response_mb as u64) << 20;
+    let mut words: Vec<String> = vec![];
+    let mut too_big: Vec<String> = vec![];
+    let mut record = serde_json::Map::new();
+    record.insert("mode".into(), mode.as_str().into());
+    let mut fallback = true;
+    let mut new_limit: Option<usize> = None;
+    let mut new_bulk: Option<u64> = None;
+    // dump side: documents per page from the input's limits
+    if let Some(ep) = es_in {
+        let (client, l) = probe_one(ep, Direction::Input).await?;
+        let b = limits::budget(&l, mode, response_cap);
+        eprintln_unless_quiet(
+            cli,
+            mode,
+            &format!("server limits (input): {}", limits::describe(&l)),
+        );
+        if let Some(b) = b {
+            fallback = false;
+            let avg = match ep.index.as_deref() {
+                Some(i) => limits::avg_doc_bytes(&client, i).await,
+                None => None,
+            };
+            let lanes = (cli.slices.max(1) as u64).max(1);
+            let per_page = b.page_bytes.min(b.inflight_bytes / lanes);
+            let fit = limits::page_docs(per_page, avg, u64::MAX);
+            let page = (cli.limit as u64).min(fit);
+            let mut line = format!(
+                "page {} docs{}",
+                if explicit.limit {
+                    cli.limit as u64
+                } else {
+                    page
+                },
+                avg.map(|a| format!(
+                    " (~{} KB stored each, budget {} MB)",
+                    a.div_ceil(1024),
+                    per_page >> 20
+                ))
+                .unwrap_or_default()
+            );
+            if explicit.limit && cli.limit as u64 > fit {
+                too_big.push(format!(
+                    "--limit={} needs ~{} MB per page; the input's smallest node allows ~{} MB (about {fit} documents)",
+                    cli.limit,
+                    (cli.limit as u64 * avg.unwrap_or(0) * limits::EXPANSION) >> 20,
+                    per_page >> 20
+                ));
+            } else if !explicit.limit && page < cli.limit as u64 {
+                line.push_str(&format!(" (tightened from {})", cli.limit));
+                if mode != Mode::Check {
+                    new_limit = Some(page as usize);
+                }
+            }
+            if explicit.max_response_mb
+                && (cli.max_response_mb == 0
+                    || (cli.max_response_mb as u64) << 20
+                        > l.smallest()
+                            .and_then(|n| n.parent_free())
+                            .unwrap_or(u64::MAX))
+            {
+                too_big.push(format!(
+                    "--maxResponseMb={} is above the input's smallest node's parent-breaker headroom",
+                    cli.max_response_mb
+                ));
+            }
+            words.push(line);
+            if mode == Mode::Check
+                && let Some(bm) = limits::budget(&l, Mode::Min, response_cap)
+            {
+                let pm =
+                    limits::page_docs(bm.page_bytes.min(bm.inflight_bytes / lanes), avg, u64::MAX)
+                        .min(cli.limit as u64);
+                words.push(format!("(min: page {pm} docs)"));
+            }
+            record.insert(
+                "limit".into(),
+                (new_limit.unwrap_or(cli.limit) as u64).into(),
+            );
+        }
+        record.insert("input".into(), limits::to_json(&l, mode, b.as_ref()));
+    }
+    // load side: bulk bytes from the output's limits
+    if let Some(ep) = es_out {
+        let (_client, l) = probe_one(ep, Direction::Output).await?;
+        let b = limits::budget(&l, mode, response_cap);
+        eprintln_unless_quiet(
+            cli,
+            mode,
+            &format!("server limits (output): {}", limits::describe(&l)),
+        );
+        if let Some(b) = b {
+            fallback = false;
+            let fit = limits::bulk_bytes(&b, cli.concurrency.max(1) as u64);
+            let given = match &cli.max_bulk_bytes {
+                Some(raw) => raw.parse::<bytesize::ByteSize>().map(|v| v.as_u64()).ok(),
+                None => None,
+            };
+            match given {
+                Some(g) if g > fit => too_big.push(format!(
+                    "--maxBulkBytes={} is above what the output's smallest node takes per request (~{} KB for --concurrency {})",
+                    cli.max_bulk_bytes.as_deref().unwrap_or(""),
+                    fit >> 10,
+                    cli.concurrency.max(1)
+                )),
+                Some(_) => words.push("bulk as given".into()),
+                None => {
+                    let bulk = fit.min(DEFAULT_MAX_BULK_BYTES);
+                    words.push(format!("bulk {} KB", bulk >> 10));
+                    if mode != Mode::Check {
+                        new_bulk = Some(bulk);
+                    }
+                    record.insert("max_bulk_bytes".into(), bulk.into());
+                }
+            }
+            if mode == Mode::Check
+                && let Some(bm) = limits::budget(&l, Mode::Min, response_cap)
+            {
+                words.push(format!(
+                    "(min: bulk {} KB)",
+                    limits::bulk_bytes(&bm, cli.concurrency.max(1) as u64)
+                        .min(DEFAULT_MAX_BULK_BYTES)
+                        >> 10
+                ));
+            }
+        }
+        record.insert("output".into(), limits::to_json(&l, mode, b.as_ref()));
+    }
+    if let Some(l) = new_limit {
+        cli.limit = l;
+    }
+    if new_bulk.is_some() {
+        cli.server_bulk_bytes = new_bulk;
+    }
+    let tail = if fallback {
+        "fixed 1.1 defaults".to_string()
+    } else {
+        words.join(", ")
+    };
+    eprintln_unless_quiet(
+        cli,
+        mode,
+        &format!("server limits: -> {tail} [{}]", mode.as_str()),
+    );
+    limits::record(serde_json::Value::Object(record));
+    if !too_big.is_empty() {
+        if mode == Mode::Check {
+            return Err(usage(format!(
+                "--serverLimits=check: explicit values exceed what the cluster can take:\n  {}",
+                too_big.join("\n  ")
+            )));
+        }
+        for w in &too_big {
+            log::warn!("{w} (kept because you chose it; --serverLimits=check refuses it)");
+        }
+    }
+    Ok(if mode == Mode::Check {
+        SizingOutcome::Stop
+    } else {
+        SizingOutcome::Go
+    })
+}
+
+fn eprintln_unless_quiet(cli: &Cli, mode: limits::Mode, line: &str) {
+    if mode == limits::Mode::Check || !cli.quiet() {
+        eprintln!("{line}");
+    }
+}
+
 /// 1.1-7: `--statsFile` (hidden, for searchdump-multi): the counts of a run that finished, as
 /// one JSON object. Written under a temporary name and renamed, so a reader never sees half a
 /// file. searchdump-multi uses `written` instead of re-reading (and decompressing) the data file.
@@ -1297,6 +1524,7 @@ fn write_stats_file(path: &std::path::Path, report: &pipeline::WriteReport) -> R
         "failed": report.failed,
         "overwritten": report.overwritten,
         "rejected": report.rejected,
+        "server_limits": limits::recorded(),
     });
     let name = path
         .file_name()
@@ -1315,6 +1543,8 @@ const MIN_FILE_SIZE: u64 = 256;
 pub async fn run() -> Result<()> {
     let argv: Vec<String> = std::env::args().collect();
     let (argv, oos_warnings) = cli::prescan_out_of_scope(argv).map_err(usage)?;
+    // 1.2: flags the user gave (clap cannot tell a default from a given value)
+    let argv_flags = limits::Explicit::from_args(&argv);
     let cli = Cli::parse_from(argv);
     register_early_secrets(&cli);
     init_logging(&cli);
@@ -1400,6 +1630,11 @@ pub async fn run() -> Result<()> {
     let retry = config::retry_policy(&cli)?;
     let gate = config::request_gate(&cli);
     let window = DocWindow::new(cli.offset, cli.size);
+
+    let mut cli = cli;
+    if server_limits(&mut cli, &argv_flags, &input, &output).await? == SizingOutcome::Stop {
+        return Ok(());
+    }
 
     let report = match transfer(&cli, &input, &output, retry, gate, window).await {
         Ok(report) => report,
