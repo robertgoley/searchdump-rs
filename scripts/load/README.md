@@ -337,3 +337,37 @@ over at half the documents (two backing indices), dumps it (every `_index` is a 
 into the host-only URL (`index` must exit 1 naming the stream; after the stream is deleted, `create` recreates it)
 and into a renamed stream; every copy is checked with `edverify diff`. Needs a 2 GB heap; run it with an isolated
 podman store on PATH.
+
+## Low-memory engines (LOAD-LM, L-818, `lowheap.py`)
+
+`python3 scripts/load/lowheap.py [--engines es710,es861,es819,es912] [--heaps 256m,384m] [--datasets pmc,fat] [--regression] [--pmc FILE] [--run-id ID] [--port 19413] [--keep]`
+
+The standard low-memory test set for `searchdump-multi` (1.1-10): the tiers above run at 768 MB or more, and
+CI's integration tests at 512 MB, so neither would catch data defaults that are too big for a small node. For
+each engine (bitnamilegacy ES 7.10.2 and 8.6.1, official ES 8.19.23, bitnamilegacy ES 9.1.2) and heap (256m,
+384m) it starts one node with `scripts/it/up.sh` (`ES_HEAP`) and, for each dataset, seeds the index with
+plain `searchdump` in small batches, then:
+
+- **dump** with `searchdump-multi` and no extra flags (the default data flags); the dump must equal the source
+  (count and digest of `_id` + `_source`);
+- **load** that dump back with `searchdump-multi --direction load` and no extra flags into the deleted index;
+  read back, it must equal the source.
+
+Pass: every dump and load exits 0 (no 429 retries exhausted), counts and digests equal, the node is still up
+after each step, and no search context is left open. Retries, HTTP 429 and breaker trips are recorded in
+`results/load/<run-id>/lowheap.json` but not failed.
+
+Datasets are generated deterministically and cached in `$LOAD_WORK/lowheap-data`: `pmc` (20,000
+article-like documents of ~22 KB word text; `--pmc FILE` uses a searchdump-format file such as the converted
+Rally pmc corpus instead) and `fat` (3,000 documents of 60-100 KB base64 noise, ~80 KB). The mapping maps only
+`n` (`dynamic: false`, 1 shard, 0 replicas), so the heap goes to search responses and bulk requests.
+
+`--regression` (optional) repeats dump and load with the pre-1.1-10 flags (`--limit=5000 --maxResponseMb=0`;
+load `--limit=5000 --maxBulkBytes=100mb`) and records whether each one failed (non-zero exit or node down). It
+is not asserted, because some cells pass with the old flags too (384m with pmc); a dead node is restarted for
+the next step. On `main`, where `searchdump-multi` still has the old defaults until 1.1-10 is ported, the
+default mode fails the same way.
+
+Run it with the isolated podman store on PATH. The whole set (4 engines x 2 heaps, both datasets) takes about
+an hour on the shared box and needs about 2 GB free RAM; one engine and heap is a quick check, e.g.
+`--engines es819 --heaps 256m`.

@@ -1,0 +1,1243 @@
+{
+ "schema": "edrs-lowheap/v1",
+ "run_id": "20261114-L818-lowheap",
+ "engines": [
+  "es710",
+  "es861",
+  "es819",
+  "es912"
+ ],
+ "heaps": [
+  "256m",
+  "384m"
+ ],
+ "datasets": {
+  "pmc": {
+   "docs": 20000,
+   "avg_kb": 21.6,
+   "digest": "3809ce8c8a0ec41c",
+   "file": "pmc.json"
+  },
+  "fat": {
+   "docs": 3000,
+   "avg_kb": 78.0,
+   "digest": "02f824c5df91c7b6",
+   "file": "fat.json"
+  }
+ },
+ "regression": true,
+ "git": "f22ea92",
+ "tool": "searchdump 1.0.0-beta1",
+ "started": "2026-11-14T21:08:08-05:00",
+ "cells": [
+  {
+   "engine": "es710",
+   "heap": "256m",
+   "steps": [
+    {
+     "step": "seed-pmc",
+     "kind": "seed",
+     "exit": 0,
+     "wall_s": 10.2,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": ""
+    },
+    {
+     "step": "dump-pmc",
+     "kind": "dump",
+     "exit": 0,
+     "wall_s": 9.3,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 20000,
+     "digest": "3809ce8c8a0ec41c",
+     "page_note": "note: pmc: documents average 21 KB stored; dumping 786 per page instead of 1000 (give -- --limit=N to choose)",
+     "equal": true
+    },
+    {
+     "step": "load-pmc",
+     "kind": "load",
+     "exit": 0,
+     "wall_s": 10.7,
+     "node_alive": true,
+     "retries": 1,
+     "http429": 3,
+     "circuit_breaking": 3,
+     "error": "",
+     "docs": 20000,
+     "digest": "3809ce8c8a0ec41c",
+     "equal": true
+    },
+    {
+     "step": "seed-fat",
+     "kind": "seed",
+     "exit": 0,
+     "wall_s": 6.2,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": ""
+    },
+    {
+     "step": "dump-fat",
+     "kind": "dump",
+     "exit": 0,
+     "wall_s": 6.0,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 3000,
+     "digest": "02f824c5df91c7b6",
+     "page_note": "note: fat: documents average 79 KB stored; dumping 209 per page instead of 1000 (give -- --limit=N to choose)",
+     "equal": true
+    },
+    {
+     "step": "load-fat",
+     "kind": "load",
+     "exit": 0,
+     "wall_s": 7.5,
+     "node_alive": true,
+     "retries": 1,
+     "http429": 3,
+     "circuit_breaking": 3,
+     "error": "",
+     "docs": 3000,
+     "digest": "02f824c5df91c7b6",
+     "equal": true
+    }
+   ],
+   "failures": [],
+   "regression": [
+    {
+     "step": "old-dump-pmc",
+     "kind": "old-dump",
+     "exit": 1,
+     "wall_s": 12.1,
+     "node_alive": false,
+     "retries": 10,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "Error: Retrieval task failed: Slice 0: Elasticsearch initial search request failed: error sending request for url (http://127.0.0.1:19413/pmc/_search?scroll=10m&allow_partial_search_results=false): client error (Connect): tcp connect error: Connection refused (os error 111) (connection refused: the cluster is down or restarting, or the URL's port is wrong; --retryAttempts/--retryDelay set how long",
+     "failed_as_expected": true,
+     "restarted": true
+    },
+    {
+     "step": "old-load-pmc",
+     "kind": "old-load",
+     "exit": 1,
+     "wall_s": 12.2,
+     "node_alive": true,
+     "retries": 10,
+     "http429": 36,
+     "circuit_breaking": 36,
+     "error": "Error: Elasticsearch bulk failed with HTTP 429: circuit_breaking_exception: [parent] Data too large, data for [<http_request>] would be [359566306/342.9mb], which is larger than the limit of [246546432/235.1mb], real usage: [159596680/152.2mb], new bytes reserved: [199969626/190.7mb], usages [request=0/0b, fielddata=0/0b, in_flight_requests=199969626/190.7mb, accounting=0/0b]; body: {\"error\":{\"roo",
+     "failed_as_expected": true
+    },
+    {
+     "step": "old-dump-fat",
+     "kind": "old-dump",
+     "exit": 1,
+     "wall_s": 11.8,
+     "node_alive": false,
+     "retries": 10,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "Error: Retrieval task failed: Slice 0: Elasticsearch initial search request failed: error sending request for url (http://127.0.0.1:19413/fat/_search?scroll=10m&allow_partial_search_results=false): client error (Connect): tcp connect error: Connection refused (os error 111) (connection refused: the cluster is down or restarting, or the URL's port is wrong; --retryAttempts/--retryDelay set how long",
+     "failed_as_expected": true,
+     "restarted": true
+    },
+    {
+     "step": "old-load-fat",
+     "kind": "old-load",
+     "exit": 1,
+     "wall_s": 12.8,
+     "node_alive": true,
+     "retries": 10,
+     "http429": 36,
+     "circuit_breaking": 36,
+     "error": "Error: Elasticsearch bulk failed with HTTP 429: circuit_breaking_exception: [parent] Data too large, data for [<http_request>] would be [359763176/343mb], which is larger than the limit of [246546432/235.1mb], real usage: [159832912/152.4mb], new bytes reserved: [199930264/190.6mb], usages [request=0/0b, fielddata=0/0b, in_flight_requests=199930264/190.6mb, accounting=0/0b]; body: {\"error\":{\"root_",
+     "failed_as_expected": true
+    }
+   ],
+   "version": "7.10.2",
+   "oom_log_lines": 9,
+   "breakers_tripped": {
+    "parent": 6
+   },
+   "leak": {
+    "scroll_current": 0,
+    "pit_current": null,
+    "other_open_contexts": 0,
+    "part_files": [],
+    "part_files_n": 0
+   },
+   "container": "running 0 false"
+  },
+  {
+   "engine": "es710",
+   "heap": "384m",
+   "steps": [
+    {
+     "step": "seed-pmc",
+     "kind": "seed",
+     "exit": 0,
+     "wall_s": 9.0,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": ""
+    },
+    {
+     "step": "dump-pmc",
+     "kind": "dump",
+     "exit": 0,
+     "wall_s": 8.9,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 20000,
+     "digest": "3809ce8c8a0ec41c",
+     "page_note": "note: pmc: documents average 21 KB stored; dumping 786 per page instead of 1000 (give -- --limit=N to choose)",
+     "equal": true
+    },
+    {
+     "step": "load-pmc",
+     "kind": "load",
+     "exit": 0,
+     "wall_s": 8.3,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 20000,
+     "digest": "3809ce8c8a0ec41c",
+     "equal": true
+    },
+    {
+     "step": "seed-fat",
+     "kind": "seed",
+     "exit": 0,
+     "wall_s": 5.2,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": ""
+    },
+    {
+     "step": "dump-fat",
+     "kind": "dump",
+     "exit": 0,
+     "wall_s": 5.7,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 3000,
+     "digest": "02f824c5df91c7b6",
+     "page_note": "note: fat: documents average 79 KB stored; dumping 209 per page instead of 1000 (give -- --limit=N to choose)",
+     "equal": true
+    },
+    {
+     "step": "load-fat",
+     "kind": "load",
+     "exit": 0,
+     "wall_s": 5.3,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 3000,
+     "digest": "02f824c5df91c7b6",
+     "equal": true
+    }
+   ],
+   "failures": [],
+   "regression": [
+    {
+     "step": "old-dump-pmc",
+     "kind": "old-dump",
+     "exit": 0,
+     "wall_s": 10.2,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "failed_as_expected": false
+    },
+    {
+     "step": "old-load-pmc",
+     "kind": "old-load",
+     "exit": 1,
+     "wall_s": 11.7,
+     "node_alive": true,
+     "retries": 10,
+     "http429": 36,
+     "circuit_breaking": 36,
+     "error": "Error: Elasticsearch bulk failed with HTTP 429: circuit_breaking_exception: [parent] Data too large, data for [<http_request>] would be [446195994/425.5mb], which is larger than the limit of [369819648/352.6mb], real usage: [246226368/234.8mb], new bytes reserved: [199969626/190.7mb], usages [request=0/0b, fielddata=0/0b, in_flight_requests=199969626/190.7mb, accounting=0/0b]; body: {\"error\":{\"roo",
+     "failed_as_expected": true
+    },
+    {
+     "step": "old-dump-fat",
+     "kind": "old-dump",
+     "exit": 1,
+     "wall_s": 12.1,
+     "node_alive": false,
+     "retries": 10,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "Error: Retrieval task failed: Slice 0: Elasticsearch initial search request failed: error sending request for url (http://127.0.0.1:19413/fat/_search?scroll=10m&allow_partial_search_results=false): client error (Connect): tcp connect error: Connection refused (os error 111) (connection refused: the cluster is down or restarting, or the URL's port is wrong; --retryAttempts/--retryDelay set how long",
+     "failed_as_expected": true,
+     "restarted": true
+    },
+    {
+     "step": "old-load-fat",
+     "kind": "old-load",
+     "exit": 1,
+     "wall_s": 12.4,
+     "node_alive": true,
+     "retries": 10,
+     "http429": 46,
+     "circuit_breaking": 18,
+     "error": "Error: Elasticsearch bulk failed with HTTP 429: circuit_breaking_exception: [parent] Data too large, data for [<http_request>] would be [444204936/423.6mb], which is larger than the limit of [369819648/352.6mb], real usage: [244274672/232.9mb], new bytes reserved: [199930264/190.6mb], usages [request=0/0b, fielddata=0/0b, in_flight_requests=199930264/190.6mb, accounting=0/0b]; body: {\"error\":{\"roo",
+     "failed_as_expected": true
+    }
+   ],
+   "version": "7.10.2",
+   "oom_log_lines": 5,
+   "breakers_tripped": {
+    "parent": 3
+   },
+   "leak": {
+    "scroll_current": 0,
+    "pit_current": null,
+    "other_open_contexts": 0,
+    "part_files": [],
+    "part_files_n": 0
+   },
+   "container": "running 0 false"
+  },
+  {
+   "engine": "es861",
+   "heap": "256m",
+   "steps": [
+    {
+     "step": "seed-pmc",
+     "kind": "seed",
+     "exit": 0,
+     "wall_s": 6.0,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": ""
+    },
+    {
+     "step": "dump-pmc",
+     "kind": "dump",
+     "exit": 0,
+     "wall_s": 8.4,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 20000,
+     "digest": "3809ce8c8a0ec41c",
+     "page_note": "note: pmc: documents average 21 KB stored; dumping 782 per page instead of 1000 (give -- --limit=N to choose)",
+     "equal": true
+    },
+    {
+     "step": "load-pmc",
+     "kind": "load",
+     "exit": 0,
+     "wall_s": 4.9,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 20000,
+     "digest": "3809ce8c8a0ec41c",
+     "equal": true
+    },
+    {
+     "step": "seed-fat",
+     "kind": "seed",
+     "exit": 0,
+     "wall_s": 3.1,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": ""
+    },
+    {
+     "step": "dump-fat",
+     "kind": "dump",
+     "exit": 0,
+     "wall_s": 5.6,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 3000,
+     "digest": "02f824c5df91c7b6",
+     "page_note": "note: fat: documents average 79 KB stored; dumping 209 per page instead of 1000 (give -- --limit=N to choose)",
+     "equal": true
+    },
+    {
+     "step": "load-fat",
+     "kind": "load",
+     "exit": 0,
+     "wall_s": 3.0,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 3000,
+     "digest": "02f824c5df91c7b6",
+     "equal": true
+    }
+   ],
+   "failures": [],
+   "regression": [
+    {
+     "step": "old-dump-pmc",
+     "kind": "old-dump",
+     "exit": 1,
+     "wall_s": 10.5,
+     "node_alive": false,
+     "retries": 10,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "Error: Retrieval task failed: Slice 0: Elasticsearch initial search request failed: error sending request for url (http://127.0.0.1:19413/pmc/_search?scroll=10m&allow_partial_search_results=false): client error (Connect): tcp connect error: Connection refused (os error 111) (connection refused: the cluster is down or restarting, or the URL's port is wrong; --retryAttempts/--retryDelay set how long",
+     "failed_as_expected": true,
+     "restarted": true
+    },
+    {
+     "step": "old-load-pmc",
+     "kind": "old-load",
+     "exit": 1,
+     "wall_s": 11.5,
+     "node_alive": true,
+     "retries": 10,
+     "http429": 36,
+     "circuit_breaking": 36,
+     "error": "Error: Elasticsearch bulk failed with HTTP 429: circuit_breaking_exception: [parent] Data too large, data for [<http_request>] would be [369615010/352.4mb], which is larger than the limit of [255013683/243.1mb], real usage: [169645384/161.7mb], new bytes reserved: [199969626/190.7mb], usages [model_inference=0/0b, inflight_requests=199969626/190.7mb, request=0/0b, fielddata=0/0b, eql_sequence=0/0b",
+     "failed_as_expected": true
+    },
+    {
+     "step": "old-dump-fat",
+     "kind": "old-dump",
+     "exit": 1,
+     "wall_s": 10.5,
+     "node_alive": false,
+     "retries": 10,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "Error: Retrieval task failed: Slice 0: Elasticsearch initial search request failed: error sending request for url (http://127.0.0.1:19413/fat/_search?scroll=10m&allow_partial_search_results=false): client error (Connect): tcp connect error: Connection refused (os error 111) (connection refused: the cluster is down or restarting, or the URL's port is wrong; --retryAttempts/--retryDelay set how long",
+     "failed_as_expected": true,
+     "restarted": true
+    },
+    {
+     "step": "old-load-fat",
+     "kind": "old-load",
+     "exit": 1,
+     "wall_s": 12.3,
+     "node_alive": true,
+     "retries": 10,
+     "http429": 36,
+     "circuit_breaking": 36,
+     "error": "Error: Elasticsearch bulk failed with HTTP 429: circuit_breaking_exception: [parent] Data too large, data for [<http_request>] would be [369501520/352.3mb], which is larger than the limit of [255013683/243.1mb], real usage: [169571256/161.7mb], new bytes reserved: [199930264/190.6mb], usages [eql_sequence=0/0b, model_inference=0/0b, inflight_requests=199930264/190.6mb, request=0/0b, fielddata=0/0b",
+     "failed_as_expected": true
+    }
+   ],
+   "version": "8.6.1",
+   "oom_log_lines": 7,
+   "breakers_tripped": {
+    "parent": 6
+   },
+   "leak": {
+    "scroll_current": 0,
+    "pit_current": null,
+    "other_open_contexts": 0,
+    "part_files": [],
+    "part_files_n": 0
+   },
+   "container": "running 0 false"
+  },
+  {
+   "engine": "es861",
+   "heap": "384m",
+   "steps": [
+    {
+     "step": "seed-pmc",
+     "kind": "seed",
+     "exit": 0,
+     "wall_s": 5.9,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": ""
+    },
+    {
+     "step": "dump-pmc",
+     "kind": "dump",
+     "exit": 0,
+     "wall_s": 8.7,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 20000,
+     "digest": "3809ce8c8a0ec41c",
+     "page_note": "note: pmc: documents average 21 KB stored; dumping 782 per page instead of 1000 (give -- --limit=N to choose)",
+     "equal": true
+    },
+    {
+     "step": "load-pmc",
+     "kind": "load",
+     "exit": 0,
+     "wall_s": 4.6,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 20000,
+     "digest": "3809ce8c8a0ec41c",
+     "equal": true
+    },
+    {
+     "step": "seed-fat",
+     "kind": "seed",
+     "exit": 0,
+     "wall_s": 2.5,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": ""
+    },
+    {
+     "step": "dump-fat",
+     "kind": "dump",
+     "exit": 0,
+     "wall_s": 5.6,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 3000,
+     "digest": "02f824c5df91c7b6",
+     "page_note": "note: fat: documents average 79 KB stored; dumping 209 per page instead of 1000 (give -- --limit=N to choose)",
+     "equal": true
+    },
+    {
+     "step": "load-fat",
+     "kind": "load",
+     "exit": 0,
+     "wall_s": 3.0,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 3000,
+     "digest": "02f824c5df91c7b6",
+     "equal": true
+    }
+   ],
+   "failures": [],
+   "regression": [
+    {
+     "step": "old-dump-pmc",
+     "kind": "old-dump",
+     "exit": 0,
+     "wall_s": 9.2,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "failed_as_expected": false
+    },
+    {
+     "step": "old-load-pmc",
+     "kind": "old-load",
+     "exit": 1,
+     "wall_s": 11.1,
+     "node_alive": true,
+     "retries": 10,
+     "http429": 36,
+     "circuit_breaking": 36,
+     "error": "Error: Elasticsearch bulk failed with HTTP 429: circuit_breaking_exception: [parent] Data too large, data for [<http_request>] would be [484271066/461.8mb], which is larger than the limit of [382520524/364.7mb], real usage: [284301440/271.1mb], new bytes reserved: [199969626/190.7mb], usages [fielddata=0/0b, request=0/0b, inflight_requests=199969626/190.7mb, model_inference=0/0b, eql_sequence=0/0b",
+     "failed_as_expected": true
+    },
+    {
+     "step": "old-dump-fat",
+     "kind": "old-dump",
+     "exit": 1,
+     "wall_s": 10.6,
+     "node_alive": false,
+     "retries": 10,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "Error: Retrieval task failed: Slice 0: Elasticsearch initial search request failed: error sending request for url (http://127.0.0.1:19413/fat/_search?scroll=10m&allow_partial_search_results=false): client error (Connect): tcp connect error: Connection refused (os error 111) (connection refused: the cluster is down or restarting, or the URL's port is wrong; --retryAttempts/--retryDelay set how long",
+     "failed_as_expected": true,
+     "restarted": true
+    },
+    {
+     "step": "old-load-fat",
+     "kind": "old-load",
+     "exit": 1,
+     "wall_s": 12.1,
+     "node_alive": true,
+     "retries": 10,
+     "http429": 36,
+     "circuit_breaking": 36,
+     "error": "Error: Elasticsearch bulk failed with HTTP 429: circuit_breaking_exception: [parent] Data too large, data for [<http_request>] would be [487232408/464.6mb], which is larger than the limit of [382520524/364.7mb], real usage: [287302144/273.9mb], new bytes reserved: [199930264/190.6mb], usages [eql_sequence=0/0b, model_inference=0/0b, inflight_requests=199930264/190.6mb, request=0/0b, fielddata=0/0b",
+     "failed_as_expected": true
+    }
+   ],
+   "version": "8.6.1",
+   "oom_log_lines": 4,
+   "breakers_tripped": {
+    "parent": 6
+   },
+   "leak": {
+    "scroll_current": 0,
+    "pit_current": null,
+    "other_open_contexts": 0,
+    "part_files": [],
+    "part_files_n": 0
+   },
+   "container": "running 0 false"
+  },
+  {
+   "engine": "es819",
+   "heap": "256m",
+   "steps": [
+    {
+     "step": "seed-pmc",
+     "kind": "seed",
+     "exit": 0,
+     "wall_s": 5.4,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": ""
+    },
+    {
+     "step": "dump-pmc",
+     "kind": "dump",
+     "exit": 0,
+     "wall_s": 8.8,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 20000,
+     "digest": "3809ce8c8a0ec41c",
+     "page_note": "note: pmc: documents average 21 KB stored; dumping 782 per page instead of 1000 (give -- --limit=N to choose)",
+     "equal": true
+    },
+    {
+     "step": "load-pmc",
+     "kind": "load",
+     "exit": 0,
+     "wall_s": 4.7,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 20000,
+     "digest": "3809ce8c8a0ec41c",
+     "equal": true
+    },
+    {
+     "step": "seed-fat",
+     "kind": "seed",
+     "exit": 0,
+     "wall_s": 2.5,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": ""
+    },
+    {
+     "step": "dump-fat",
+     "kind": "dump",
+     "exit": 0,
+     "wall_s": 5.4,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 3000,
+     "digest": "02f824c5df91c7b6",
+     "page_note": "note: fat: documents average 79 KB stored; dumping 209 per page instead of 1000 (give -- --limit=N to choose)",
+     "equal": true
+    },
+    {
+     "step": "load-fat",
+     "kind": "load",
+     "exit": 0,
+     "wall_s": 2.7,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 3000,
+     "digest": "02f824c5df91c7b6",
+     "equal": true
+    }
+   ],
+   "failures": [],
+   "regression": [
+    {
+     "step": "old-dump-pmc",
+     "kind": "old-dump",
+     "exit": 1,
+     "wall_s": 10.8,
+     "node_alive": true,
+     "retries": 10,
+     "http429": 36,
+     "circuit_breaking": 24,
+     "error": "Error: Retrieval task failed: Slice 0: Elasticsearch initial search failed with HTTP 429: search_phase_execution_exception: all shards failed; body: {\"error\":{\"root_cause\":[{\"type\":\"circuit_breaking_exception\",\"reason\":\"[request] Data too large, data for [fetch source] would be [161917146/154.4mb], which is larger than the limit of [161061273/153.5mb]\",\"bytes_wanted\":161917146,\"bytes_limit\":161061",
+     "failed_as_expected": true
+    },
+    {
+     "step": "old-load-pmc",
+     "kind": "old-load",
+     "exit": 1,
+     "wall_s": 11.8,
+     "node_alive": true,
+     "retries": 10,
+     "http429": 36,
+     "circuit_breaking": 36,
+     "error": "Error: Elasticsearch bulk failed with HTTP 429: circuit_breaking_exception: [parent] Data too large, data for [<http_request>] would be [372940306/355.6mb], which is larger than the limit of [255013683/243.1mb], real usage: [172970680/164.9mb], new bytes reserved: [199969626/190.7mb], usages [inflight_requests=199969626/190.7mb, request=0/0b, fielddata=0/0b, eql_sequence=0/0b, model_inference=0/0b",
+     "failed_as_expected": true
+    },
+    {
+     "step": "old-dump-fat",
+     "kind": "old-dump",
+     "exit": 1,
+     "wall_s": 10.3,
+     "node_alive": true,
+     "retries": 10,
+     "http429": 36,
+     "circuit_breaking": 24,
+     "error": "Error: Retrieval task failed: Slice 0: Elasticsearch initial search failed with HTTP 429: search_phase_execution_exception: all shards failed; body: {\"error\":{\"root_cause\":[{\"type\":\"circuit_breaking_exception\",\"reason\":\"[request] Data too large, data for [fetch source] would be [162100862/154.5mb], which is larger than the limit of [161061273/153.5mb]\",\"bytes_wanted\":162100862,\"bytes_limit\":161061",
+     "failed_as_expected": true
+    },
+    {
+     "step": "old-load-fat",
+     "kind": "old-load",
+     "exit": 1,
+     "wall_s": 12.4,
+     "node_alive": true,
+     "retries": 10,
+     "http429": 36,
+     "circuit_breaking": 36,
+     "error": "Error: Elasticsearch bulk failed with HTTP 429: circuit_breaking_exception: [parent] Data too large, data for [<http_request>] would be [377276040/359.7mb], which is larger than the limit of [255013683/243.1mb], real usage: [177345776/169.1mb], new bytes reserved: [199930264/190.6mb], usages [inflight_requests=199930264/190.6mb, request=0/0b, fielddata=0/0b, eql_sequence=0/0b, model_inference=0/0b",
+     "failed_as_expected": true
+    }
+   ],
+   "version": "8.19.23",
+   "oom_log_lines": 1,
+   "breakers_tripped": {
+    "request": 12,
+    "parent": 12
+   },
+   "leak": {
+    "scroll_current": 0,
+    "pit_current": null,
+    "other_open_contexts": 0,
+    "part_files": [],
+    "part_files_n": 0
+   },
+   "container": "running 0 false"
+  },
+  {
+   "engine": "es819",
+   "heap": "384m",
+   "steps": [
+    {
+     "step": "seed-pmc",
+     "kind": "seed",
+     "exit": 0,
+     "wall_s": 5.6,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": ""
+    },
+    {
+     "step": "dump-pmc",
+     "kind": "dump",
+     "exit": 0,
+     "wall_s": 8.8,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 20000,
+     "digest": "3809ce8c8a0ec41c",
+     "page_note": "note: pmc: documents average 21 KB stored; dumping 782 per page instead of 1000 (give -- --limit=N to choose)",
+     "equal": true
+    },
+    {
+     "step": "load-pmc",
+     "kind": "load",
+     "exit": 0,
+     "wall_s": 4.7,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 20000,
+     "digest": "3809ce8c8a0ec41c",
+     "equal": true
+    },
+    {
+     "step": "seed-fat",
+     "kind": "seed",
+     "exit": 0,
+     "wall_s": 2.8,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": ""
+    },
+    {
+     "step": "dump-fat",
+     "kind": "dump",
+     "exit": 0,
+     "wall_s": 5.5,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 3000,
+     "digest": "02f824c5df91c7b6",
+     "page_note": "note: fat: documents average 79 KB stored; dumping 209 per page instead of 1000 (give -- --limit=N to choose)",
+     "equal": true
+    },
+    {
+     "step": "load-fat",
+     "kind": "load",
+     "exit": 0,
+     "wall_s": 2.6,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 3000,
+     "digest": "02f824c5df91c7b6",
+     "equal": true
+    }
+   ],
+   "failures": [],
+   "regression": [
+    {
+     "step": "old-dump-pmc",
+     "kind": "old-dump",
+     "exit": 0,
+     "wall_s": 9.8,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "failed_as_expected": false
+    },
+    {
+     "step": "old-load-pmc",
+     "kind": "old-load",
+     "exit": 1,
+     "wall_s": 11.6,
+     "node_alive": true,
+     "retries": 10,
+     "http429": 36,
+     "circuit_breaking": 36,
+     "error": "Error: Elasticsearch bulk failed with HTTP 429: circuit_breaking_exception: [parent] Data too large, data for [<http_request>] would be [482300234/459.9mb], which is larger than the limit of [382520524/364.7mb], real usage: [282330608/269.2mb], new bytes reserved: [199969626/190.7mb], usages [model_inference=0/0b, eql_sequence=0/0b, fielddata=0/0b, request=0/0b, inflight_requests=199969626/190.7mb",
+     "failed_as_expected": true
+    },
+    {
+     "step": "old-dump-fat",
+     "kind": "old-dump",
+     "exit": 1,
+     "wall_s": 10.4,
+     "node_alive": true,
+     "retries": 10,
+     "http429": 36,
+     "circuit_breaking": 24,
+     "error": "Error: Retrieval task failed: Slice 0: Elasticsearch initial search failed with HTTP 429: search_phase_execution_exception: all shards failed; body: {\"error\":{\"root_cause\":[{\"type\":\"circuit_breaking_exception\",\"reason\":\"[request] Data too large, data for [fetch source] would be [241915504/230.7mb], which is larger than the limit of [241591910/230.3mb]\",\"bytes_wanted\":241915504,\"bytes_limit\":241591",
+     "failed_as_expected": true
+    },
+    {
+     "step": "old-load-fat",
+     "kind": "old-load",
+     "exit": 1,
+     "wall_s": 12.2,
+     "node_alive": true,
+     "retries": 10,
+     "http429": 36,
+     "circuit_breaking": 6,
+     "error": "Error: Elasticsearch bulk failed with HTTP 429: es_rejected_execution_exception: rejected execution of coordinating operation [coordinating_and_primary_bytes=0, replica_bytes=0, all_bytes=0, coordinating_operation_bytes=100155684, max_coordinating_bytes=40265318]; body: {\"error\":{\"root_cause\":[{\"type\":\"es_rejected_execution_exception\",\"reason\":\"rejected execution of coordinating operation [coordin",
+     "failed_as_expected": true
+    }
+   ],
+   "version": "8.19.23",
+   "oom_log_lines": 1,
+   "breakers_tripped": {
+    "request": 6,
+    "parent": 7
+   },
+   "leak": {
+    "scroll_current": 0,
+    "pit_current": null,
+    "other_open_contexts": 0,
+    "part_files": [],
+    "part_files_n": 0
+   },
+   "container": "running 0 false"
+  },
+  {
+   "engine": "es912",
+   "heap": "256m",
+   "steps": [
+    {
+     "step": "seed-pmc",
+     "kind": "seed",
+     "exit": 0,
+     "wall_s": 6.0,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": ""
+    },
+    {
+     "step": "dump-pmc",
+     "kind": "dump",
+     "exit": 0,
+     "wall_s": 8.6,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 20000,
+     "digest": "3809ce8c8a0ec41c",
+     "page_note": "note: pmc: documents average 21 KB stored; dumping 782 per page instead of 1000 (give -- --limit=N to choose)",
+     "equal": true
+    },
+    {
+     "step": "load-pmc",
+     "kind": "load",
+     "exit": 0,
+     "wall_s": 5.0,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 20000,
+     "digest": "3809ce8c8a0ec41c",
+     "equal": true
+    },
+    {
+     "step": "seed-fat",
+     "kind": "seed",
+     "exit": 0,
+     "wall_s": 2.5,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": ""
+    },
+    {
+     "step": "dump-fat",
+     "kind": "dump",
+     "exit": 0,
+     "wall_s": 5.7,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 3000,
+     "digest": "02f824c5df91c7b6",
+     "page_note": "note: fat: documents average 79 KB stored; dumping 209 per page instead of 1000 (give -- --limit=N to choose)",
+     "equal": true
+    },
+    {
+     "step": "load-fat",
+     "kind": "load",
+     "exit": 0,
+     "wall_s": 2.7,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 3000,
+     "digest": "02f824c5df91c7b6",
+     "equal": true
+    }
+   ],
+   "failures": [],
+   "regression": [
+    {
+     "step": "old-dump-pmc",
+     "kind": "old-dump",
+     "exit": 0,
+     "wall_s": 10.2,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "failed_as_expected": false
+    },
+    {
+     "step": "old-load-pmc",
+     "kind": "old-load",
+     "exit": 0,
+     "wall_s": 5.5,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "failed_as_expected": false
+    },
+    {
+     "step": "old-dump-fat",
+     "kind": "old-dump",
+     "exit": 1,
+     "wall_s": 11.6,
+     "node_alive": true,
+     "retries": 10,
+     "http429": 36,
+     "circuit_breaking": 24,
+     "error": "Error: Retrieval task failed: Slice 0: Elasticsearch initial search failed with HTTP 429: search_phase_execution_exception: all shards failed; body: {\"error\":{\"root_cause\":[{\"type\":\"circuit_breaking_exception\",\"reason\":\"[parent] Data too large, data for [fetch source] would be [255943432/244mb], which is larger than the limit of [255013683/243.1mb], real usage: [255943432/244mb], new bytes reserve",
+     "failed_as_expected": true
+    },
+    {
+     "step": "old-load-fat",
+     "kind": "old-load",
+     "exit": 0,
+     "wall_s": 3.6,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "failed_as_expected": false
+    }
+   ],
+   "version": "9.1.2",
+   "oom_log_lines": 1,
+   "breakers_tripped": {
+    "parent": 9
+   },
+   "leak": {
+    "scroll_current": 0,
+    "pit_current": null,
+    "other_open_contexts": 0,
+    "part_files": [],
+    "part_files_n": 0
+   },
+   "container": "running 0 false"
+  },
+  {
+   "engine": "es912",
+   "heap": "384m",
+   "steps": [
+    {
+     "step": "seed-pmc",
+     "kind": "seed",
+     "exit": 0,
+     "wall_s": 5.9,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": ""
+    },
+    {
+     "step": "dump-pmc",
+     "kind": "dump",
+     "exit": 0,
+     "wall_s": 9.6,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 20000,
+     "digest": "3809ce8c8a0ec41c",
+     "page_note": "note: pmc: documents average 21 KB stored; dumping 782 per page instead of 1000 (give -- --limit=N to choose)",
+     "equal": true
+    },
+    {
+     "step": "load-pmc",
+     "kind": "load",
+     "exit": 0,
+     "wall_s": 4.6,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 20000,
+     "digest": "3809ce8c8a0ec41c",
+     "equal": true
+    },
+    {
+     "step": "seed-fat",
+     "kind": "seed",
+     "exit": 0,
+     "wall_s": 2.7,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": ""
+    },
+    {
+     "step": "dump-fat",
+     "kind": "dump",
+     "exit": 0,
+     "wall_s": 5.8,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 3000,
+     "digest": "02f824c5df91c7b6",
+     "page_note": "note: fat: documents average 79 KB stored; dumping 209 per page instead of 1000 (give -- --limit=N to choose)",
+     "equal": true
+    },
+    {
+     "step": "load-fat",
+     "kind": "load",
+     "exit": 0,
+     "wall_s": 2.7,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 1,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 3000,
+     "digest": "02f824c5df91c7b6",
+     "equal": true
+    }
+   ],
+   "failures": [],
+   "regression": [
+    {
+     "step": "old-dump-pmc",
+     "kind": "old-dump",
+     "exit": 0,
+     "wall_s": 9.4,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "failed_as_expected": false
+    },
+    {
+     "step": "old-load-pmc",
+     "kind": "old-load",
+     "exit": 0,
+     "wall_s": 5.5,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "failed_as_expected": false
+    },
+    {
+     "step": "old-dump-fat",
+     "kind": "old-dump",
+     "exit": 0,
+     "wall_s": 7.0,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "failed_as_expected": false
+    },
+    {
+     "step": "old-load-fat",
+     "kind": "old-load",
+     "exit": 0,
+     "wall_s": 3.3,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "failed_as_expected": false
+    }
+   ],
+   "version": "9.1.2",
+   "oom_log_lines": 1,
+   "breakers_tripped": {},
+   "leak": {
+    "scroll_current": 0,
+    "pit_current": null,
+    "other_open_contexts": 0,
+    "part_files": [],
+    "part_files_n": 0
+   },
+   "container": "running 0 false"
+  }
+ ],
+ "failures": [],
+ "finished": "2026-11-14T21:24:07-05:00",
+ "pass": true
+}

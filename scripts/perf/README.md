@@ -172,6 +172,7 @@ nominal generated count. Any rejection/overwrite on non-edge profiles fails seed
 Generators' real serialized byte sizes are recorded; size labels are estimates.
 
 Reuse `tiers.toml` heap: **L0 1024 MB; L1 4096 MB** (place caps are marked in plan). OpenSearch 2.16+ ships query-insights with top_queries on by default; `scripts/it/up.sh` disables those collectors for IT/perf. OS 2/3 still use a **2048 MB** L0 heap so restore-big (source+dest huge docs resident) does not trip the parent circuit breaker; other engines keep the tier 1024 MB heap.
+Small nodes are not covered here: the smallest heap in this suite is 768 MB (place `shared`). The low-memory set for `searchdump-multi` on 256 MB and 384 MB heaps (1.1-10) is `scripts/load/lowheap.py`; see [scripts/load/README.md](../load/README.md#low-memory-engines-load-lm-l-818-lowheappy). Run it before a release next to this suite.
 Only **one dataset** is resident at a time, with at most source + restore target + two
 file copies. The suite reserves `6 × tier_docs × 1000 bytes + 1024 MB` disk (L0 ~1.6 GB,
 L1 ~61 GB, excluding pre-pulled images/build cache), checks it against the place budget

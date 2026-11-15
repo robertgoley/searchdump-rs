@@ -426,6 +426,8 @@ documents (fewer for documents over 16 KB stored) with the 256 MB response cap, 
 bulks at 16 MB; any perf step that
 times `searchdump-multi` without `-- --limit=...` measures the new default. Whether the same change
 should also go to `main` (the 1.0 line) is the owner's decision.
+The low-memory regression set is `python3 scripts/load/lowheap.py --regression` (L-818, about 16 minutes on
+the box; `scripts/load/README.md`); run it with the RC binaries, it needs only about 2 GB free RAM.
 
 ---
 

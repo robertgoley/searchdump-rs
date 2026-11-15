@@ -367,6 +367,10 @@ Each item is one commit on `release/1.1` (or two: tests, then the change), with 
 * **Tests:** unit tests for the defaults and `page_limit_for`; live: on all four engines (7.10.2, 8.6.1, 8.19.23,
   9.1.2) at 256m a `searchdump-multi` load and then dump of both indices with the new defaults pass, digests equal
   to the source, node alive, no open scroll context.
+* **Regression set (L-818, owner request 2026-11-14):** `scripts/load/lowheap.py` is the standard low-memory test
+  set (4 engines x 256m/384m x pmc-like and fat, `searchdump-multi` dump and load with default flags; `--regression`
+  runs the old flags). On this branch: PASS 16/16; the old flags fail 23 of 32 runs (`results/local/L-818.md`).
+  Run it before the 1.1 release.
 
 ## 3. Open questions for Robert
 
