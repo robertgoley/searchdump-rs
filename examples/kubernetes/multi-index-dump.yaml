@@ -1,10 +1,9 @@
 # Dump every index matching MATCH with searchdump-multi.
 #
-# IMPORTANT: in 1.0.0, data children default to --limit=5000 and
-# --maxResponseMb=0 (1.1.0: 1000 per page, response cap kept). That can 429 or OOM a small-heap Elasticsearch node even
-# with --parallel=1 (reproduced on 256 MB-heap ES 7.10.2 / 8.6.1 / 8.19.23). This Job always overrides the
-# page size after --. Raise LIMIT / PARALLEL on a large, well-resourced
-# cluster. Set RESUME=1 to add --resume and finish a previous run.
+# 1.2: pages and how many indices run at once come from the cluster (--serverLimits,
+# SERVER_LIMITS default auto; min for a fragile or shared cluster; off = 1.1.0 sizes). Manual
+# override (warns above the cluster's limits): LIMIT / MAX_RESPONSE_MB / PARALLEL (the 1.1
+# small-heap recipe: 500 / 64 / 1). Set RESUME=1 to add --resume and finish a previous run.
 #
 # searchdump-multi has no --ca. For a private CA, mount the bundle (for
 # example from Secret searchdump-tls, key ca.pem) at /run/searchdump/ca.pem
@@ -30,7 +29,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: searchdump
-          image: ghcr.io/robertgoley/searchdump-rs:1.1.0-dhi-debian
+          image: ghcr.io/robertgoley/searchdump-rs:1.2.0-dhi-debian
           imagePullPolicy: IfNotPresent
           command:
             - /bin/sh
@@ -41,24 +40,33 @@ spec:
               if [ -n "${RESUME:-}" ]; then
                 extra="${extra} --resume"
               fi
+              if [ -n "${PARALLEL:-}" ]; then
+                extra="${extra} --parallel=${PARALLEL}"
+              fi
+              child="--scrollTime=${SCROLL_TIME}"
+              [ -n "${LIMIT:-}" ] && child="${child} --limit=${LIMIT}"
+              [ -n "${MAX_RESPONSE_MB:-}" ] && child="${child} --maxResponseMb=${MAX_RESPONSE_MB}"
+              # shellcheck disable=SC2086
               searchdump-multi --direction=dump --input="${ES_URL}" --output=/data \
-                --match="${MATCH}" --parallel="${PARALLEL}" --compression="${COMPRESSION}" ${extra} -- \
-                --limit="${LIMIT}" --maxResponseMb="${MAX_RESPONSE_MB}" --scrollTime="${SCROLL_TIME}"
+                --match="${MATCH}" --compression="${COMPRESSION}" --serverLimits="${SERVER_LIMITS}" \
+                ${extra} -- ${child}
           env:
             - name: ES_URL
               value: http://elasticsearch.default.svc:9200
             - name: MATCH
               value: "^logs-"
+            - name: SERVER_LIMITS
+              value: auto
             - name: PARALLEL
-              value: "2"
+              value: ""
             - name: LIMIT
-              value: "500"
+              value: ""
             - name: COMPRESSION
               value: zstd1
             - name: SCROLL_TIME
               value: 10m
             - name: MAX_RESPONSE_MB
-              value: "64"
+              value: ""
             - name: RESUME
               value: ""
             - name: SEARCHDUMP_INPUT_USERNAME

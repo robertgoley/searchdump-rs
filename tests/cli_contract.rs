@@ -4964,3 +4964,196 @@ fn l642b_host_only_output_resolves_the_target_index() {
         assert_ne!(o.status.code(), Some(2), "{args:?}: {err}");
     }
 }
+
+// ---------------------------------------------------------------- 1.2 --serverLimits (L2-004)
+
+const L2_INFO: &str =
+    r#"{"version":{"number":"8.19.3","build_flavor":"default"},"tagline":"You Know, for Search"}"#;
+
+/// One 256 MB data node: parent breaker 243 MB with 100 MB in use, request breaker 154 MB.
+const L2_SMALL_NODE: &str = r#"{"nodes":{"n1":{"name":"n1","roles":["data","master"],"jvm":{"mem":{"heap_max_in_bytes":268435456,"heap_used_percent":40}},"breakers":{"parent":{"limit_size_in_bytes":255013683,"estimated_size_in_bytes":104857600},"request":{"limit_size_in_bytes":161061273,"estimated_size_in_bytes":0}},"indexing_pressure":{"memory":{"limit_in_bytes":26843545}}}}}"#;
+
+/// A dump mock that answers the probe with `nodes` (status, body, optional delay) and the index
+/// stats with `avg` bytes per document.
+async fn l2_dump_mock(
+    nodes: (u16, &str),
+    delay: Option<std::time::Duration>,
+    avg: u64,
+) -> support::router_mock::RouterMock {
+    use support::router_mock::{Fault, Reply, Route, RouterMock};
+    let mut probe = Reply::json(nodes.0, nodes.1);
+    if let Some(d) = delay {
+        probe = probe.with_fault(Fault::Delay(d));
+    }
+    let hits: Vec<String> = (0..3)
+        .map(|i| hit(&format!("h{i}"), r#"{"f":1}"#))
+        .collect();
+    RouterMock::builder()
+        .serve_probes()
+        .route(Route::exact("GET", "/").reply(Reply::ok(L2_INFO)))
+        .route(Route::prefix("GET", "/_nodes/stats").reply(probe))
+        .route(Route::prefix("GET", "/idx/_stats/docs,store").reply(Reply::ok(format!(
+            r#"{{"_all":{{"primaries":{{"docs":{{"count":1000}},"store":{{"size_in_bytes":{}}}}}}}}}"#,
+            avg * 1000
+        ))))
+        .route(Route::prefix("POST", "/idx/_search").reply(Reply::ok(page("s1", &hits, 3))))
+        .route(Route::exact("POST", "/_search/scroll").reply(Reply::ok(page("s1", &[], 3))))
+        .route(
+            Route::prefix("DELETE", "/_search/scroll")
+                .reply(Reply::ok(r#"{"succeeded":true,"num_freed":1}"#)),
+        )
+        .fallback(Reply::json(404, r#"{"error":"nope"}"#))
+        .start()
+        .await
+}
+
+fn l2_args(url: &str, out: &std::path::Path, extra: &[&str]) -> Vec<String> {
+    let mut v = vec![
+        "--input".to_string(),
+        format!("{url}/idx"),
+        "--output".to_string(),
+        out.to_str().unwrap().to_string(),
+    ];
+    v.extend(extra.iter().map(|s| s.to_string()));
+    v
+}
+
+/// 1.2-1d: a probe that is refused (403), missing (404, serverless or a proxy) or slow (over the
+/// 5 s deadline) never fails the run: one line says why, and the 1.1 sizes are used.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn l2_004_server_limits_fallbacks_never_fail_the_run() {
+    let forbidden = r#"{"error":{"type":"security_exception"},"status":403}"#;
+    type Case<'a> = (
+        &'a str,
+        (u16, &'a str),
+        Option<std::time::Duration>,
+        &'a str,
+    );
+    let cases: Vec<Case> = vec![
+        ("403", (403, forbidden), None, "no monitor privilege"),
+        (
+            "404",
+            (404, r#"{"error":"nope"}"#),
+            None,
+            "no node stats API",
+        ),
+        (
+            "hidden",
+            (200, r#"{"nodes":{"n1":{"name":"n1"}}}"#),
+            None,
+            "no heap or breaker fields",
+        ),
+        (
+            "timeout",
+            (200, L2_SMALL_NODE),
+            Some(std::time::Duration::from_secs(7)),
+            "longer than 5 s",
+        ),
+    ];
+    for (name, nodes, delay, want) in cases {
+        let m = l2_dump_mock(nodes, delay, 100).await;
+        let d = tempfile::tempdir().unwrap();
+        let out = d.path().join("out.json");
+        let o = run_async(l2_args(&m.url(), &out, &[]), vec![]).await;
+        let e = stderr(&o);
+        assert_eq!(o.status.code(), Some(0), "{name}: {e}");
+        assert!(
+            e.contains(want) && e.contains("fixed 1.1 defaults"),
+            "{name}: {e}"
+        );
+        assert_eq!(
+            std::fs::read_to_string(&out).unwrap().lines().count(),
+            3,
+            "{name}"
+        );
+        let first = m
+            .requests()
+            .into_iter()
+            .find(|r| r.path == "/idx/_search")
+            .unwrap();
+        assert!(
+            first.body_str().contains("\"size\":100"),
+            "{name}: {}",
+            first.body_str()
+        );
+    }
+}
+
+/// 1.2-1d: `auto` tightens the default page for large documents on a small heap; an explicit
+/// `--limit` is kept (with a warning) and `off` sends no probe at all.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn l2_004_auto_tightens_the_page_and_off_does_not_probe() {
+    let d = tempfile::tempdir().unwrap();
+    let out = d.path().join("out.json");
+    // ~1 MB documents: 100 per page would be ~300 MB of response on a 256 MB heap
+    let m = l2_dump_mock((200, L2_SMALL_NODE), None, 1 << 20).await;
+    let o = run_async(l2_args(&m.url(), &out, &[]), vec![]).await;
+    let e = stderr(&o);
+    assert_eq!(o.status.code(), Some(0), "{e}");
+    assert!(e.contains("tightened from 100"), "{e}");
+    let size = |m: &support::router_mock::RouterMock| {
+        let b = m
+            .requests()
+            .into_iter()
+            .find(|r| r.path == "/idx/_search")
+            .unwrap()
+            .body_str();
+        let v: serde_json::Value = serde_json::from_str(&b).unwrap();
+        v["size"].as_u64().unwrap()
+    };
+    let s = size(&m);
+    assert!((1..100).contains(&s), "size {s}");
+
+    let m = l2_dump_mock((200, L2_SMALL_NODE), None, 1 << 20).await;
+    let o = run_async(
+        l2_args(&m.url(), &out, &["--limit", "100", "--overwrite"]),
+        vec![],
+    )
+    .await;
+    assert_eq!(o.status.code(), Some(0), "{}", stderr(&o));
+    assert_eq!(size(&m), 100, "an explicit --limit is kept");
+
+    let m = l2_dump_mock((200, L2_SMALL_NODE), None, 1 << 20).await;
+    let o = run_async(
+        l2_args(&m.url(), &out, &["--serverLimits=off", "--overwrite"]),
+        vec![],
+    )
+    .await;
+    assert_eq!(o.status.code(), Some(0), "{}", stderr(&o));
+    assert_eq!(size(&m), 100, "off: the 1.1.0 page");
+    assert!(
+        !m.requests()
+            .iter()
+            .any(|r| r.path.contains("_nodes") || r.path.contains("_stats")),
+        "off sends no probe"
+    );
+}
+
+/// 1.2-1d: `check` prints the limits and stops before any data request (exit 0); an explicit
+/// value above the limits is a usage error (exit 2).
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn l2_004_check_exits_0_or_2_for_an_explicit_limit() {
+    let d = tempfile::tempdir().unwrap();
+    let out = d.path().join("out.json");
+    let m = l2_dump_mock((200, L2_SMALL_NODE), None, 1 << 20).await;
+    let o = run_async(l2_args(&m.url(), &out, &["--serverLimits=check"]), vec![]).await;
+    let e = stderr(&o);
+    assert_eq!(o.status.code(), Some(0), "{e}");
+    assert!(e.contains("server limits (input): 1 data node"), "{e}");
+    assert!(
+        !m.requests().iter().any(|r| r.path.ends_with("/_search")),
+        "no data request"
+    );
+    assert!(!out.exists());
+
+    let m = l2_dump_mock((200, L2_SMALL_NODE), None, 1 << 20).await;
+    let o = run_async(
+        l2_args(&m.url(), &out, &["--serverLimits=check", "--limit", "5000"]),
+        vec![],
+    )
+    .await;
+    let e = stderr(&o);
+    assert_eq!(o.status.code(), Some(2), "{e}");
+    assert!(e.contains("exceed") && e.contains("--limit=5000"), "{e}");
+    assert!(!m.requests().iter().any(|r| r.path.ends_with("/_search")));
+}

@@ -134,6 +134,7 @@ def main():
                         tmp = os.path.join(cw, f"tmp-dump-{tag}")
                         shutil.rmtree(tmp, ignore_errors=True)
                         os.makedirs(tmp)
+                        argv[1:1] = [f"--logDir={tmp}/logs"]
                         rc, wall, st, err = L.run_tool(argv, os.path.join(cw, f"dump-{tag}.log"), tmp)
                         alive = eng.alive()
                         docs, dg = digest_dir(out, d) if rc == 0 else (None, None)
@@ -155,6 +156,7 @@ def main():
                             tmp = os.path.join(cw, f"tmp-load-{tag}")
                             shutil.rmtree(tmp, ignore_errors=True)
                             os.makedirs(tmp)
+                            largv[1:1] = [f"--logDir={tmp}/logs"]
                             rc2, wall2, st2, err2 = L.run_tool(largv, os.path.join(cw, f"load-{tag}.log"), tmp)
                             alive2 = eng.alive()
                             cnt = None

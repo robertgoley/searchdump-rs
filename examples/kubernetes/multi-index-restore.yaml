@@ -1,7 +1,9 @@
 # Load a searchdump-multi dump directory from the searchdump-dumps PVC,
 # including split parts, in order. Set SKIP_EXISTING=1 to pass --skipExisting
 # when some target indices already exist. PREFIX / SUFFIX rename loaded indices.
-# On a small-heap target, keep PARALLEL low and the --limit override after --.
+# 1.2: bulk sizes come from the target (--serverLimits, SERVER_LIMITS default auto). Manual
+# override (warns above the target's limits): set LIMIT / CONCURRENCY / MAX_BULK_BYTES / PARALLEL
+# (the 1.1 small-heap recipe: 500 / 1 / 16mb / 1). SERVER_LIMITS=off restores the 1.1.0 sizes.
 # MAX_BULK_BYTES (16mb) caps each bulk: the default 100 MB bulk of 5000 large
 # documents was refused with HTTP 429 (indexing_pressure) even by a 1 GB heap.
 apiVersion: batch/v1
@@ -24,7 +26,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: searchdump
-          image: ghcr.io/robertgoley/searchdump-rs:1.1.0-dhi-debian
+          image: ghcr.io/robertgoley/searchdump-rs:1.2.0-dhi-debian
           imagePullPolicy: IfNotPresent
           command:
             - /bin/sh
@@ -41,23 +43,32 @@ spec:
               if [ -n "${SUFFIX:-}" ]; then
                 extra="${extra} --suffix=${SUFFIX}"
               fi
+              if [ -n "${PARALLEL:-}" ]; then
+                extra="${extra} --parallel=${PARALLEL}"
+              fi
+              child=""
+              [ -n "${LIMIT:-}" ] && child="${child} --limit=${LIMIT}"
+              [ -n "${CONCURRENCY:-}" ] && child="${child} --concurrency=${CONCURRENCY}"
+              [ -n "${MAX_BULK_BYTES:-}" ] && child="${child} --maxBulkBytes=${MAX_BULK_BYTES}"
+              if [ -n "${child}" ]; then
+                child="-- ${child}"
+              fi
+              # shellcheck disable=SC2086
               searchdump-multi --direction=load --input=/data --output="${DEST_ES_URL}" \
-                --parallel="${PARALLEL}" ${extra} -- \
-                --limit="${LIMIT}" --concurrency="${CONCURRENCY}" --maxBulkBytes="${MAX_BULK_BYTES}" \
-                --maxResponseMb="${MAX_RESPONSE_MB}"
+                --serverLimits="${SERVER_LIMITS}" ${extra} ${child}
           env:
             - name: DEST_ES_URL
               value: http://elasticsearch.default.svc:9200
+            - name: SERVER_LIMITS
+              value: auto
             - name: PARALLEL
-              value: "2"
+              value: ""
             - name: LIMIT
-              value: "500"
+              value: ""
             - name: CONCURRENCY
-              value: "2"
+              value: ""
             - name: MAX_BULK_BYTES
-              value: 16mb
-            - name: MAX_RESPONSE_MB
-              value: "64"
+              value: ""
             - name: SKIP_EXISTING
               value: ""
             - name: PREFIX

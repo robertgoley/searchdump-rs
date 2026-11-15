@@ -22,5 +22,5 @@ run_searchdump output \
   --output="${DEST_ES_URL}/${DEST_INDEX}" \
   --type=data \
   --limit="${LIMIT}" --concurrency="${CONCURRENCY}" --workers="${WORKERS}" \
-  --bufferSize=32 --noRefresh --esCompress
+  --bufferSize=32 --noRefresh --esCompress --serverLimits=auto
 echo "restored ${INDEX} -> ${DEST_ES_URL}/${DEST_INDEX}"

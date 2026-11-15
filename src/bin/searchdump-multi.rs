@@ -223,6 +223,10 @@ pub mod sizing {
                 bulk_bytes: OFF_BULK,
             };
             let Some(b) = budget else {
+                // a fallback on AWS OpenSearch Service still keeps bulks at the 10 MiB floor
+                if plan.limits.as_ref().is_some_and(|l| l.aws) {
+                    plan.bulk_bytes = limits::AWS_PAYLOAD_FLOOR;
+                }
                 return plan;
             };
             let biggest = stats
@@ -283,7 +287,7 @@ pub mod sizing {
             match self.budget {
                 None => IndexSize {
                     limit: OFF_LIMIT,
-                    max_bulk_bytes: OFF_BULK,
+                    max_bulk_bytes: self.bulk_bytes,
                     reason: if self.limits.is_some() {
                         "fallback"
                     } else {
@@ -3515,6 +3519,18 @@ mod tests {
         assert_eq!(
             fb.flags(&fb.load(), true),
             ["--limit=1000", "--maxBulkBytes=16mb", "--serverLimits=off"]
+        );
+        // a fallback on AWS keeps bulks at the 10 MiB floor
+        let mut aws = Limits::fallback(Source::Fallback403, "403");
+        aws.aws = true;
+        let fa = Plan::new(Mode::Auto, false, Some(aws), 2, &[]);
+        assert_eq!(
+            fa.load().max_bulk_bytes,
+            searchdump_rs::limits::AWS_PAYLOAD_FLOOR
+        );
+        assert_eq!(
+            fa.flags(&fa.load(), false),
+            ["--limit=1000", "--maxBulkBytes=10240kb"]
         );
         // --noDefaultDataFlags: no sizes
         let nd = Plan::new(Mode::Off, true, None, 8, &[]);

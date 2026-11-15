@@ -22,7 +22,7 @@ rerun_on_4 run_searchdump input \
 FAST=(
   --input="${ES_URL}/${INDEX}"
   --output="/data/${INDEX}.data.json.zst"
-  --type=data --overwrite
+  --type=data --overwrite --serverLimits=auto
   --compressionType=zstd --compressionLevel=1 --esCompress
   --limit="${LIMIT}" --workers="${WORKERS}" --bufferSize=32 --maxResponseMb=256
 )

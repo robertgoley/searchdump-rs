@@ -18,5 +18,6 @@ restore_data_parts \
   --workers="${WORKERS}" \
   --bufferSize=32 \
   --noRefresh \
-  --esCompress
+  --esCompress \
+  --serverLimits=auto
 echo "restored ${INDEX} -> ${DEST_ES_URL}/${DEST_INDEX}"

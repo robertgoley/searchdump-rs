@@ -1,0 +1,12 @@
+[
+ {
+  "name": "search",
+  "node_name": "node-0",
+  "size": "13"
+ },
+ {
+  "name": "write",
+  "node_name": "node-0",
+  "size": "8"
+ }
+]

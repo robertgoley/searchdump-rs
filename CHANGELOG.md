@@ -5,6 +5,47 @@ a version with a hyphen (`1.0.0-beta1`) is a pre-release. The release workflow
 (`.github/workflows/release.yml`) uses the section for a version as the release notes of its draft
 GitHub release.
 
+## 1.2.0 (unreleased, branch `release/1.2`)
+
+Draft. Roadmap: `FEATURES-TODO.md` 1.2-1, `project/plan/ROADMAP-1.2-PLAN.md`; user-facing notes:
+[`project/release/RELEASE-NOTES-1.2.md`](project/release/RELEASE-NOTES-1.2.md) (draft). The answers to
+ROADMAP-1.2 section 9 are provisional pending the owner (marked below).
+
+### Added
+
+- **`--serverLimits=off|auto|min|check`** for `searchdump` and `searchdump-multi` (default `auto`, provisional):
+  one read-only probe at the start (`_nodes/stats/jvm,breaker,indexing_pressure`, `_nodes/settings` for
+  `http.max_content_length` when loading, `_cat/thread_pool` for multi; filtered, concurrent, 5 s deadline) sizes
+  pages, bulks and multi workers from the smallest data node. `min` uses half of `auto`'s budget (provisional);
+  `check` prints the limits and the sizes and exits 0, or 2 when a value you set is above them; `off` keeps the
+  1.1.0 sizes exactly. Fallbacks never fail a run: no `monitor` privilege (401/403), no node stats (404/400,
+  OpenSearch Serverless, proxies), hidden fields, or a slow probe print one line and use the 1.1 sizes; AWS
+  OpenSearch Service bulks stay at or below 10 MiB unless `--maxBulkBytes` is given (provisional). The
+  `--statsFile` JSON and the multi manifest record the limits (`server_limits`) and per-index sizes (`sizing`).
+- **HTTP 429 handling by size** (`searchdump`): a search page refused by a circuit breaker
+  (`circuit_breaking_exception`, or an indexing-pressure / memory rejection) halves the page for the rest of the
+  run, after a jittered pause, down to one document; a bulk request refused as a whole for its size is split in
+  half (later bulks are capped at that size). Queue-full 429s keep the existing retry with backoff.
+- `scripts/load/lowheap.py --mode auto|off|min|none` and OpenSearch cells (`os13`, `os2`, `os3`);
+  `scripts/load/limits_fixtures.py` (probe fixtures for every engine and heap) and `scripts/load/workerpage.py`
+  (worker/page trade-off matrix).
+
+### Changed
+
+- `searchdump-multi` sizes every data run from `--serverLimits` (default `auto`: up to 5000 small documents per
+  page when the heap has room, fewer for large documents or a small heap, fewer large-document indices at once
+  before smaller pages through a byte budget next to `--parallel`). The 1.1-10 fixed data defaults (`--limit=1000`,
+  `--maxBulkBytes=16mb`, the per-index page for large documents) are now the `off` profile, and the per-index
+  `_stats` call is replaced by one `_stats?level=indices` call for all selected indices. Children get
+  `--serverLimits=off` and never probe again. `--noDefaultDataFlags` implies `off`.
+- The probe answers of 7 engines (ES 7.10, 8.6, 8.19, 9.1; OpenSearch 1.3, 2, 3) at 256m/384m/1024m are test
+  fixtures (`tests/fixtures/server-limits/`). OpenSearch boots at 256m on all three, so the low-memory acceptance
+  floor is 256m for OpenSearch too (provisional).
+
+### Not in 1.2
+
+- `--serverLimits=automax` (sizes that also grow mid-run) is designed, not implemented (ROADMAP-1.2 section 13).
+
 ## 1.1.0
 
 Release date: the day `v1.1.0` is tagged (release candidate verified on 2026-11-15; not tagged

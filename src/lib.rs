@@ -1470,6 +1470,18 @@ async fn server_limits(
                 ));
             }
         }
+        // AWS OpenSearch Service caps a request at 10 MiB on small instance types: keep that floor
+        // even when the probe fell back (ROADMAP-1.2 Q5, provisional), unless the user chose a size
+        if b.is_none() && l.aws && cli.max_bulk_bytes.is_none() {
+            words.push(format!(
+                "bulk {} KB (AWS OpenSearch Service payload floor)",
+                limits::AWS_PAYLOAD_FLOOR >> 10
+            ));
+            fallback = false;
+            if mode != Mode::Check {
+                new_bulk = Some(limits::AWS_PAYLOAD_FLOOR);
+            }
+        }
         record.insert("output".into(), limits::to_json(&l, mode, b.as_ref()));
     }
     if let Some(l) = new_limit {

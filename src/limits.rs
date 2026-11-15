@@ -299,10 +299,28 @@ pub fn bulk_bytes(b: &Budget, workers: u64) -> u64 {
 // ------------------------------------------------------------------- parsing (fixture-tested)
 
 fn bytes_of(v: &Value) -> Option<u64> {
-    v.as_u64().or_else(|| {
-        v.as_str()
-            .and_then(|s| s.parse::<bytesize::ByteSize>().ok().map(|b| b.as_u64()))
-    })
+    v.as_u64().or_else(|| v.as_str().and_then(es_bytes))
+}
+
+/// An Elasticsearch byte-size setting (`100mb`, `20MB`, `1gb`, `512kb`, `1024b`, `1024`): the
+/// units are powers of 1024 there, unlike `bytesize`'s decimal `mb`.
+fn es_bytes(s: &str) -> Option<u64> {
+    let t = s.trim().to_ascii_lowercase();
+    let split = t
+        .find(|c: char| !(c.is_ascii_digit() || c == '.'))
+        .unwrap_or(t.len());
+    let (num, unit) = t.split_at(split);
+    let n: f64 = num.parse().ok()?;
+    let mul: u64 = match unit.trim() {
+        "" | "b" => 1,
+        "k" | "kb" => 1 << 10,
+        "m" | "mb" => 1 << 20,
+        "g" | "gb" => 1 << 30,
+        "t" | "tb" => 1 << 40,
+        "p" | "pb" => 1 << 50,
+        _ => return None,
+    };
+    Some((n * mul as f64) as u64)
 }
 
 /// Parse `GET _nodes/stats/jvm,breaker[,indexing_pressure]` (filtered or not).
@@ -455,16 +473,20 @@ pub async fn probe(
     if is_serverless_host(host) {
         return Limits::fallback(Source::FallbackServerless, "OpenSearch Serverless endpoint");
     }
-    match tokio::time::timeout(PROBE_DEADLINE, probe_inner(client, host, info, need)).await {
-        Ok(l) => l,
-        Err(_) => Limits::fallback(
-            Source::FallbackTimeout,
-            format!(
-                "the stats calls took longer than {} s",
-                PROBE_DEADLINE.as_secs()
+    let mut l =
+        match tokio::time::timeout(PROBE_DEADLINE, probe_inner(client, host, info, need)).await {
+            Ok(l) => l,
+            Err(_) => Limits::fallback(
+                Source::FallbackTimeout,
+                format!(
+                    "the stats calls took longer than {} s",
+                    PROBE_DEADLINE.as_secs()
+                ),
             ),
-        ),
-    }
+        };
+    // the AWS payload floor applies even without node stats
+    l.aws = l.aws || is_aws_host(host);
+    l
 }
 
 async fn probe_inner(
@@ -935,6 +957,11 @@ mod tests {
             stats_metrics(Some(&ClusterInfo::new(Flavor::OpenSearch, "1.3.20"))),
             "jvm,breaker,indexing_pressure"
         );
-        assert_eq!(stats_metrics(None), "jvm,breaker");
+        // no version known (the probe sends no `GET /`): ask for all, retry without on a 400
+        assert_eq!(stats_metrics(None), "jvm,breaker,indexing_pressure");
+        assert_eq!(es_bytes("100mb"), Some(100 << 20));
+        assert_eq!(es_bytes("1.5gb"), Some(3 << 29));
+        assert_eq!(es_bytes("2048"), Some(2048));
+        assert_eq!(es_bytes("lots"), None);
     }
 }

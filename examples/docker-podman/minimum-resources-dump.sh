@@ -26,5 +26,5 @@ rerun_on_4 run_searchdump input \
   --type=data \
   --overwrite \
   --fsCompress \
-  --limit=100 --workers=1 --concurrency=1 --maxResponseMb=64
+  --limit=100 --workers=1 --concurrency=1 --maxResponseMb=64 --serverLimits=min
 echo "wrote ${DUMP_DIR}/${INDEX}.{settings,mapping}.json and ${INDEX}.data.json.gz"
