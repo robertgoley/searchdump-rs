@@ -1,10 +1,10 @@
 # 1.2 progress note (wip/1.2-sizing; for whoever resumes after an interruption)
 
-Updated: 2026-11-15 07:31 EST (box local time).
+Updated: 2026-11-15 07:50 EST (box local time).
 
 ## Where things are
 - `origin/release/1.2`: L2-001 (73d38f5, 1.2-1a), L2-002 (67d8ee6, 1.2-1b), L2-003 (c07e00f, 1.2-1c),
-  L2-004 (6acedfa, 1.2-1d). Phase commits continue as L2-005..
+  L2-004 (6acedfa, 1.2-1d), L2-005 (9114b8c, 1.2-1e). Phase commits continue as L2-006..
 - `origin/wip/1.2-sizing`: all in-progress 1c-1h code (this branch). 16c28b4 preserved the interrupted
   worker's uncommitted tree (limits probe, 429 handling, multi sizing, lowheap modes, fixtures, safe-simple
   examples).
@@ -33,12 +33,13 @@ containers or /workspace/perf-pit-1.1). Nothing else removed.
   store reset + re-pull).
 - [x] 1d L2-004 6acedfa: built in /workspace/rel-1.2-p (detached 1d tree, = chk tree at L2-004);
   gates-1d OK (lib+bins 333, cli_contract 70); IT 5 profiles 0 failed (/workspace/perf-1.2/it-1d).
-- [ ] 1e L2-005: chk tree = L2-004 + wip searchdump-multi.rs + cli_contract.rs + results/local/L2-005.md.
-  gates-1e: all OK except one flake in t-libbins (`a_failed_child_reports_its_log_tail`: ETXTBSY "Text file
-  busy" spawning a just-written fake child script while another test forks; test-helper race, 5/5 reruns pass,
-  /workspace/perf-1.2/gates-1e/t-multi-rerun.log). `/workspace/perf-1.2/chain-1e.sh` (nohup) = IT-1e
-  (it-1e/summary.txt) -> release build -> live multi (live/multi_live.py, fixed to read multielasticdump.json and
-  to regenerate /var/tmp data) on es819 + es710 256m -> live/multi-*.json; log /workspace/logs12/chain-1e.log.
+- [x] 1e L2-005 9114b8c: gates OK except the known ETXTBSY test-helper flake (5/5 reruns pass); IT-1e 5 profiles
+  0 failed; live multi 256m es819/es710 all modes pass (live/multi-*.json).
+- perf binaries frozen from the L2-005 tree: /workspace/perf-1.2/bin-1.2rc (searchdump, searchdump-multi, edgen,
+  edverify). `/workspace/perf-1.2/chain-1g.sh` (nohup; waits for chain-1f CHAIN-DONE): safe-simple live
+  (es710, es819, os2 256m -> live/safe-*.json, log logs12/chain-1g.log), then the 16-engine L0 suite with
+  bin-1.2rc (--skip-node, reps 3; resumable per engine; summary /workspace/logs12/perf-1.2.summary), then
+  1.1.0 back-to-back on es710-secure and es819-plain. Relaunch with `nohup ./chain-1g.sh &` after a reboot.
 - [ ] 1f L2-006: `/workspace/perf-1.2/chain-1f.sh` (nohup; waits for chain-1e CHAIN-DONE; resumable) runs
   lowheap on 7 engines x 256m/384m: L2-006-auto (+--regression), -off, -v110 (1.1.0 bins, --mode none), -min;
   logs /workspace/logs12/lowheap-*.log, chain-1f.log; JSON in rel-1.2-chk/results/load/L2-006-*/.
