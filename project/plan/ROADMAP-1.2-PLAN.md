@@ -290,5 +290,88 @@ Single-index `searchdump` keeps its own defaults (`--limit=100`, `--concurrency=
 | 1.2-1e | Multi: parent single stats call, byte-budget scheduler, remove the 1.1-10 pieces (section 6), manifest | M |
 | 1.2-1f | lowheap.py `auto`/`off` modes + OpenSearch cells; docs and examples rewrite | S-M |
 | 1.2-1g | Gates, IT, L0 16-engine perf vs 1.1.0 RC, kvmsvr1 handoff | M (perf run ~10 h on the box) |
+| 1.2-1h | Examples and README quick start led by `--serverLimits` as the main or only sizing option (section 12) | S-M |
 
 Each phase is one `L-NNN:` commit with its own results file. 1.1.0 is not changed by any of this.
+
+## 12. Examples: server limits as the main sizing option (phase 1.2-1h)
+
+Owner request t109u (2026-11-15 04:22 ET): "Add notes to add examples for the 1.2 change that utilize the
+server side limits as the main or only constraint cli option. Could be the safe simple works in most if not
+all type of example." Done after 1.2-1d/e, when `--serverLimits` exists; docs and scripts only.
+
+### 12.1 Goal
+
+A **safe simple** recipe that works on almost any cluster (256 MB test node to big production cluster,
+Elasticsearch 7.10-9 and OpenSearch 1-3, plain or TLS + auth) with **no** `--limit`, `--maxBulkBytes`,
+`--maxResponseMb`, `--parallel`, `--concurrency` or `--slices` tuning. `--serverLimits=auto` (the 1.2
+default, written out in the examples so it is visible) is the only sizing option; `--serverLimits=min` for
+fragile or shared clusters. Tuned recipes stay, but become the "when to override" path.
+
+### 12.2 New and changed files
+
+| Location | Change |
+|---|---|
+| `examples/bash/safe-simple-dump.sh`, `safe-simple-restore.sh` (new) | `searchdump` single index: preflight `--serverLimits=check`, then dump (settings, mapping, data) / restore with only URLs, files, auth via env or `--httpAuthFile`, and `--serverLimits=${SERVER_LIMITS:-auto}`. |
+| `examples/bash/safe-simple-multi-dump.sh`, `safe-simple-multi-restore.sh` (new) | `searchdump-multi` same pattern: `--match`, output dir, `--serverLimits`; **no** `-- --limit=... --maxBulkBytes=...` overrides and no `--parallel` (the planner chooses workers first, then pages). |
+| `examples/docker-podman/safe-simple-*.sh` (new, same four) | Same commands through `run_image` in `_common.sh`; image `ghcr.io/robertgoley/searchdump-rs:1.2.0-dhi-debian`. |
+| `examples/kubernetes/safe-simple-dump.yaml`, `safe-simple-restore.yaml`, `safe-simple-multi-dump.yaml`, `safe-simple-multi-restore.yaml` (new) | Job with an init container (or first `sh` step) running `--serverLimits=check`; the Job fails fast on exit 2. Credentials only from a Secret as blank env references; resources sized for the tool only (it no longer needs to guess the cluster). |
+| Existing `minimum-resources-*`, `multi-index-*`, `very-large-index-*`, `cluster-to-cluster-copy*` (bash, docker-podman, kubernetes) | Drop the hand-tuned small-heap overrides (`-- --limit=500 --maxResponseMb=64`, `MAX_BULK_BYTES=16mb`, `--parallel=1`) in favour of `--serverLimits=min` (minimum-resources) or `auto`; keep a commented "manual override" block showing the old flags. `fastest-*` keep their tuning but add `--serverLimits=auto` so tuning above a safe limit warns. |
+| `examples/README.md` | New first section "Safe simple (recommended)" with the four commands, the preflight, the fallback table (12.4) and "when to override" (12.5); the case table gets a "sizing" column (`auto` / `min` / manual). |
+| `README.md` "Quick usage" | **Lead with the safe-simple recipe** (one `check` line, one dump, one restore, one multi dump) before any tuning flags; move tuning to "Tuning". |
+| `RELEASE-NOTES-1.2.md` upgrade guide | "Remove your 1.1 small-heap overrides; `--serverLimits=auto` replaces them; `--serverLimits=off` restores 1.1.0 sizing." |
+
+### 12.3 Preflight step (`--serverLimits=check`)
+
+Every safe-simple script starts with:
+
+```
+searchdump --input="$SRC" --output=/dev/null --serverLimits=check   # or searchdump-multi ... --serverLimits=check
+rc=$?
+case $rc in
+  0) ;;                                  # limits read (or fallback); sizes printed; go on
+  2) echo "explicit flags exceed what the cluster can take; see above" >&2; exit 2 ;;
+  *) echo "preflight failed ($rc)" >&2; exit "$rc" ;;
+esac
+```
+
+The printed "server limits:" line is kept in the job log. Scripts never parse it (format may change); they
+only branch on the exit code. Exit 0 also covers the fallback cases, so preflight never blocks a cluster
+that hides its stats.
+
+### 12.4 Fallback notes in the examples
+
+| Case | What the user sees | What the example says |
+|---|---|---|
+| Missing `monitor` privilege (403 on `_nodes/*`) | warning "server limits unknown (no monitor privilege); using fixed defaults" | Grant the minimal read-only role. Elasticsearch: cluster privilege `monitor`, index privileges `read` and `view_index_metadata` on the dumped indices (restore: `create_index`, `write`, `manage` on the targets as today). OpenSearch security plugin: action group `cluster_monitor` plus the index read groups (`read`, `indices:admin/mappings/get`, `indices:admin/get`). Show a role JSON with blank placeholders only. Without it the run still works with the 1.1 fixed defaults. |
+| AWS OpenSearch Service / legacy Amazon ES | line says `source=aws-table`, bulk capped at the instance type's HTTP payload limit (10 MiB on small types) | Nothing to do; raise `--maxBulkBytes` only if the domain's instance type allows 100 MiB. No AWS calls are made by the tool (and no AWS runs in our tests without Robert's approval). |
+| Elastic Serverless, OpenSearch Serverless | `source=fallback-serverless`, fixed defaults | Nothing to do; the service throttles with 429, which the mid-run backoff (section 5) handles. |
+| Proxy hides node stats / probe timeout | fallback warning | Same as the 403 case. |
+
+### 12.5 When to override manually
+
+Documented in `examples/README.md` and as comments in the scripts:
+
+- Fastest possible copy between big, dedicated clusters, where you know the limits (`fastest-*`).
+- Least-privilege accounts that cannot get `monitor` and a known-small cluster: use `--serverLimits=min`
+  semantics by hand (`--limit=500 --maxBulkBytes=8mb --parallel=1`), since the fallback assumes a normal
+  cluster.
+- Reproducing 1.1.0 behaviour for comparison: `--serverLimits=off`.
+- An index with single documents larger than the budget: `--limit=1` or `--maxDocMb` as today.
+- User values still win under `auto`/`min` (with a warning when over the detected limit); only `check`
+  refuses them.
+
+### 12.6 Validation (part of the 1.2 acceptance, section 8)
+
+- `shellcheck` (0.11+) on all `examples/bash/*.sh` and `examples/docker-podman/*.sh`: clean.
+- `kubeconform -strict` on all `examples/kubernetes/*.yaml`: all valid.
+- **Live run** of each safe-simple bash script (single and multi, dump and restore) against a low-heap engine
+  in the lowheap.py style: bitnamilegacy ES 7.10.2 and official 8.19.23 at 256m, plus one OpenSearch small
+  heap, both `pmc` and `fat` datasets; pass = exit 0, node alive, document counts and digests equal, and
+  the preflight printed a "server limits:" line with `source=probed`. One run with a user lacking `monitor`
+  (secure profile) must pass with the fallback warning. Docker/Podman scripts: one live run on the image
+  built from the 1.2 candidate. Record in the 1.2-1h results file.
+- `scripts/sup/secret-scan.sh` OK; credentials only as blank variable references.
+- Optional: add the safe-simple multi dump/restore to `lowheap.py` as a mode so the examples' exact command
+  lines are regression-tested.
+
