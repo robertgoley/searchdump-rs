@@ -26,6 +26,12 @@ GitHub release.
   image is unchanged (no package manager, no SFTP). On Debian the package pulls in Kerberos libraries; see
   SECURITY-CVE.md for the High/Critical findings this adds, accepted by the owner on 2026-11-14 (no fix upstream;
   `make scan` ignores exactly those ids while they stay unfixed).
+- **No account or service tools in the Debian images** (owner decision 2026-11-14, L-810j). `openssh-client`'s
+  dependencies pulled `useradd`/`usermod`/`userdel`, `chpasswd`, `vipw`, `service`, `update-rc.d`, `invoke-rc.d`,
+  `deb-systemd-*` and their dpkg maintainer scripts into the image, which the `security` workflow's image job
+  rejected as undocumented executables. The runtime stage now deletes them; the documented executable set
+  (`docker/image-binaries.*.txt`) is unchanged. The packages stay in the dpkg database, so SBOMs and scans still
+  list them. `ssh`/`sftp://` are unaffected.
 
 ### Changed (behaviour change)
 
