@@ -113,3 +113,4 @@ The user runs Grok 4.7 locally through the OpenCode CLI. The handoff/ folder (op
 - L-825 (2026-11-15): 1.2 examples plan (server limits as main sizing option) added (owner t109u)
 - L-826 (2026-11-15): 1.2 handoff written and release/1.2 cut (owner t112u)
 - L2-001 (2026-11-15): 1.2-1a: RC multi slowdown not reproducible: the suite runs --noDefaultDataFlags so the 1.1-10 probe and 1000-doc pages never run; 1.1.0 = beta1 (es710-secure multi-dump-p8 0.345 s vs 0.421 s); section 9 PROVISIONAL choices; automax design only (section 13, FEATURES-TODO 1.2-2)
+- L2-002 (2026-11-15): 1.2-1b: worker/page matrix on es710/es819 256m/384m with 1.1.0 (12/24 cells pass; fewer workers with full pages most reliable; es710 256m dies, es819 429s)

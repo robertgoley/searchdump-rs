@@ -258,7 +258,8 @@ Start: 2026-10-29 13:05 EDT at `511a6f5`.
 | L-824 | done | 9632a38 | 1.2 plan: server-aware sizing (--serverLimits) in project/plan/ROADMAP-1.2-PLAN.md; FEATURES-TODO 1.2-1 |
 | L-825 | done | bc1338c | 1.2 plan: safe-simple examples with --serverLimits as the only sizing option (1.2-1h, section 12) |
 | L-826 | done | 47a73cc | 1.2 handoff (project/HANDOFF-1.2.md) for the other setup; release/1.2 cut from this commit |
-| L2-001 | done | this commit (`git log --grep '^L2-001'`) | 1.2-1a: RC multi slowdown not reproducible: the suite runs --noDefaultDataFlags so the 1.1-10 probe and 1000-doc pages never run; 1.1.0 = beta1 (es710-secure multi-dump-p8 0.345 s vs 0.421 s); section 9 PROVISIONAL choices; automax design only (section 13, FEATURES-TODO 1.2-2) (results/local/L2-001.md) |
+| L2-001 | done | 73d38f5 | 1.2-1a: RC multi slowdown not reproducible: the suite runs --noDefaultDataFlags so the 1.1-10 probe and 1000-doc pages never run; 1.1.0 = beta1 (es710-secure multi-dump-p8 0.345 s vs 0.421 s); section 9 PROVISIONAL choices; automax design only (section 13, FEATURES-TODO 1.2-2) (results/local/L2-001.md) |
+| L2-002 | done | this commit (`git log --grep '^L2-002'`) | 1.2-1b: worker/page matrix on es710/es819 256m/384m with 1.1.0 (12/24 cells pass; fewer workers with full pages most reliable; es710 256m dies, es819 429s) (results/local/L2-002.md) |
 
 ## Resume note (2026-10-30, stopped on usage cap)
 - Last commit: L-808m (edverify fits the 1 GB smoke heap; after L-808l 30f2122; 2026-11-09, on `main`, pushed to origin = github.com/robertgoley/elasticdump-rs-fork; `git log -1 --grep '^L-808m'`). Tree clean. **Next: L-809 (LOAD-014: 300 indices here; design notes on branch wip/L-809)**.

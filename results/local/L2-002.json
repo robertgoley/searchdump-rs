@@ -1,0 +1,511 @@
+{
+ "phase": "1.2-1b",
+ "id": "L2-002",
+ "date": "2026-11-15",
+ "tool": "searchdump 1.1.0 (47a73cc)",
+ "runs": [
+  "20261115-L2-002-workerpage",
+  "20261115-L2-002-workerpage-es710-384m-fat"
+ ],
+ "datasets": {
+  "pmc": "20000 x ~22 KB",
+  "fat": "3000 x ~80 KB"
+ },
+ "indices": 8,
+ "cells_pass": 12,
+ "cells": 24,
+ "rows": [
+  {
+   "engine": "es710",
+   "version": "7.10.2",
+   "heap": "256m",
+   "dataset": "pmc",
+   "config": "2x5000",
+   "pass": false,
+   "node_alive": false,
+   "dump": {
+    "exit": 1,
+    "wall_s": 72.1,
+    "http429": 0,
+    "circuit_breaking": 0,
+    "retries": 68
+   },
+   "load": null
+  },
+  {
+   "engine": "es710",
+   "version": "7.10.2",
+   "heap": "256m",
+   "dataset": "pmc",
+   "config": "4x2500",
+   "pass": false,
+   "node_alive": false,
+   "dump": {
+    "exit": 1,
+    "wall_s": 32.0,
+    "http429": 0,
+    "circuit_breaking": 0,
+    "retries": 72
+   },
+   "load": null
+  },
+  {
+   "engine": "es710",
+   "version": "7.10.2",
+   "heap": "256m",
+   "dataset": "pmc",
+   "config": "8x1000",
+   "pass": false,
+   "node_alive": false,
+   "dump": {
+    "exit": 1,
+    "wall_s": 12.4,
+    "http429": 0,
+    "circuit_breaking": 0,
+    "retries": 80
+   },
+   "load": null
+  },
+  {
+   "engine": "es710",
+   "version": "7.10.2",
+   "heap": "256m",
+   "dataset": "fat",
+   "config": "2x5000",
+   "pass": true,
+   "node_alive": true,
+   "dump": {
+    "exit": 0,
+    "wall_s": 3.7,
+    "http429": 0,
+    "circuit_breaking": 0,
+    "retries": 0
+   },
+   "load": {
+    "exit": 0,
+    "wall_s": 7.0,
+    "http429": 9,
+    "circuit_breaking": 0,
+    "retries": 3
+   }
+  },
+  {
+   "engine": "es710",
+   "version": "7.10.2",
+   "heap": "256m",
+   "dataset": "fat",
+   "config": "4x2500",
+   "pass": false,
+   "node_alive": false,
+   "dump": {
+    "exit": 1,
+    "wall_s": 31.6,
+    "http429": 0,
+    "circuit_breaking": 0,
+    "retries": 62
+   },
+   "load": null
+  },
+  {
+   "engine": "es710",
+   "version": "7.10.2",
+   "heap": "256m",
+   "dataset": "fat",
+   "config": "8x1000",
+   "pass": false,
+   "node_alive": false,
+   "dump": {
+    "exit": 1,
+    "wall_s": 12.8,
+    "http429": 0,
+    "circuit_breaking": 0,
+    "retries": 80
+   },
+   "load": null
+  },
+  {
+   "engine": "es710",
+   "version": "7.10.2",
+   "heap": "384m",
+   "dataset": "pmc",
+   "config": "2x5000",
+   "pass": true,
+   "node_alive": true,
+   "dump": {
+    "exit": 0,
+    "wall_s": 5.8,
+    "http429": 0,
+    "circuit_breaking": 0,
+    "retries": 0
+   },
+   "load": {
+    "exit": 0,
+    "wall_s": 6.2,
+    "http429": 0,
+    "circuit_breaking": 0,
+    "retries": 0
+   }
+  },
+  {
+   "engine": "es710",
+   "version": "7.10.2",
+   "heap": "384m",
+   "dataset": "pmc",
+   "config": "4x2500",
+   "pass": false,
+   "node_alive": false,
+   "dump": {
+    "exit": 1,
+    "wall_s": 32.7,
+    "http429": 0,
+    "circuit_breaking": 0,
+    "retries": 72
+   },
+   "load": null
+  },
+  {
+   "engine": "es710",
+   "version": "7.10.2",
+   "heap": "384m",
+   "dataset": "pmc",
+   "config": "8x1000",
+   "pass": false,
+   "node_alive": true,
+   "dump": {
+    "exit": 1,
+    "wall_s": 11.7,
+    "http429": 304,
+    "circuit_breaking": 288,
+    "retries": 80
+   },
+   "load": null
+  },
+  {
+   "engine": "es710",
+   "version": "7.10.2",
+   "heap": "384m",
+   "dataset": "fat",
+   "config": "2x5000",
+   "pass": true,
+   "node_alive": true,
+   "dump": {
+    "exit": 0,
+    "wall_s": 3.7,
+    "http429": 0,
+    "circuit_breaking": 0,
+    "retries": 0
+   },
+   "load": {
+    "exit": 0,
+    "wall_s": 4.1,
+    "http429": 0,
+    "circuit_breaking": 0,
+    "retries": 0
+   }
+  },
+  {
+   "engine": "es710",
+   "version": "7.10.2",
+   "heap": "384m",
+   "dataset": "fat",
+   "config": "4x2500",
+   "pass": true,
+   "node_alive": true,
+   "dump": {
+    "exit": 0,
+    "wall_s": 2.3,
+    "http429": 0,
+    "circuit_breaking": 0,
+    "retries": 0
+   },
+   "load": {
+    "exit": 0,
+    "wall_s": 5.5,
+    "http429": 12,
+    "circuit_breaking": 0,
+    "retries": 4
+   }
+  },
+  {
+   "engine": "es710",
+   "version": "7.10.2",
+   "heap": "384m",
+   "dataset": "fat",
+   "config": "8x1000",
+   "pass": true,
+   "node_alive": true,
+   "dump": {
+    "exit": 0,
+    "wall_s": 2.0,
+    "http429": 0,
+    "circuit_breaking": 0,
+    "retries": 0
+   },
+   "load": {
+    "exit": 0,
+    "wall_s": 8.1,
+    "http429": 24,
+    "circuit_breaking": 9,
+    "retries": 8
+   }
+  },
+  {
+   "engine": "es819",
+   "version": "8.19.23",
+   "heap": "256m",
+   "dataset": "pmc",
+   "config": "2x5000",
+   "pass": false,
+   "node_alive": true,
+   "dump": {
+    "exit": 1,
+    "wall_s": 42.1,
+    "http429": 288,
+    "circuit_breaking": 192,
+    "retries": 80
+   },
+   "load": null
+  },
+  {
+   "engine": "es819",
+   "version": "8.19.23",
+   "heap": "256m",
+   "dataset": "pmc",
+   "config": "4x2500",
+   "pass": false,
+   "node_alive": true,
+   "dump": {
+    "exit": 1,
+    "wall_s": 10.4,
+    "http429": 81,
+    "circuit_breaking": 54,
+    "retries": 23
+   },
+   "load": null
+  },
+  {
+   "engine": "es819",
+   "version": "8.19.23",
+   "heap": "256m",
+   "dataset": "pmc",
+   "config": "8x1000",
+   "pass": false,
+   "node_alive": true,
+   "dump": {
+    "exit": 0,
+    "wall_s": 3.4,
+    "http429": 12,
+    "circuit_breaking": 8,
+    "retries": 4
+   },
+   "load": {
+    "exit": 1,
+    "wall_s": 13.4,
+    "http429": 99,
+    "circuit_breaking": 0,
+    "retries": 31
+   }
+  },
+  {
+   "engine": "es819",
+   "version": "8.19.23",
+   "heap": "256m",
+   "dataset": "fat",
+   "config": "2x5000",
+   "pass": true,
+   "node_alive": true,
+   "dump": {
+    "exit": 0,
+    "wall_s": 3.1,
+    "http429": 0,
+    "circuit_breaking": 0,
+    "retries": 0
+   },
+   "load": {
+    "exit": 0,
+    "wall_s": 3.1,
+    "http429": 3,
+    "circuit_breaking": 0,
+    "retries": 1
+   }
+  },
+  {
+   "engine": "es819",
+   "version": "8.19.23",
+   "heap": "256m",
+   "dataset": "fat",
+   "config": "4x2500",
+   "pass": true,
+   "node_alive": true,
+   "dump": {
+    "exit": 0,
+    "wall_s": 1.8,
+    "http429": 0,
+    "circuit_breaking": 0,
+    "retries": 0
+   },
+   "load": {
+    "exit": 0,
+    "wall_s": 8.9,
+    "http429": 27,
+    "circuit_breaking": 0,
+    "retries": 9
+   }
+  },
+  {
+   "engine": "es819",
+   "version": "8.19.23",
+   "heap": "256m",
+   "dataset": "fat",
+   "config": "8x1000",
+   "pass": false,
+   "node_alive": true,
+   "dump": {
+    "exit": 0,
+    "wall_s": 7.2,
+    "http429": 42,
+    "circuit_breaking": 28,
+    "retries": 14
+   },
+   "load": {
+    "exit": 1,
+    "wall_s": 11.1,
+    "http429": 84,
+    "circuit_breaking": 0,
+    "retries": 26
+   }
+  },
+  {
+   "engine": "es819",
+   "version": "8.19.23",
+   "heap": "384m",
+   "dataset": "pmc",
+   "config": "2x5000",
+   "pass": true,
+   "node_alive": true,
+   "dump": {
+    "exit": 0,
+    "wall_s": 5.8,
+    "http429": 0,
+    "circuit_breaking": 0,
+    "retries": 0
+   },
+   "load": {
+    "exit": 0,
+    "wall_s": 5.1,
+    "http429": 0,
+    "circuit_breaking": 0,
+    "retries": 0
+   }
+  },
+  {
+   "engine": "es819",
+   "version": "8.19.23",
+   "heap": "384m",
+   "dataset": "pmc",
+   "config": "4x2500",
+   "pass": false,
+   "node_alive": true,
+   "dump": {
+    "exit": 1,
+    "wall_s": 20.6,
+    "http429": 296,
+    "circuit_breaking": 192,
+    "retries": 80
+   },
+   "load": null
+  },
+  {
+   "engine": "es819",
+   "version": "8.19.23",
+   "heap": "384m",
+   "dataset": "pmc",
+   "config": "8x1000",
+   "pass": true,
+   "node_alive": true,
+   "dump": {
+    "exit": 0,
+    "wall_s": 1.8,
+    "http429": 0,
+    "circuit_breaking": 0,
+    "retries": 0
+   },
+   "load": {
+    "exit": 0,
+    "wall_s": 7.4,
+    "http429": 36,
+    "circuit_breaking": 0,
+    "retries": 12
+   }
+  },
+  {
+   "engine": "es819",
+   "version": "8.19.23",
+   "heap": "384m",
+   "dataset": "fat",
+   "config": "2x5000",
+   "pass": true,
+   "node_alive": true,
+   "dump": {
+    "exit": 0,
+    "wall_s": 3.2,
+    "http429": 0,
+    "circuit_breaking": 0,
+    "retries": 0
+   },
+   "load": {
+    "exit": 0,
+    "wall_s": 2.0,
+    "http429": 0,
+    "circuit_breaking": 0,
+    "retries": 0
+   }
+  },
+  {
+   "engine": "es819",
+   "version": "8.19.23",
+   "heap": "384m",
+   "dataset": "fat",
+   "config": "4x2500",
+   "pass": true,
+   "node_alive": true,
+   "dump": {
+    "exit": 0,
+    "wall_s": 1.7,
+    "http429": 0,
+    "circuit_breaking": 0,
+    "retries": 0
+   },
+   "load": {
+    "exit": 0,
+    "wall_s": 2.7,
+    "http429": 6,
+    "circuit_breaking": 0,
+    "retries": 2
+   }
+  },
+  {
+   "engine": "es819",
+   "version": "8.19.23",
+   "heap": "384m",
+   "dataset": "fat",
+   "config": "8x1000",
+   "pass": true,
+   "node_alive": true,
+   "dump": {
+    "exit": 0,
+    "wall_s": 1.4,
+    "http429": 0,
+    "circuit_breaking": 0,
+    "retries": 0
+   },
+   "load": {
+    "exit": 0,
+    "wall_s": 7.0,
+    "http429": 36,
+    "circuit_breaking": 0,
+    "retries": 12
+   }
+  }
+ ]
+}

@@ -298,7 +298,7 @@ that changes in one place.
 | Phase | Content | Size |
 |---|---|---|
 | 1.2-1a | Diagnose the es710-secure p8 slowdown (section 1.2) — **done (L2-001)** | S (0.5 day incl. write-up) |
-| 1.2-1b | Worker/page trade-off matrix on low-heap engines | S |
+| 1.2-1b | Worker/page trade-off matrix on low-heap engines — **done (L2-002)** | S |
 | 1.2-1c | 429 page-halving / bulk-splitting in `searchdump` (section 5), with `off` default sizing | M |
 | 1.2-1d | Probe module + budget + `--serverLimits` (`off`/`auto`/`min`/`check`) in `searchdump`; fixtures; fallbacks incl. AWS | M-L |
 | 1.2-1e | Multi: parent single stats call, byte-budget scheduler, remove the 1.1-10 pieces (section 6), manifest | M |
