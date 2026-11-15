@@ -14,15 +14,15 @@ Owner go-ahead for steps 1-4 on 2026-11-11 (t163u), and for steps 5-9 the same w
 |---|---|---|
 | 1 | 1.1-5 perf timer | in progress (release/1.1): harness change committed; offline selftests pass; beta1@timer2 re-measured on es710 only (2026-11-12) |
 | 2 | 1.1-2 targeted refresh | in progress (release/1.1): code + unit/contract tests committed; compiled and tested 2026-11-12 (wip/1.1-fixups); point-in-time perf measured 2026-11-14 (scripts/perf/results/pit-1.1.md) |
-| 3 | 1.1-1 refresh cadence | in progress (release/1.1): code + unit/contract tests committed; compiled and tested 2026-11-12 (wip/1.1-fixups); point-in-time perf measured 2026-11-14 (scripts/perf/results/pit-1.1.md) |
-| 4 | 1.1-3 `_doc` sort (opt-in) | in progress (release/1.1): opt-in --scrollDocSort + unit/contract tests committed; compiled and tested 2026-11-12 (wip/1.1-fixups); nodecmp + point-in-time perf measured 2026-11-14 (scripts/perf/results/pit-1.1.md) |
-| 5 | 1.1-4 slice cap + `--sliceField` | in progress (release/1.1): committed; compiled and tested 2026-11-12 (wip/1.1-fixups); point-in-time perf measured 2026-11-14 (scripts/perf/results/pit-1.1.md) |
+| 3 | 1.1-1 refresh cadence | in progress (release/1.1): code + unit/contract tests committed; compiled and tested 2026-11-12 (wip/1.1-fixups); point-in-time perf measured 2026-11-14 (scripts/perf/results/pit-1.1.md); item check: golden --check under the new default passed 2026-11-14 (results/local/1.1-item-checks.md) |
+| 4 | 1.1-3 `_doc` sort (opt-in) | in progress (release/1.1): opt-in --scrollDocSort + unit/contract tests committed; compiled and tested 2026-11-12 (wip/1.1-fixups); nodecmp + point-in-time perf measured 2026-11-14 (scripts/perf/results/pit-1.1.md); item check: A/B on dump-none/dump-big vs Node passed 2026-11-14 (results/local/1.1-item-checks.md) |
+| 5 | 1.1-4 slice cap + `--sliceField` | in progress (release/1.1): committed; compiled and tested 2026-11-12 (wip/1.1-fixups); point-in-time perf measured 2026-11-14 (scripts/perf/results/pit-1.1.md); item check: live slicing tests with `--sliceCap=false` passed on 4 profiles 2026-11-14 (results/local/1.1-item-checks.md) |
 | 6 | 1.1-9 compression thread | in progress (release/1.1): committed; compiled and tested 2026-11-12 (wip/1.1-fixups); point-in-time perf measured 2026-11-14 (scripts/perf/results/pit-1.1.md) |
 | 7 | 1.1-6 encode overlap | in progress (release/1.1): committed; compiled and tested 2026-11-12 (wip/1.1-fixups); point-in-time perf measured 2026-11-14 (scripts/perf/results/pit-1.1.md) |
-| 8 | 1.1-8 tokio::process | in progress (release/1.1): committed; compiled and tested 2026-11-12 (wip/1.1-fixups); point-in-time perf measured 2026-11-14 (scripts/perf/results/pit-1.1.md) |
-| 9 | 1.1-7 child counts | in progress (release/1.1): committed; compiled and tested 2026-11-12 (wip/1.1-fixups); point-in-time perf measured 2026-11-14 (scripts/perf/results/pit-1.1.md) |
+| 8 | 1.1-8 tokio::process | in progress (release/1.1): committed; compiled and tested 2026-11-12 (wip/1.1-fixups); point-in-time perf measured 2026-11-14 (scripts/perf/results/pit-1.1.md); item check: Ctrl-C check passed 2026-11-14 (exit 130, children named) (results/local/1.1-item-checks.md) |
+| 9 | 1.1-7 child counts | in progress (release/1.1): committed; compiled and tested 2026-11-12 (wip/1.1-fixups); point-in-time perf measured 2026-11-14 (scripts/perf/results/pit-1.1.md); item check: `--verifyCounts` many-index check passed 2026-11-14 (results/local/1.1-item-checks.md) |
 
-"In progress" means committed on `release/1.1`; the point-in-time batch finished 2026-11-14 (3 engines x 9 steps, no Node; report `scripts/perf/results/pit-1.1.md`). Remaining: the item checks below and the 16-engine RC run. Compile (`pit.sh check`) and HEAD tests/clippy/selftest passed on 2026-11-12 after two folded fixups (see `project/HANDOFF-1.1.md`).
+"In progress" means committed on `release/1.1`; the point-in-time batch finished 2026-11-14 (3 engines x 9 steps, no Node; report `scripts/perf/results/pit-1.1.md`). The item checks below all passed on 2026-11-14 (`results/local/1.1-item-checks.md`). Remaining: the 16-engine RC run. Compile (`pit.sh check`) and HEAD tests/clippy/selftest passed on 2026-11-12 after two folded fixups (see `project/HANDOFF-1.1.md`).
 
 ## Point-in-time test plan (all nine steps, one batch)
 
@@ -77,6 +77,8 @@ End to end about 8.5 h of box time (phases 1-3 about 2.5 h, phase 4 about 6 h). 
 (about -1.5 h), or two engines (about -2 h).
 
 Item checks that the suite does not cover, after phase 2:
+
+All five passed on 2026-11-14 on 85d4185 (es819-plain; details and evidence in `results/local/1.1-item-checks.md`).
 
 * 1.1-3: a `--scrollDocSort` A/B on `dump-none`/`dump-big` (manual) and `scripts/load/nodecmp.py` on `dump-none`:
   `_score: null` and no `sort` are the only differences with the flag, none without it.

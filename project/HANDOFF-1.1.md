@@ -1,5 +1,7 @@
 # Cold-start handoff: release/1.1 and the beta1 perf suite
 
+**Item checks done (2026-11-14 19:20 America/New_York).** All five checks the suite does not cover passed on 85d4185 (ES 8.19.23): `--scrollDocSort` A/B with Node, golden `--check` (25 cases, zero diff), the `--sliceCap=false` slicing tests on 4 profiles, Ctrl-C of `searchdump-multi --parallel 4` (exit 130, 4 children named), and `--verifyCounts` on 300 indices. `results/local/1.1-item-checks.md`.
+
 **Today's 1.0-line fixes merged into 1.1 (2026-11-14, owner decision t91u).** Cherry-picked from `main`
 (`-x` trailers) on top of `b849877`: L-645b `8798ac5`, L-804a `8bcc92c`, L-808n `b158898`, L-810i `15f049f`,
 L-808o `b1af6c0`, L-808p `7c5391f`, L-808q `f875663`, L-808r `1f528d7`, L-804b `7e6b7e6`, L-809 `7b89522`,

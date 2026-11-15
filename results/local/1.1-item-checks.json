@@ -1,0 +1,173 @@
+{
+ "branch_commit": "85d4185",
+ "engine": "elasticsearch 8.19.23 (es819-plain, heap 2048m, isolated podman store)",
+ "node": "elasticdump 6.125.1 (npm ci --ignore-scripts)",
+ "check1_scrollDocSort": {
+  "url": "http://127.0.0.1:19310",
+  "searchdump": "/workspace/rel-1.1/target/release/searchdump",
+  "cases": {
+   "dump-none": {
+    "index": "ab-logs",
+    "limit": 2000,
+    "off": {
+     "walls": [
+      1.028,
+      0.737,
+      0.729
+     ],
+     "median": 0.737
+    },
+    "on": {
+     "walls": [
+      0.878,
+      0.84,
+      0.836
+     ],
+     "median": 0.84
+    },
+    "node_wall": 2.362,
+    "docs": {
+     "off": 100000,
+     "on": 100000,
+     "node": 100000
+    },
+    "off_equals_node_exact_order": true,
+    "off_equals_node_as_set": true,
+    "on_vs_off_differing_keys": {
+     "_score": 100000
+    },
+    "on_scores": [
+     "None"
+    ],
+    "on_has_sort_member": 0,
+    "off_scores": [
+     "1.0"
+    ],
+    "pass": true
+   },
+   "dump-big": {
+    "index": "ab-big",
+    "limit": 10,
+    "off": {
+     "walls": [
+      0.824,
+      0.613,
+      0.594
+     ],
+     "median": 0.613
+    },
+    "on": {
+     "walls": [
+      0.777,
+      0.745,
+      0.847
+     ],
+     "median": 0.777
+    },
+    "node_wall": 2.549,
+    "docs": {
+     "off": 33,
+     "on": 33,
+     "node": 33
+    },
+    "off_equals_node_exact_order": true,
+    "off_equals_node_as_set": true,
+    "on_vs_off_differing_keys": {
+     "_score": 33
+    },
+    "on_scores": [
+     "None"
+    ],
+    "on_has_sort_member": 0,
+    "off_scores": [
+     "1.0"
+    ],
+    "pass": true
+   }
+  },
+  "seed": {
+   "logs": 100000,
+   "big": 33
+  },
+  "pass": true
+ },
+ "check2_golden": {
+  "profile": "es819-plain",
+  "cases": 25,
+  "result": "re-recorded with zero diff",
+  "data-restore/bulk-gzip args": "--refreshInterval=0"
+ },
+ "check3_sliceCap_false": {
+  "profiles": {
+   "es819-plain": "90/0",
+   "elasticsearch-plain": "90/0",
+   "opensearch-plain": "90/0",
+   "es710-plain": "90/0"
+  },
+  "tests": [
+   "api::scroll_unsliced_and_sliced_digest_and_no_open_contexts",
+   "api::pit_unsliced_and_sliced_digest_and_no_open_pits",
+   "data::exact_size_with_scroll_and_sliced_pit",
+   "data::host_only_input_with_output_index_and_pit_slices",
+   "smoke::pit_dump_returns_all_docs_unsliced_and_sliced",
+   "chaos::l638_page_and_slice_limits_are_explained"
+  ],
+  "all_ok": true
+ },
+ "check4_ctrlc": {
+  "exit": 130,
+  "children_before": 4,
+  "children_left": 0,
+  "stop_s": 0.19,
+  "stopped_lines": [
+   "interrupted: stopping running steps (SIGTERM, SIGKILL after 5s), starting no new ones",
+   "interrupted: stopped searchdump --type=data for ctrlc-6 (SIGTERM, exit status: 143); log: /tmp/searchdump-multi-454247-1794701626/ctrlc-6.data.log",
+   "FAILED  ctrlc-6: : interrupted: searchdump --type=data was stopped (SIGTERM, exit status: 143); last lines of /tmp/searchdump-multi-454247-1794701626/ctrlc-6.data.log:",
+   "    [2026-11-15T00:13:50Z WARN] SIGTERM received; cancelling and cleaning up (send it again to force-quit)",
+   "    Error: dump interrupted by user (SIGTERM) after the in-flight bulk requests finished; 19000 document(s) written; to resume, rerun the same command with --offset 19000",
+   "interrupted: stopped searchdump --type=data for ctrlc-1 (SIGTERM, exit status: 143); log: /tmp/searchdump-multi-454247-1794701626/ctrlc-1.data.log",
+   "FAILED  ctrlc-1: : interrupted: searchdump --type=data was stopped (SIGTERM, exit status: 143); last lines of /tmp/searchdump-multi-454247-1794701626/ctrlc-1.data.log:",
+   "    [2026-11-15T00:13:50Z WARN] SIGTERM received; cancelling and cleaning up (send it again to force-quit)",
+   "    Error: dump interrupted by user (SIGTERM) after the in-flight bulk requests finished; 18600 document(s) written; to resume, rerun the same command with --offset 18600",
+   "interrupted: stopped searchdump --type=data for ctrlc-7 (SIGTERM, exit status: 143); log: /tmp/searchdump-multi-454247-1794701626/ctrlc-7.data.log",
+   "FAILED  ctrlc-7: : interrupted: searchdump --type=data was stopped (SIGTERM, exit status: 143); last lines of /tmp/searchdump-multi-454247-1794701626/ctrlc-7.data.log:",
+   "    [2026-11-15T00:13:50Z WARN] SIGTERM received; cancelling and cleaning up (send it again to force-quit)"
+  ],
+  "named": [
+   "ctrlc-1",
+   "ctrlc-5",
+   "ctrlc-6",
+   "ctrlc-7"
+  ],
+  "loaded": {
+   "ctrlc-5": 21600,
+   "ctrlc-6": 19000,
+   "ctrlc-7": 19200,
+   "ctrlc-1": 18600,
+   "ctrlc-2": 60000,
+   "ctrlc-3": 60000,
+   "ctrlc-4": 60000,
+   "ctrlc-0": 60000
+  },
+  "pass": true
+ },
+ "check5_verifyCounts": {
+  "exit": 0,
+  "wall_s": 3.4,
+  "indices": 300,
+  "source_docs": 30000,
+  "data_lines": 30000,
+  "mismatch_lines": [],
+  "manifest": true,
+  "tail": [
+   "ok      many-297: /workspace/l810-env/checks/c45/many-dump/ (100 records)",
+   "ok      many-298: /workspace/l810-env/checks/c45/many-dump/ (100 records)",
+   "ok      many-299: /workspace/l810-env/checks/c45/many-dump/ (100 records)",
+   "",
+   "300 done, 0 skipped, 0 failed in 3s"
+  ],
+  "pass": true,
+  "data_files": 300,
+  "note": "data files are <index>.data.json.gz; the first count looked for <index>.json"
+ }
+}
