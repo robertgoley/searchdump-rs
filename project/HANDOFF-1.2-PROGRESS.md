@@ -1,6 +1,6 @@
 # 1.2 progress note (wip/1.2-sizing; for whoever resumes after an interruption)
 
-Updated: 2026-11-15 08:16 EST (box local time).
+Updated: 2026-11-15 08:42 EST (box local time).
 
 ## Where things are
 - `origin/release/1.2`: L2-001 (73d38f5, 1.2-1a), L2-002 (67d8ee6, 1.2-1b), L2-003 (c07e00f, 1.2-1c),
@@ -49,7 +49,11 @@ containers or /workspace/perf-pit-1.1). Nothing else removed.
   `git add` scripts/load/{lowheap.py,README.md} results/local/L2-006* examples/README.md + the 8 tracking docs
   (never -A); secret-scan (source perf-1.2/env.sh first: needs rustc 1.91 from ~/.cargo/bin); push HEAD:release/1.2.
   auto DONE 08:12: 14/14 cells PASS (ES 7.10/8.6/8.19/9.1, OS 1.3.20/2.19.7/3.9.0 at 256m+384m); 1.0 flags 20/56 fail.
-  off started 08:12 (box busier; ~20 min/mode), then v110, then min (ETA CHAIN-DONE ~09:15).
+  off started 08:12: 12/14 cells done at 08:40, 0 failures (~2.5 min/cell; box shared with another agent's node
+  process). ETA: off ~08:45, v110 ~09:20, min ~09:55 = chain-1f CHAIN-DONE; chain-1g then safe-simple live
+  (~10 min), 16-engine L0 perf (~10 h, ETA ~20:00-21:00 EST), 1.1.0 back-to-back (~1-1.5 h) -> PERF-DONE ~22:00 EST.
+  1g: `python3 /workspace/perf-1.2/perf_compare.py` (self-tested on a beta1 dir) for ratios vs the 16 beta1 dirs
+  named in scripts/perf/results/v1.0.0-beta1-L0.md; L2-007 live safe-simple results go into L2-008.
 - [ ] 1f L2-006 (orig): `/workspace/perf-1.2/chain-1f.sh` (nohup; waits for chain-1e CHAIN-DONE; resumable) runs
   lowheap on 7 engines x 256m/384m: L2-006-auto (+--regression), -off, -v110 (1.1.0 bins, --mode none), -min;
   logs /workspace/logs12/lowheap-*.log, chain-1f.log; JSON in rel-1.2-chk/results/load/L2-006-*/.
