@@ -1,9 +1,10 @@
 # 1.2 progress note (wip/1.2-sizing; for whoever resumes after an interruption)
 
-Updated: 2026-11-15 06:35 EST (box local time).
+Updated: 2026-11-15 07:25 EST (box local time).
 
 ## Where things are
-- `origin/release/1.2`: L2-001 (73d38f5, 1.2-1a), L2-002 (67d8ee6, 1.2-1b). Phase commits continue as L2-003..
+- `origin/release/1.2`: L2-001 (73d38f5, 1.2-1a), L2-002 (67d8ee6, 1.2-1b), L2-003 (c07e00f, 1.2-1c),
+  L2-004 (6acedfa, 1.2-1d). Phase commits continue as L2-005..
 - `origin/wip/1.2-sizing`: all in-progress 1c-1h code (this branch). 16c28b4 preserved the interrupted
   worker's uncommitted tree (limits probe, 429 handling, multi sizing, lowheap modes, fixtures, safe-simple
   examples).
@@ -28,9 +29,13 @@ containers or /workspace/perf-pit-1.1). Nothing else removed.
 
 ## Done / next
 - [x] preserve uncommitted tree (16c28b4)
-- [ ] 1c L2-003: gates-1c OK (fmt/clippy/tests); first IT attempt failed on infra (the isolated store's
-  layers were broken by the 05:55 box restore: overlay 'lower layer does not exist' / Permission denied);
-  store reset with `podman system reset --force` (isolated store only) and images re-pulled
-  (/workspace/logs12/pull.log); IT rerun next.
-- gates on the full wip tree (gates-wip): fmt, clippy, lib+bins 309, all 10 test targets pass.
-- [ ] 1d L2-004, 1e L2-005, 1f L2-006, 1h L2-007, 1g L2-008
+- [x] 1c L2-003 c07e00f: gates-1c OK; IT 5 profiles 0 failed (/workspace/perf-1.2/it-1c, after the isolated
+  store reset + re-pull).
+- [x] 1d L2-004 6acedfa: built in /workspace/rel-1.2-p (detached 1d tree, = chk tree at L2-004);
+  gates-1d OK (lib+bins 333, cli_contract 70); IT 5 profiles 0 failed (/workspace/perf-1.2/it-1d).
+- [ ] 1e L2-005: chk tree has wip searchdump-multi.rs + cli_contract.rs + results/local/L2-005.md (draft from
+  /workspace/logs12/drafts); gates-1e running (/workspace/perf-1.2/gates-1e, nohup log
+  /workspace/logs12/gates-1e.out); then IT-1e and a live multi check (perf-1.2/live/multi_live.py; it read
+  `manifest.json`, the manifest is `multielasticdump.json`: script fix needed). /var/tmp/searchdump-load
+  was wiped by the reboot, lowheap data regenerates.
+- [ ] 1f L2-006, 1h L2-007, 1g L2-008
