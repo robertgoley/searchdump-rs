@@ -35,5 +35,5 @@ DUMP_ARGS=(
 if [[ "${SLICES}" != "0" ]]; then
   DUMP_ARGS+=(--searchAfter --pit --slices="${SLICES}")
 fi
-"${SEARCHDUMP_BIN}" "${DUMP_ARGS[@]}" "${INPUT_CLUSTER_FLAGS[@]}"
+rerun_on_4 "${SEARCHDUMP_BIN}" "${DUMP_ARGS[@]}" "${INPUT_CLUSTER_FLAGS[@]}"
 echo "wrote $(data_file json.zst) (SLICES=${SLICES})"

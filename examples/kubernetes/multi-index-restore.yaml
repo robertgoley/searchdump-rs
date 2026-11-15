@@ -2,6 +2,8 @@
 # including split parts, in order. Set SKIP_EXISTING=1 to pass --skipExisting
 # when some target indices already exist. PREFIX / SUFFIX rename loaded indices.
 # On a small-heap target, keep PARALLEL low and the --limit override after --.
+# MAX_BULK_BYTES (16mb) caps each bulk: the default 100 MB bulk of 5000 large
+# documents was refused with HTTP 429 (indexing_pressure) even by a 1 GB heap.
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -41,7 +43,8 @@ spec:
               fi
               searchdump-multi --direction=load --input=/data --output="${DEST_ES_URL}" \
                 --parallel="${PARALLEL}" ${extra} -- \
-                --limit="${LIMIT}" --concurrency="${CONCURRENCY}" --maxResponseMb="${MAX_RESPONSE_MB}"
+                --limit="${LIMIT}" --concurrency="${CONCURRENCY}" --maxBulkBytes="${MAX_BULK_BYTES}" \
+                --maxResponseMb="${MAX_RESPONSE_MB}"
           env:
             - name: DEST_ES_URL
               value: http://elasticsearch.default.svc:9200
@@ -51,6 +54,8 @@ spec:
               value: "500"
             - name: CONCURRENCY
               value: "2"
+            - name: MAX_BULK_BYTES
+              value: 16mb
             - name: MAX_RESPONSE_MB
               value: "64"
             - name: SKIP_EXISTING

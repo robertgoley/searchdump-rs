@@ -19,21 +19,21 @@ if [[ -n "${OUTPUT_STORAGE_CONFIG}" ]]; then
   STORAGE_FLAGS+=(--outputStorageConfig="${OUTPUT_STORAGE_CONFIG}")
 fi
 
-"${SEARCHDUMP_BIN}" \
+rerun_on_4 "${SEARCHDUMP_BIN}" \
   --input="${ES_URL}/${INDEX}" \
   --output="${S3_URI}/${INDEX}.settings.json" \
   --type=settings \
   --overwrite \
   "${INPUT_CLUSTER_FLAGS[@]}" \
   "${STORAGE_FLAGS[@]}"
-"${SEARCHDUMP_BIN}" \
+rerun_on_4 "${SEARCHDUMP_BIN}" \
   --input="${ES_URL}/${INDEX}" \
   --output="${S3_URI}/${INDEX}.mapping.json" \
   --type=mapping \
   --overwrite \
   "${INPUT_CLUSTER_FLAGS[@]}" \
   "${STORAGE_FLAGS[@]}"
-"${SEARCHDUMP_BIN}" \
+rerun_on_4 "${SEARCHDUMP_BIN}" \
   --input="${ES_URL}/${INDEX}" \
   --output="${S3_URI}/${INDEX}.data.json" \
   --type=data \

@@ -15,15 +15,15 @@ fi
 : "${FILE_SIZE:=1gb}"
 : "${LIMIT:=1000}"
 
-run_searchdump input \
+rerun_on_4 run_searchdump input \
   --input="${ES_URL}/${INDEX}" \
   --output="${S3_URI}/${INDEX}.settings.json" \
   --type=settings --overwrite
-run_searchdump input \
+rerun_on_4 run_searchdump input \
   --input="${ES_URL}/${INDEX}" \
   --output="${S3_URI}/${INDEX}.mapping.json" \
   --type=mapping --overwrite
-run_searchdump input \
+rerun_on_4 run_searchdump input \
   --input="${ES_URL}/${INDEX}" \
   --output="${S3_URI}/${INDEX}.data.json" \
   --type=data --overwrite \

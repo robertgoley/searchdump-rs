@@ -20,7 +20,7 @@ fi
 ensure_dump_dir
 dump_settings_and_mapping
 input_cluster_flags
-"${SEARCHDUMP_BIN}" \
+rerun_on_4 "${SEARCHDUMP_BIN}" \
   --input="${ES_URL}/${INDEX}" \
   --output="$(data_file json.gz)" \
   --type=data \

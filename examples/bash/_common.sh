@@ -106,14 +106,14 @@ EXTRA_FLAGS=()
 
 dump_settings_and_mapping() {
   input_cluster_flags
-  "${SEARCHDUMP_BIN}" \
+  rerun_on_4 "${SEARCHDUMP_BIN}" \
     --input="${ES_URL}/${INDEX}" \
     --output="$(settings_file)" \
     --type=settings \
     --overwrite \
     "${INPUT_CLUSTER_FLAGS[@]}" \
     "${EXTRA_FLAGS[@]}"
-  "${SEARCHDUMP_BIN}" \
+  rerun_on_4 "${SEARCHDUMP_BIN}" \
     --input="${ES_URL}/${INDEX}" \
     --output="$(mapping_file)" \
     --type=mapping \
@@ -178,4 +178,46 @@ restore_data_parts() {
       "${OUTPUT_CLUSTER_FLAGS[@]}" \
       "${@}"
   done
+}
+
+# Exit status 4 (on main after 1.0.0, L-804b): the run failed after its own retries for a
+# transient reason (network, HTTP 429/5xx, a lost scroll context) and nothing was written that a
+# rerun would duplicate, so it is safe to run again. rerun_on_4 runs a command and, on exit 4,
+# runs it again up to RERUNS times (default 1) after RERUN_DELAY seconds (default 30). Any other
+# status is returned as is. With 1.0.0 binaries/images such failures exit 1 and are not rerun.
+: "${RERUNS:=1}"
+: "${RERUN_DELAY:=30}"
+rerun_on_4() {
+  local n=0 rc
+  while :; do
+    rc=0
+    "$@" || rc=$?
+    if [[ "${rc}" -eq 4 && "${n}" -lt "${RERUNS}" ]]; then
+      n=$((n + 1))
+      echo "exit 4 (transient, safe to rerun): rerun ${n} of ${RERUNS} in ${RERUN_DELAY}s" >&2
+      sleep "${RERUN_DELAY}"
+      continue
+    fi
+    return "${rc}"
+  done
+}
+
+# Optional --restartOnContextLoss=N (on main after 1.0.0): a scroll dump into a file restarts
+# from the start when the cluster loses its scroll context. Not for --searchAfter --pit, and not
+# accepted by 1.0.0 binaries/images, so it is off unless RESTART_ON_CONTEXT_LOSS is set.
+: "${RESTART_ON_CONTEXT_LOSS:=}"
+restart_flags() {
+  RESTART_FLAGS=()
+  if [[ -n "${RESTART_ON_CONTEXT_LOSS}" ]]; then
+    RESTART_FLAGS+=(--restartOnContextLoss="${RESTART_ON_CONTEXT_LOSS}")
+  fi
+}
+
+# --httpAuthFile wins (on main after 1.0.0, L-645b): when it is set, its user/password is used for
+# both directions, and URL credentials, --input-*/--output-* user flags and SEARCHDUMP_*_USERNAME/
+# _PASSWORD are ignored (with a warning). Say so here before the run.
+warn_auth_file_wins() {
+  if [[ -n "${HTTP_AUTH_FILE}" && ( -n "${SEARCHDUMP_INPUT_USERNAME:-}" || -n "${SEARCHDUMP_OUTPUT_USERNAME:-}" ) ]]; then
+    echo "note: HTTP_AUTH_FILE is set, so its user is used for both clusters; SEARCHDUMP_INPUT_*/SEARCHDUMP_OUTPUT_* are ignored (unset HTTP_AUTH_FILE to use different users)" >&2
+  fi
 }

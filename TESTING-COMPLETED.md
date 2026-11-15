@@ -6,7 +6,7 @@ A one-screen engine coverage matrix (dump, restore, PIT, slices, storage, TLS) i
 
 Every test task with a commit on `main`, oldest first within each group. The commit message is the short result; full results, numbers and findings for each task are in [`project/plan/PROGRESS.md`](project/plan/PROGRESS.md), and the requirement IDs are in [`project/plan/TEST-REQUIREMENTS.md`](project/plan/TEST-REQUIREMENTS.md).
 
-Total: 223 task commits (including follow-up fixes with a letter suffix). Last updated from commit L-810j (`git log -1 --grep '^L-810j'`; the next commit fills in its sha).
+Total: 224 task commits (including follow-up fixes with a letter suffix). Last updated from commit L-810k (`git log -1 --grep '^L-810k'`; the next commit fills in its sha).
 
 ## Setup and planning (L-0xx)
 
@@ -275,7 +275,8 @@ Total: 223 task commits (including follow-up fixes with a letter suffix). Last u
 | L-810 | 311097c | 2026-11-14 | LOAD-015 large documents (pmc 20k, 1-10 MB, one 90 MB): PASS, digests equal; 413 now names http.max_content_length and --maxBulkBytes; ~5.3x RSS per very large document noted (results/local/L-810.md) |
 | L-812 | 3552a8b | 2026-11-14 | LOAD-018 data streams 1M (rollover, dump, host-only, rename): PASS, digests equal; routed documents into a data stream now warned once (results/local/L-812.md) |
 | L-804c | 20e3832 | 2026-11-14 | CI it jobs fixed: l618 expects exit 4 for a lost context; scroll context-lost error names the PIT way out; real per-profile IT results (results/local/L-804c.md) |
-| L-810j | this commit | 2026-11-14 | Image hardening: no user-admin/init-script tools in the Debian images; executable allowlist unchanged; fixes the security image job (results/local/L-810j.md) |
+| L-810j | e3bb8ca | 2026-11-14 | Image hardening: no user-admin/init-script tools in the Debian images; executable allowlist unchanged; fixes the security image job (results/local/L-810j.md) |
+| L-810k | this commit | 2026-11-14 | examples/ updated for the changes on main after 1.0.0; k8s env values quoted (results/local/L-810k.md) |
 
 ## Supply-chain scans (Grok Bot)
 

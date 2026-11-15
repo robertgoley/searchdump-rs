@@ -42,9 +42,9 @@ spec:
                 --limit="${LIMIT}" --workers="${WORKERS}" --bufferSize=32 --maxResponseMb=256 ${extra}
           env:
             - name: LIMIT
-              value: 2000
+              value: "2000"
             - name: WORKERS
-              value: 8
+              value: "8"
             - name: SLICES
               value: "0"
             - name: ES_URL

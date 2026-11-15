@@ -11,11 +11,11 @@ source "${ROOT}/_common.sh"
 : "${WORKERS:=8}"
 : "${SLICES:=0}"
 
-run_searchdump input \
+rerun_on_4 run_searchdump input \
   --input="${ES_URL}/${INDEX}" \
   --output="/data/${INDEX}.settings.json" \
   --type=settings --overwrite
-run_searchdump input \
+rerun_on_4 run_searchdump input \
   --input="${ES_URL}/${INDEX}" \
   --output="/data/${INDEX}.mapping.json" \
   --type=mapping --overwrite
@@ -29,5 +29,5 @@ FAST=(
 if [[ "${SLICES}" != "0" ]]; then
   FAST+=(--searchAfter --pit --slices="${SLICES}")
 fi
-run_searchdump input "${FAST[@]}"
+rerun_on_4 run_searchdump input "${FAST[@]}"
 echo "wrote ${DUMP_DIR}/${INDEX}.data.json.zst (SLICES=${SLICES})"

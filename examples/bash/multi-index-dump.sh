@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 # Dump every index matching MATCH (default ^logs-) with searchdump-multi.
 #
-# IMPORTANT: on current main, data children default to --limit=5000 and
-# --maxResponseMb=0. That can 429 or OOM a small-heap bitnamilegacy
-# Elasticsearch node even with --parallel=1. This script always overrides
-# the page size (-- --limit=500 --maxResponseMb=64). Raise LIMIT / PARALLEL
-# on a large, well-resourced cluster. Add --resume to finish a previous run.
+# IMPORTANT: on main and 1.0.0, data children default to --limit=5000 and
+# --maxResponseMb=0. That can 429 or OOM a small-heap Elasticsearch node even
+# with --parallel=1 (reproduced on 256 MB-heap ES 7.10.2 / 8.6.1 / 8.19.23).
+# This script always overrides the page size (-- --limit=500
+# --maxResponseMb=64). Raise LIMIT / PARALLEL on a large, well-resourced
+# cluster. Add RESUME=1 (--resume) to finish a previous run; a failed index
+# (searchdump-multi exit 1) is safe to retry that way.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=./_common.sh

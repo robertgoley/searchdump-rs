@@ -34,11 +34,11 @@ spec:
                 --limit="${LIMIT}" --concurrency="${CONCURRENCY}" --workers="${WORKERS}" --bufferSize=32 --noRefresh --esCompress
           env:
             - name: LIMIT
-              value: 2000
+              value: "2000"
             - name: CONCURRENCY
-              value: 8
+              value: "8"
             - name: WORKERS
-              value: 8
+              value: "8"
             - name: ES_URL
               value: "http://elasticsearch.default.svc:9200"
             - name: DEST_ES_URL

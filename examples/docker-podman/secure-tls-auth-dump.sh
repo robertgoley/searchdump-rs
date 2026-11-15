@@ -17,15 +17,15 @@ if [[ -z "${CA_FILE}" && -z "${INPUT_CA_FILE}" ]]; then
   exit 1
 fi
 
-run_searchdump input \
+rerun_on_4 run_searchdump input \
   --input="${ES_URL}/${INDEX}" \
   --output="/data/${INDEX}.settings.json" \
   --type=settings --overwrite
-run_searchdump input \
+rerun_on_4 run_searchdump input \
   --input="${ES_URL}/${INDEX}" \
   --output="/data/${INDEX}.mapping.json" \
   --type=mapping --overwrite
-run_searchdump input \
+rerun_on_4 run_searchdump input \
   --input="${ES_URL}/${INDEX}" \
   --output="/data/${INDEX}.data.json.gz" \
   --type=data --overwrite --fsCompress --limit=500

@@ -5,6 +5,9 @@
 # SEARCHDUMP_INPUT_* comes from Secret searchdump-es, SEARCHDUMP_OUTPUT_*
 # from searchdump-es-dest. If both clusters share one user, point the
 # destination secretKeyRef at searchdump-es as well, or copy the Secret.
+# Do not add --httpAuthFile here when the users differ: on main after 1.0.0
+# the auth file wins over SEARCHDUMP_INPUT_* / SEARCHDUMP_OUTPUT_* for both
+# clusters.
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -46,9 +49,9 @@ spec:
             - name: DEST_ES_URL
               value: "http://elasticsearch-dst.default.svc:9200"
             - name: LIMIT
-              value: 1000
+              value: "1000"
             - name: CONCURRENCY
-              value: 4
+              value: "4"
             - name: INDEX
               value: logs
             - name: DEST_INDEX

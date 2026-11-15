@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Dump every index matching MATCH with searchdump-multi inside the image.
 #
-# Overrides the default --limit=5000 --maxResponseMb=0, which can 429 or OOM
-# a small-heap bitnamilegacy Elasticsearch node even with --parallel=1.
+# Overrides the default --limit=5000 --maxResponseMb=0 (main and 1.0.0), which
+# can 429 or OOM a small-heap Elasticsearch node even with --parallel=1.
 # For a private CA, set SSL_CERT_FILE_HOST (mounted as SSL_CERT_FILE); the
 # multi binary has no --ca on main.
 set -euo pipefail

@@ -2,12 +2,27 @@
 # keep-alive. searchdump has no --resume; if the Job fails mid-index, check
 # /data and usually start the index again (--overwrite replaces existing
 # parts). For many indices, use multi-index-dump.yaml with --resume.
+#
+# On main after 1.0.0 (an image built with `make image`, not the published
+# 1.0.0 image): exit status 4 means a transient failure that is safe to rerun,
+# so podFailurePolicy below retries only that (up to backoffLimit) and fails
+# the Job at once on any other non-zero status; RESTART_ON_CONTEXT_LOSS=N adds
+# --restartOnContextLoss=N (a lost scroll context restarts the dump from the
+# start inside the same pod). With the 1.0.0 image leave it empty; transient
+# failures then exit 1 and are not retried.
 apiVersion: batch/v1
 kind: Job
 metadata:
   name: searchdump-very-large-index-dump
 spec:
-  backoffLimit: 1
+  backoffLimit: 2
+  podFailurePolicy:
+    rules:
+      - action: FailJob
+        onExitCodes:
+          containerName: searchdump
+          operator: NotIn
+          values: [4]
   ttlSecondsAfterFinished: 86400
   activeDeadlineSeconds: 86400
   template:
@@ -33,16 +48,19 @@ spec:
               searchdump --input="${ES_URL}/${INDEX}" --output="/data/${INDEX}.mapping.json" --type=mapping --overwrite
               searchdump --input="${ES_URL}/${INDEX}" --output="/data/${INDEX}.data.json" --type=data --overwrite \
                 --compressionType=zstd --compressionLevel=1 --fileSize="${FILE_SIZE}" --scrollTime="${SCROLL_TIME}" \
-                --limit="${LIMIT}" --workers="${WORKERS}" --maxResponseMb=256
+                --limit="${LIMIT}" --workers="${WORKERS}" --maxResponseMb=256 \
+                ${RESTART_ON_CONTEXT_LOSS:+--restartOnContextLoss="${RESTART_ON_CONTEXT_LOSS}"}
           env:
             - name: FILE_SIZE
               value: 1gb
             - name: SCROLL_TIME
               value: 30m
             - name: LIMIT
-              value: 1000
+              value: "1000"
             - name: WORKERS
-              value: 4
+              value: "4"
+            - name: RESTART_ON_CONTEXT_LOSS
+              value: ""
             - name: ES_URL
               value: "http://elasticsearch.default.svc:9200"
             - name: DEST_ES_URL

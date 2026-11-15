@@ -4,7 +4,7 @@
 # also pins --workers=1 and --maxResponseMb=64.
 #
 # If you change this Job to searchdump-multi, do not keep its data-flag
-# defaults: on current main every data child gets --limit=5000 and
+# defaults: on main and 1.0.0 every data child gets --limit=5000 and
 # --maxResponseMb=0, which can 429 or OOM a small heap even with one thread
 # and one shard. Pass -- --limit=500 --maxResponseMb=64 (see
 # multi-index-dump.yaml and FEATURES-TODO.md item 1.1-10).

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Load a searchdump-multi dump directory from the mounted volume, including
-# split parts. --skipExisting: set SKIP_EXISTING=1.
+# split parts. --skipExisting: set SKIP_EXISTING=1. Bulks are capped at
+# MAX_BULK_BYTES (default 16mb) so a small-heap target does not answer 429.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=./_common.sh
@@ -27,5 +28,6 @@ fi
 run_searchdump_multi multi "${MULTI[@]}" -- \
   --limit="${LIMIT}" \
   --concurrency="${CONCURRENCY:-2}" \
+  --maxBulkBytes="${MAX_BULK_BYTES:-16mb}" \
   --maxResponseMb="${MAX_RESPONSE_MB:-64}"
 echo "loaded ${DUMP_DIR} -> ${DEST_ES_URL}"

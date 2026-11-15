@@ -5,7 +5,8 @@
 #
 # Set SEARCHDUMP_INPUT_* and SEARCHDUMP_OUTPUT_* when the clusters use
 # different users. HTTP_AUTH_FILE is used for both sides when the user is the
-# same. Optional CA_FILE / CLIENT_CERT / CLIENT_KEY, or the INPUT_* / OUTPUT_*
+# same; on main after 1.0.0 it wins over SEARCHDUMP_INPUT_*/OUTPUT_*, so do
+# not set both. Optional CA_FILE / CLIENT_CERT / CLIENT_KEY, or the INPUT_* / OUTPUT_*
 # forms when the certs differ.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -20,13 +21,14 @@ if [[ "${ES_URL}" == "${DEST_ES_URL}" && "${INDEX}" == "${DEST_INDEX}" ]]; then
   exit 1
 fi
 
+warn_auth_file_wins
 both_cluster_flags
 for t in settings mapping data; do
   EXTRA=()
   if [[ "${t}" == "data" ]]; then
     EXTRA+=(--limit="${LIMIT}" --concurrency="${CONCURRENCY}" --workers=4 --noRefresh --esCompress)
   fi
-  "${SEARCHDUMP_BIN}" \
+  rerun_on_4 "${SEARCHDUMP_BIN}" \
     --input="${ES_URL}/${INDEX}" \
     --output="${DEST_ES_URL}/${DEST_INDEX}" \
     --type="${t}" \

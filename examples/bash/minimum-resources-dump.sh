@@ -7,7 +7,7 @@
 # also pins --workers=1 and a 64 MB response cap.
 #
 # If you switch this to searchdump-multi, do not rely on its defaults: on
-# current main every data child gets --limit=5000 and --maxResponseMb=0, which
+# main and 1.0.0 every data child gets --limit=5000 and --maxResponseMb=0, which
 # can 429 or OOM a small heap even with one thread and one shard. Pass
 # -- --limit=500 --maxResponseMb=64 or --noDefaultDataFlags. See
 # examples/README.md and FEATURES-TODO.md item 1.1-10.
@@ -20,7 +20,7 @@ ensure_dump_dir
 EXTRA_FLAGS=(--limit=100 --workers=1 --concurrency=1 --maxResponseMb=64)
 dump_settings_and_mapping
 input_cluster_flags
-"${SEARCHDUMP_BIN}" \
+rerun_on_4 "${SEARCHDUMP_BIN}" \
   --input="${ES_URL}/${INDEX}" \
   --output="$(data_file json.gz)" \
   --type=data \

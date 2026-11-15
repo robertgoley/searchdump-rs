@@ -103,3 +103,4 @@ The user runs Grok 4.7 locally through the OpenCode CLI. The handoff/ folder (op
 - L-812 (2026-11-14): LOAD-018 data streams 1M (rollover, dump, host-only, rename): PASS, digests equal; routed documents into a data stream now warned once (results/local/L-812.md)
 - L-804c (2026-11-14): CI it jobs fixed: l618 expects exit 4 for a lost context; scroll context-lost error names the PIT way out; real per-profile IT results (results/local/L-804c.md)
 - L-810j (2026-11-14): Image hardening: no user-admin/init-script tools in the Debian images; executable allowlist unchanged; fixes the security image job (results/local/L-810j.md)
+- L-810k (2026-11-14): examples/ updated for the changes on main after 1.0.0; k8s env values quoted (results/local/L-810k.md)
