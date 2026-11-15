@@ -253,7 +253,8 @@ Start: 2026-10-29 13:05 EDT at `511a6f5`.
 | L-818 | done | 95ad327 | standard low-memory engine test set scripts/load/lowheap.py (LOAD-LM): ES 7.10.2/8.6.1/8.19.23/9.1.2 x 256m/384m, searchdump-multi dump+load of pmc-like (20k x 22 KB) and fat (3k x 78 KB) with default flags; release/1.1 PASS 16/16, --regression: old flags fail 23/32; main fails by design until 1.1-10 is ported (results/local/L-818.md) |
 | L-819 | done | a76635b | release/1.1: searchdump-multi 'FAILED  IX: : interrupted' empty context fixed (with_part + unit test); FEATURES-TODO 1.1-10 row and 1.1 rows done; version 1.1.0 (Cargo, Dockerfile, CHANGELOG '## 1.1.0', release notes); not tagged; 540 unit/contract/chaos pass (results/local/L-819.md) |
 | L-820 | done | 0d7d518 | release/1.1 merged into main (normal merge, owner t103u); code = a76635b; CHANGELOG/README/FEATURES-TODO/selftest conflicts resolved; IT es819/os2/es710/es912 90/0 (es912 after one timing-flake rerun), lowheap.py PASS 16/16 on main, secret-scan OK (results/local/L-820.md) |
-| L-821 | done | this commit (`git log --grep '^L-821'`) | examples/ refreshed for 1.1.0 (image 1.1.0-dhi-debian, New in 1.1.0 section); shellcheck clean, kubeconform 14/14 |
+| L-821 | done | f7bc7ba | examples/ refreshed for 1.1.0 (image 1.1.0-dhi-debian, New in 1.1.0 section); shellcheck clean, kubeconform 14/14 |
+| L-822 | done | this commit (`git log --grep '^L-822'`) | HANDOFF-1.1.md refreshed for 1.1.0 on main; kvmsvr1 perf-run handoff (section 5b) |
 
 ## Resume note (2026-10-30, stopped on usage cap)
 - Last commit: L-808m (edverify fits the 1 GB smoke heap; after L-808l 30f2122; 2026-11-09, on `main`, pushed to origin = github.com/robertgoley/elasticdump-rs-fork; `git log -1 --grep '^L-808m'`). Tree clean. **Next: L-809 (LOAD-014: 300 indices here; design notes on branch wip/L-809)**.

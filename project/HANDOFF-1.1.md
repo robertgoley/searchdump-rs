@@ -1,5 +1,19 @@
 # Cold-start handoff: release/1.1 and the beta1 perf suite
 
+**Current status (2026-11-15, supersedes the dated notes below where they disagree).**
+1.1.0 is complete and on `main`; it is **not tagged** and no GitHub release exists (tagging waits for
+Robert). L-819 (`a76635b`, release/1.1) bumped the version to 1.1.0 and fixed the empty
+`FAILED  IX: :` context in `searchdump-multi`; L-820 (`0d7d518`) is the normal merge of release/1.1
+into `main` (owner decision t103u, 2026-11-14 23:07 ET), and `release/1.1` was fast-forwarded to it,
+so both branches share one tree. L-821 (`f7bc7ba`, main) refreshed `examples/` for 1.1.0. This
+status block and the kvmsvr1 section ([5b](#5b-kvmsvr1-perf-run-handoff-11-rc)) are L-822. The grokbox
+16-engine RC run (L0, 3 reps, beta1 case list, Node included, binaries from `0d7d518` in
+`/workspace/perf-bin-1.1/rc-0d7d518`, driver `/workspace/perf-rc-1.1/run-rc.sh` on the isolated
+`l810-podman` store, port 19232) started 2026-11-15 00:00 ET and is recorded as L-823 in
+`results/local/1.1-rc.md` and `scripts/perf/results/v1.1.0-rc-L0.md`. The "Still open for 1.1" list, the "Do not merge to main" rules and the
+"phases 3-5 not started" notes further down are history: everything in them is done except what
+section 8 lists. Work now goes to `main` (normal pushes); `release/1.1` is kept only as a pointer.
+
 **Item checks done (2026-11-14 19:20 America/New_York).** All five checks the suite does not cover passed on 85d4185 (ES 8.19.23): `--scrollDocSort` A/B with Node, golden `--check` (25 cases, zero diff), the `--sliceCap=false` slicing tests on 4 profiles, Ctrl-C of `searchdump-multi --parallel 4` (exit 130, 4 children named), and `--verifyCounts` on 300 indices. `results/local/1.1-item-checks.md`.
 
 **Today's 1.0-line fixes merged into 1.1 (2026-11-14, owner decision t91u).** Cherry-picked from `main`
@@ -18,7 +32,7 @@ text replaces the 1.0.0-beta1 known-issue paragraphs. Not re-measured with the P
 Tests on the merged tree: fmt, strict clippy, unit/contract/chaos 537 passed 0 failed; `scripts/it/run.sh` with
 the isolated podman store: es819-plain (8.19.23), elasticsearch-plain (9.1.2), opensearch-plain (2.19.7) and
 es710-plain (7.10.2) 90 passed, 0 failed, 1 ignored each (es710 run alone with a fresh cross-engine directory).
-Still open for 1.1: the five item checks below, 1.1-10 (FEATURES-TODO `13c0725`), the examples update, the
+(Done since: all of the following.) Still open for 1.1 at the time: the five item checks below, 1.1-10 (FEATURES-TODO `13c0725`), the examples update, the
 16-engine RC run (planned on kvmsvr1), and the owner's call on the `security` image job ("undocumented
 executables" pulled in by openssh-client since L-810i).
 
@@ -420,14 +434,48 @@ commands that were used are in `project/HANDOFF-20261112.md` on `main`.
 
 Reproduced on the box (bitnamilegacy ES 7.10.2 and 8.6.1 die with `OutOfMemoryError` at a 256m heap
 under the old `--limit=5000 --maxResponseMb=0`; ES 8.19.23 returns HTTP 429 from the parent
-breaker) and fixed on `release/1.1` only (see `project/plan/ROADMAP-1.1-PLAN.md` 1.1-10 and
+breaker) and fixed in 1.1.0 (on `main` since L-820; see `project/plan/ROADMAP-1.1-PLAN.md` 1.1-10 and
 `results/local/1.1-10.md`). For the kvmsvr1 RC run: `searchdump-multi` data runs now page 1000
 documents (fewer for documents over 16 KB stored) with the 256 MB response cap, and loads split
 bulks at 16 MB; any perf step that
 times `searchdump-multi` without `-- --limit=...` measures the new default. Whether the same change
-should also go to `main` (the 1.0 line) is the owner's decision.
+went to `main` with the L-820 merge (t103u), so main and 1.1.0 behave the same.
 The low-memory regression set is `python3 scripts/load/lowheap.py --regression` (L-818, about 16 minutes on
 the box; `scripts/load/README.md`); run it with the RC binaries, it needs only about 2 GB free RAM.
+
+
+### 5b. kvmsvr1 perf-run handoff (1.1 RC)
+
+For the other setup (kvmsvr1). Everything here is a read-only measurement; nothing needs pushing
+except an optional results commit to `main` (normal push, `L-NNN:` message, next free number in
+`TESTING-COMPLETED.md`).
+
+- **Commit to test:** `origin/main` at or after `f7bc7ba`. The code (`src/`, `tests/`, `tools/`,
+  `Cargo.*`) is byte-identical to `0d7d518` (L-820) and to `release/1.1`; later commits are docs,
+  examples and results only. `searchdump --version` prints `1.1.0`. Build with Rust 1.91.1:
+  `cargo build --release --locked --workspace` (the perf harness wants
+  `searchdump`, `searchdump-multi`, `edgen`, `edverify`).
+- **1.1-4a slice cap on ES 7.10 is unmeasured on kvmsvr1.** The kvmsvr1 PIT batch (`v1.1-pit-kvmsvr1.md`)
+  ran on harness `c4b1b34`, before 1.1-4a (`2fe3d0b`). Re-measure `dump-scroll-s2/s4/s8` on es710
+  (expect the PIT 1.1-4 gains: `s2` about -63 %, `s4` about -34 % versus beta1) and on es819 and os3
+  (expect a return to the 1.1-2 numbers, i.e. no cap there). Quick form:
+  `PERF_BIN_DIR=<bins> bash scripts/perf/run-suite.sh --host-tools --tier L0 --place box --reps 3 --engines "es710-plain es819-plain os3-plain" --baseline-dir results/perf/kvm-rc-baselines`;
+  the full 16-engine run is the same command with every engine (the frozen beta1 case list, no
+  `PERF_AB_CASES`). Compare with `scripts/perf/results/v1.0.0-beta1-L0.md` and the grokbox RC report
+  `scripts/perf/results/v1.1.0-rc-L0.md`.
+- **1.1-10 defaults** (what any `searchdump-multi` timing measures unless `-- --limit=...` is given):
+  data children page at `clamp(16 MiB / average stored document size, 1, 1000)` per index
+  (`--limit=1000` for small documents), keep the 256 MB response cap (`--maxResponseMb=256`) and split
+  load bulks at 16 MB (`--maxBulkBytes=16mb`); `--scrollTime` stays 10m. 1.0.0 used `--limit=5000`,
+  `--maxResponseMb=0` and 100 MB bulks, so multi steps are not directly comparable with beta1.
+- **Low-memory set:** `python3 scripts/load/lowheap.py` (default mode, the 1.1 flags) and
+  `python3 scripts/load/lowheap.py --regression` (the 1.0.0 flags, expected to fail most runs). It
+  covers ES 7.10.2, 8.6.1 (bitnamilegacy), 8.19.23 and 9.1.2 at 256m and 384m heaps with the `pmc`
+  (20k x 21.6 KB) and `fat` (3k x 78 KB) datasets; it needs about 2 GB free RAM and an isolated podman
+  store, and ran about 16 minutes on grokbox. Expected: default mode PASS 16/16 (it did on grokbox at
+  `0d7d518`, `results/local/L-820.md`); `--regression` fails about 23 of 32 runs.
+- Report back: per-engine PASS/FAIL, the Node median ratio, the es710/es819/os3 `dump-scroll-s*`
+  deltas, and the lowheap summary lines.
 
 ---
 
@@ -473,9 +521,9 @@ Each hourly run should:
   `CONTAINERS_STORAGE_CONF` is not honoured. `PERF_ENGINE_PORT=19232`.
 - No secrets in the repo; credentials only as blank variable references.
   Never print `DHI_TOKEN`. No AWS or real B2 without Robert's approval.
-- Push 1.1 work only to `origin/release/1.1`. Do not merge it to `main`,
-  open a PR, or retag without Robert. Work that belongs on main still
-  goes through `/workspace/fix-wt` with `git push origin HEAD:main`.
+- Since L-820 (2026-11-15) 1.1 work goes to `main` with normal pushes from
+  `/workspace/elasticdump-rs`. No PR, no force push, no tag or retag without
+  Robert (the `v1.1.0` tag waits for his go-ahead).
 - Rust 1.91 minimum (`PATH` must include `$HOME/.cargo/bin`; toolchain
   1.91.1).
 - **1.0.0 is stable. No backports.** Everything new, including the
@@ -497,6 +545,7 @@ Each hourly run should:
 - The local `/workspace/perf-b1/run-all.sh` orphan-reaper patch is not in
   the repo; consider committing a perf-harness equivalent later, on main,
   not as a 1.1 backport.
-- After PIT: remaining plan steps are only the item checks listed in the
-  roadmap and, later, a full 16-engine 1.1 RC run vs beta1
-  (`scripts/perf/results/v1.1.0-rc-L0.md`).
+- (2026-11-15) The item checks and the main merge are done; the grokbox RC run is L-823. Open after
+  1.1.0: the `v1.1.0` tag and release (Robert's go-ahead), the kvmsvr1 run (section 5b), halving the
+  page on HTTP 429 (deferred from 1.1), the "dump interrupted" wording for load children, P6, Q5/Q6,
+  the elasticsearch-secure alias 403, and L-814 (not started).

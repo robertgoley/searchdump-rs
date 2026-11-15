@@ -6,7 +6,7 @@ A one-screen engine coverage matrix (dump, restore, PIT, slices, storage, TLS) i
 
 Every test task with a commit on `main`, oldest first within each group. The commit message is the short result; full results, numbers and findings for each task are in [`project/plan/PROGRESS.md`](project/plan/PROGRESS.md), and the requirement IDs are in [`project/plan/TEST-REQUIREMENTS.md`](project/plan/TEST-REQUIREMENTS.md).
 
-Total: 228 task commits (including follow-up fixes with a letter suffix). Last updated from commit L-821 (`git log -1 --grep '^L-821'`; the next commit fills in its sha).
+Total: 229 task commits (including follow-up fixes with a letter suffix). Last updated from commit L-822 (`git log -1 --grep '^L-822'`; the next commit fills in its sha).
 
 ## Setup and planning (L-0xx)
 
@@ -280,7 +280,8 @@ Total: 228 task commits (including follow-up fixes with a letter suffix). Last u
 | L-818 | 95ad327 | 2026-11-14 | low-memory engine test set lowheap.py; release/1.1 PASS 16/16 (results/local/L-818.md) |
 | L-819 | a76635b | 2026-11-14 | 1.1 open items closed, version 1.1.0, not tagged (results/local/L-819.md) |
 | L-820 | 0d7d518 | 2026-11-14 | release/1.1 merged into main; lowheap PASS on main (results/local/L-820.md) |
-| L-821 | this commit | 2026-11-15 | examples/ refreshed for 1.1.0 after the main merge (owner t103u) |
+| L-821 | f7bc7ba | 2026-11-15 | examples/ refreshed for 1.1.0 after the main merge (owner t103u) |
+| L-822 | this commit | 2026-11-15 | 1.1 handoff refreshed and kvmsvr1 perf-run handoff written (owner t103u) |
 
 ## Supply-chain scans (Grok Bot)
 
