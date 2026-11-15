@@ -1,10 +1,11 @@
 # 1.2 progress note (wip/1.2-sizing; for whoever resumes after an interruption)
 
-Updated: 2026-11-15 07:50 EST (box local time).
+Updated: 2026-11-15 08:08 EST (box local time).
 
 ## Where things are
 - `origin/release/1.2`: L2-001 (73d38f5, 1.2-1a), L2-002 (67d8ee6, 1.2-1b), L2-003 (c07e00f, 1.2-1c),
-  L2-004 (6acedfa, 1.2-1d), L2-005 (9114b8c, 1.2-1e). Phase commits continue as L2-006..
+  L2-004 (6acedfa, 1.2-1d), L2-005 (9114b8c, 1.2-1e), L2-007 (bcacb97, 1.2-1h; pushed before L2-006
+  because 1f's lowheap run was still going). Remaining: L2-006 (1f), L2-008 (1g).
 - `origin/wip/1.2-sizing`: all in-progress 1c-1h code (this branch). 16c28b4 preserved the interrupted
   worker's uncommitted tree (limits probe, 429 handling, multi sizing, lowheap modes, fixtures, safe-simple
   examples).
@@ -44,7 +45,8 @@ containers or /workspace/perf-pit-1.1). Nothing else removed.
   lowheap on 7 engines x 256m/384m: L2-006-auto (+--regression), -off, -v110 (1.1.0 bins, --mode none), -min;
   logs /workspace/logs12/lowheap-*.log, chain-1f.log; JSON in rel-1.2-chk/results/load/L2-006-*/.
   lowheap.py + scripts/load/README.md already copied into the chk tree (uncommitted, part of L2-006).
-- [ ] 1h L2-007: shellcheck (0.11) + kubeconform -strict on the wip examples: clean / 18 valid.
+- [x] 1h L2-007 bcacb97 (results/local/L2-007.md; live safe-simple cells pending -> record in L2-008):
+  shellcheck (0.11) + kubeconform -strict on the wip examples: clean / 18 valid.
   Live harness /workspace/perf-1.2/live/safe_simple.py ENGINE HEAP PORT (bash safe-simple scripts) to run
   after chain-1f on es710, es819, os2 at 256m.
 - [ ] 1g L2-008: perf plan: 1.1.0 RC raw data is not on the box (L-823 never landed); compare the 1.2 16-engine
