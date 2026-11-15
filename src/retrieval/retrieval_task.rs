@@ -3,9 +3,7 @@ use bytes::Bytes;
 use bytesize::ByteSize;
 use log::warn;
 use reqwest::Method;
-#[cfg(test)]
-use sonic_rs::JsonValueTrait;
-use sonic_rs::{JsonContainerTrait, JsonValueMutTrait, Value};
+use sonic_rs::{JsonContainerTrait, JsonValueMutTrait, JsonValueTrait, Value};
 use std::sync::atomic::Ordering;
 use tokio::sync::oneshot;
 
@@ -27,6 +25,76 @@ pub(crate) fn latest_pit_id(response: &Value) -> Option<String> {
 pub(crate) use crate::http::retry::{
     DumpCancelled, RetryMode, RetryPolicy, is_cancelled, send_checked_with_retry,
 };
+
+/// 1.2-1c: send one search page whose request body carries `size`, halving the page on an
+/// HTTP 429 that a smaller page can fix (a circuit breaker: the page did not fit the heap).
+///
+/// While the page holds more than one document, the request is sent without 429 retries so
+/// the breaker answer comes back at once; the page is then halved (in `body`, so every later
+/// page of the slice stays at the smaller size: it never grows back within a run), the call
+/// waits the first retry delay with jitter and tries again. At one document, or for any other
+/// 429 (a full search queue), the normal `--retryAttempts` policy applies, and a final 429
+/// still exits 4 (rerun-safe). Only for requests that may be repeated with a different size:
+/// initial scroll searches, PIT and `search_after` pages (a scroll continuation cannot change
+/// its size and keeps the plain retry).
+pub(crate) async fn send_page_halving<F, Fut>(
+    ctx: &super::context::RetrievalContext,
+    slice_id: usize,
+    operation: &str,
+    mode: RetryMode,
+    body: &mut Value,
+    send: F,
+) -> Result<Bytes>
+where
+    F: Fn(Body) -> Fut,
+    Fut: std::future::Future<Output = std::result::Result<reqwest::Response, crate::http::SendError>>,
+{
+    let send = &send;
+    loop {
+        let size = body["size"].as_u64().unwrap_or(0);
+        let halvable = size > 1 && ctx.retry.retries_429();
+        let policy = if halvable {
+            ctx.retry.without_429()
+        } else {
+            ctx.retry
+        };
+        let req = Body::sonic(body);
+        let req = &req;
+        match send_checked_with_retry(policy, &ctx.cancel, mode, slice_id, operation, move || {
+            send(req.clone())
+        })
+        .await
+        {
+            Ok(bytes) => return Ok(bytes),
+            Err(e) if halvable && crate::http::retry::is_size_429(&e) => {
+                let smaller = (size / 2).max(1);
+                warn!(
+                    "Slice {slice_id}: {operation} rejected with HTTP 429 (circuit breaker: the page did not fit the server's memory); halving the page from {size} to {smaller} documents for the rest of this run"
+                );
+                if let Some(obj) = body.as_object_mut() {
+                    obj.insert(&"size", sonic_rs::json!(smaller));
+                }
+                tokio::select! {
+                    _ = tokio::time::sleep(ctx.retry.jittered_first_delay()) => {}
+                    _ = ctx.cancel.cancelled() => return Err(anyhow::Error::new(DumpCancelled)),
+                }
+            }
+            // another 429 (a full queue): the normal retry policy, same page size
+            Err(e) if halvable && crate::http::retry::is_http_429(&e) => {
+                return send_checked_with_retry(
+                    ctx.retry,
+                    &ctx.cancel,
+                    mode,
+                    slice_id,
+                    operation,
+                    move || send(req.clone()),
+                )
+                .await;
+            }
+            Err(e) => return Err(e),
+        }
+    }
+}
 
 /// Default PIT sort when the user supplied none: `["_shard_doc"]` on
 /// Elasticsearch, `[{"_doc":"asc"},{"_id":"asc"}]` on OpenSearch (which

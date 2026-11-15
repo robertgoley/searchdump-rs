@@ -3,7 +3,7 @@
 
 use std::collections::{BTreeSet, HashSet};
 use std::io::Write;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -247,6 +247,9 @@ pub struct BulkSink {
     data_stream_hint_shown: Arc<AtomicBool>,
     /// L-812: the data-stream custom-routing explanation, once per run.
     routing_hint_shown: Arc<AtomicBool>,
+    /// 1.2-1c: bulk byte cap lowered after an HTTP 429 split (0 = `--maxBulkBytes` as given),
+    /// shared by the workers; it only ever goes down within a run.
+    split_cap: Arc<AtomicUsize>,
 }
 
 /// 1.1-6: one batch, validated and encoded, ready to send. Owns its input lines so the send
@@ -632,6 +635,7 @@ impl BulkSink {
             conflict_hint_shown: Arc::new(AtomicBool::new(false)),
             data_stream_hint_shown: Arc::new(AtomicBool::new(false)),
             routing_hint_shown: Arc::new(AtomicBool::new(false)),
+            split_cap: Arc::new(AtomicUsize::new(0)),
         }
     }
 
@@ -786,6 +790,7 @@ impl BulkSink {
             conflict_hint_shown: Arc::clone(&self.conflict_hint_shown),
             data_stream_hint_shown: Arc::clone(&self.data_stream_hint_shown),
             routing_hint_shown: Arc::clone(&self.routing_hint_shown),
+            split_cap: Arc::clone(&self.split_cap),
         }
     }
 
@@ -1082,7 +1087,12 @@ impl BulkSink {
 
     /// Send one bulk body. Returns the response and whether the request was sent more than
     /// once (a retry after a failure that may have happened after the cluster applied it).
-    async fn send_bulk(&self, body: Vec<u8>, mode: RetryMode) -> Result<(Bytes, bool)> {
+    async fn send_bulk(
+        &self,
+        body: Vec<u8>,
+        mode: RetryMode,
+        splittable: bool,
+    ) -> Result<(Bytes, bool)> {
         let segments = self.bulk_segments();
         let seg_refs: Vec<&str> = segments.iter().map(String::as_str).collect();
         let seg_refs = &seg_refs;
@@ -1091,11 +1101,27 @@ impl BulkSink {
         let client = &self.client;
         let sends = std::sync::atomic::AtomicUsize::new(0);
         let sends = &sends;
-        let resp = send_with_retry(self.opts.retry, &self.cancel, mode, "bulk", move || {
+        // 1.2-1c: a request that can be split gets no 429 retries of the same body: a size
+        // 429 comes back at once for write_chunk to split; any other 429 is retried below.
+        let policy = if splittable {
+            self.opts.retry.without_429()
+        } else {
+            self.opts.retry
+        };
+        let send = move || {
             sends.fetch_add(1, Ordering::Relaxed);
             client.send(Method::POST, seg_refs, &[], true, body.clone())
-        })
-        .await?;
+        };
+        let resp = match send_with_retry(policy, &self.cancel, mode, "bulk", send).await {
+            Err(e)
+                if splittable
+                    && crate::http::retry::is_http_429(&e)
+                    && !crate::http::retry::is_size_429(&e) =>
+            {
+                send_with_retry(self.opts.retry, &self.cancel, mode, "bulk", send).await?
+            }
+            r => r?,
+        };
         Ok((resp, sends.load(Ordering::Relaxed) > 1))
     }
 
@@ -1198,6 +1224,7 @@ impl BulkSink {
         self.batch_indices.extend(indices);
         let mut start = 0;
         while start < docs.len() {
+            let max_bulk_bytes = self.max_bulk_bytes();
             // Split oversized batches at --maxBulkBytes. The encoded documents are contiguous
             // in `encoded`, so a chunk is one byte range of it (L-808p: sized first, then
             // moved when it is the whole batch, the common case, instead of copied).
@@ -1207,8 +1234,8 @@ impl BulkSink {
                 let before = len;
                 len += docs[end].1.len();
                 end += 1;
-                if len >= self.opts.max_bulk_bytes && end - start >= 1 {
-                    if len > self.opts.max_bulk_bytes && end - start > 1 {
+                if len >= max_bulk_bytes && end - start >= 1 {
+                    if len > max_bulk_bytes && end - start > 1 {
                         len = before;
                         end -= 1;
                     }
@@ -1265,8 +1292,69 @@ impl BulkSink {
         Ok(())
     }
 
+    /// The bulk byte cap in force: `--maxBulkBytes`, or lower after an HTTP 429 split.
+    fn max_bulk_bytes(&self) -> usize {
+        match self.split_cap.load(Ordering::Relaxed) {
+            0 => self.opts.max_bulk_bytes,
+            cap => cap.min(self.opts.max_bulk_bytes),
+        }
+    }
+
+    /// 1.2-1c: write one chunk; a whole bulk request refused with an HTTP 429 that a smaller
+    /// request can fix (circuit breaker, indexing pressure) is split in half and the halves
+    /// are written in order, down to one document. Nothing of a refused request was applied,
+    /// so only those (unacknowledged) documents are sent again. Later chunks start at the
+    /// smaller size (the cap never grows back within a run).
     async fn write_chunk(&mut self, chunk: &[&[u8]], body: Vec<u8>) -> Result<()> {
-        let mut pending: Vec<usize> = (0..chunk.len()).collect();
+        let mut todo: Vec<(Vec<usize>, Vec<u8>)> = vec![((0..chunk.len()).collect(), body)];
+        while let Some((pending, body)) = todo.pop() {
+            let len = body.len();
+            let Some(rest) = self.write_pending(chunk, pending, body).await? else {
+                continue;
+            };
+            // `rest` (2+ documents, none applied) was refused as a whole: split it
+            let mid = rest.len() / 2;
+            let (a, b) = rest.split_at(mid);
+            let mut body_a = Vec::new();
+            for &i in a {
+                self.encode_doc(chunk[i], &mut body_a)?;
+            }
+            let mut body_b = Vec::new();
+            for &i in b {
+                self.encode_doc(chunk[i], &mut body_b)?;
+            }
+            let cap = (len / 2).max(1);
+            let before = self.split_cap.fetch_min(cap, Ordering::Relaxed);
+            if before == 0 {
+                self.split_cap.store(cap, Ordering::Relaxed);
+            }
+            log::warn!(
+                "bulk request of {} document(s) ({} KB) rejected with HTTP 429 (the server's memory limit); splitting it in half and sending later bulks at <= {} KB",
+                rest.len(),
+                len.div_ceil(1024),
+                self.max_bulk_bytes().div_ceil(1024)
+            );
+            tokio::select! {
+                _ = tokio::time::sleep(self.opts.retry.jittered_first_delay()) => {}
+                _ = self.cancel.cancelled() => return Err(anyhow::Error::new(crate::http::DumpCancelled)),
+            }
+            // LIFO: the first half goes out first, keeping the input order
+            todo.push((b.to_vec(), body_b));
+            todo.push((a.to_vec(), body_a));
+        }
+        Ok(())
+    }
+
+    /// Send `pending` (documents of `chunk`, already encoded in `body`) and retry the items the
+    /// cluster rejected with 429/503. Returns `Some(pending)` when the whole request of 2+
+    /// documents was refused with a size 429 before anything was applied (the caller splits).
+    async fn write_pending(
+        &mut self,
+        chunk: &[&[u8]],
+        pending: Vec<usize>,
+        body: Vec<u8>,
+    ) -> Result<Option<Vec<usize>>> {
+        let mut pending = pending;
         let mut body = body;
         let mut attempt = 0usize;
         loop {
@@ -1278,8 +1366,12 @@ impl BulkSink {
             } else {
                 RetryMode::Idempotent
             };
-            let (resp, resent) = match self.send_bulk(body, mode).await {
+            let splittable = pending.len() > 1 && self.opts.retry.retries_429();
+            let (resp, resent) = match self.send_bulk(body, mode, splittable).await {
                 Ok(r) => r,
+                Err(e) if splittable && crate::http::retry::is_size_429(&e) => {
+                    return Ok(Some(pending));
+                }
                 Err(e)
                     if auto > 0
                         && !crate::http::is_cancelled(&e)
@@ -1296,7 +1388,7 @@ impl BulkSink {
             }
             let rejected = self.handle_response(&resp, chunk, &pending, resent)?;
             if rejected.is_empty() {
-                return Ok(());
+                return Ok(None);
             }
             if attempt >= self.opts.retry.attempts {
                 for (i, item) in &rejected {
@@ -1305,7 +1397,7 @@ impl BulkSink {
                         &format!("rejected (429/503) after {attempt} retries: {item}"),
                     )?;
                 }
-                return Ok(());
+                return Ok(None);
             }
             let delay = self
                 .opts

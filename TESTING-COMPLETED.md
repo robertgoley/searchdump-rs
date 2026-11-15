@@ -6,7 +6,7 @@ A one-screen engine coverage matrix (dump, restore, PIT, slices, storage, TLS) i
 
 Every test task with a commit on `main`, oldest first within each group. The commit message is the short result; full results, numbers and findings for each task are in [`project/plan/PROGRESS.md`](project/plan/PROGRESS.md), and the requirement IDs are in [`project/plan/TEST-REQUIREMENTS.md`](project/plan/TEST-REQUIREMENTS.md).
 
-Total: 234 task commits (including follow-up fixes with a letter suffix). Last updated from commit L2-002 (`git log -1 --grep '^L2-002'`; the next commit fills in its sha).
+Total: 235 task commits (including follow-up fixes with a letter suffix). Last updated from commit L2-003 (`git log -1 --grep '^L2-003'`; the next commit fills in its sha).
 
 ## Setup and planning (L-0xx)
 
@@ -344,4 +344,5 @@ Rootless podman 5.4.2 with `--network=host`, debug build, Rust 1.85.1 (L-809a) a
 | Task | Commit | Date | Result |
 |---|---|---|---|
 | L2-001 | 73d38f5 | 2026-11-15 | 1.2-1a: RC multi slowdown not reproducible: the suite runs --noDefaultDataFlags so the 1.1-10 probe and 1000-doc pages never run; 1.1.0 = beta1 (es710-secure multi-dump-p8 0.345 s vs 0.421 s); section 9 PROVISIONAL choices; automax design only (section 13, FEATURES-TODO 1.2-2) |
-| L2-002 | this commit | 2026-11-15 | 1.2-1b: worker/page matrix on es710/es819 256m/384m with 1.1.0 (12/24 cells pass; fewer workers with full pages most reliable; es710 256m dies, es819 429s) |
+| L2-002 | 67d8ee6 | 2026-11-15 | 1.2-1b: worker/page matrix on es710/es819 256m/384m with 1.1.0 (12/24 cells pass; fewer workers with full pages most reliable; es710 256m dies, es819 429s) |
+| L2-003 | this commit | 2026-11-15 | 1.2-1c: 429 page halving (search) and bulk splitting (breaker/indexing-pressure), never grows back; gates + 5 IT profiles pass |

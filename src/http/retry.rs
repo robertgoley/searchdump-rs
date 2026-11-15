@@ -422,6 +422,65 @@ impl RetryPolicy {
 
 pub const MAX_RETRY_DELAY: Duration = Duration::from_secs(30);
 
+impl RetryPolicy {
+    /// 1.2-1c: whether this policy retries an HTTP 429 at all (`--retryAttempts` > 0 and 429
+    /// in `--retryOn`). Page halving and bulk splitting are retries too, so they follow it.
+    pub fn retries_429(&self) -> bool {
+        self.attempts > 0 && self.retry_on.status(429)
+    }
+
+    /// 1.2-1c: the same policy without HTTP 429 retries, so a 429 reaches the caller at once
+    /// (to halve a page or split a bulk) instead of after every retry of the same request.
+    pub fn without_429(&self) -> Self {
+        let mut p = *self;
+        p.retry_on.s429 = false;
+        for s in p.retry_on.extra.iter_mut() {
+            if *s == 429 {
+                *s = 0;
+            }
+        }
+        p
+    }
+
+    /// 1.2-1c: the delay before the next halved / split attempt: the first retry delay with
+    /// +-50 % jitter (so parallel workers that were rejected together do not come back
+    /// together), at least 50 ms.
+    pub fn jittered_first_delay(&self) -> Duration {
+        let base = self.delay_for(0).max(Duration::from_millis(100));
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.subsec_nanos())
+            .unwrap_or(0);
+        // 0.5 .. 1.5 x base
+        let frac = 0.5 + f64::from(nanos % 1000) / 1000.0;
+        base.mul_f64(frac).max(Duration::from_millis(50))
+    }
+}
+
+/// 1.2-1c: an HTTP 429 answer (any type).
+pub fn is_http_429(error: &anyhow::Error) -> bool {
+    error
+        .downcast_ref::<EsHttpError>()
+        .is_some_and(|h| h.status == 429)
+}
+
+/// 1.2-1c: an HTTP 429 that a smaller request can fix: a circuit breaker
+/// (`circuit_breaking_exception`, the request did not fit the heap) or indexing pressure
+/// (`es_rejected_execution_exception` naming the indexing-pressure / memory limit). A plain
+/// full thread-pool queue (`es_rejected_execution_exception` without a memory limit) is not:
+/// a smaller request waits in the same queue, so it gets the normal retry.
+pub fn is_size_429(error: &anyhow::Error) -> bool {
+    error.downcast_ref::<EsHttpError>().is_some_and(|h| {
+        h.status == 429
+            && (h.error_type_is("circuit_breaking_exception")
+                || (h.error_type_is("es_rejected_execution_exception")
+                    && (h.body.contains("indexing_pressure")
+                        || h.body.contains("indexing pressure")
+                        || h.body.contains("_bytes")
+                        || h.body.contains("memory"))))
+    })
+}
+
 /// How a request may be retried.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RetryMode {
@@ -1247,6 +1306,50 @@ mod tests {
             e("plain text".into()),
             "Elasticsearch op failed with HTTP 400: plain text"
         );
+    }
+
+    /// 1.2-1c: which 429s a smaller request can fix, and the no-429 policy.
+    #[test]
+    fn size_429_classification_and_policy_without_429() {
+        let e = |status: u16, body: &str| {
+            anyhow::Error::new(EsHttpError {
+                prefix: String::new(),
+                operation: "bulk".into(),
+                status,
+                body: body.into(),
+                endpoint: String::new(),
+            })
+        };
+        let breaker = r#"{"error":{"type":"circuit_breaking_exception","reason":"[parent] Data too large"},"status":429}"#;
+        let pressure = r#"{"error":{"type":"es_rejected_execution_exception","reason":"rejected execution of coordinating operation [coordinating_and_primary_bytes=1, max_coordinating_and_primary_bytes=2]"},"status":429}"#;
+        let queue = r#"{"error":{"type":"es_rejected_execution_exception","reason":"rejected execution on EsThreadPoolExecutor[name = n/write, queue capacity = 200]"},"status":429}"#;
+        assert!(is_size_429(&e(429, breaker)));
+        assert!(is_size_429(&e(429, pressure)));
+        assert!(!is_size_429(&e(429, queue)));
+        assert!(is_http_429(&e(429, queue)));
+        assert!(!is_size_429(&e(503, breaker)));
+        assert!(!is_http_429(&anyhow!("plain")));
+        let mut p = RetryPolicy::none();
+        assert!(!p.retries_429(), "0 attempts: no halving either");
+        p.attempts = 3;
+        assert!(p.retries_429());
+        let q = p.without_429();
+        assert!(!q.retry_on.status(429) && q.retry_on.status(503) && q.attempts == 3);
+        p.retry_on = RetryOn::parse("network,5xx").unwrap();
+        assert!(!p.retries_429(), "--retryOn without 429 turns halving off");
+        p.retry_on = RetryOn::parse("429").unwrap();
+        assert!(p.retries_429());
+        p.retry_on = RetryOn::parse("network,500").unwrap();
+        p.retry_on.extra[1] = 429;
+        assert!(!p.without_429().retry_on.status(429));
+        p.base_delay = Duration::from_millis(1000);
+        for _ in 0..20 {
+            let d = p.jittered_first_delay();
+            assert!(
+                d >= Duration::from_millis(500) && d <= Duration::from_millis(1500),
+                "{d:?}"
+            );
+        }
     }
 
     /// L-804a: a final HTTP 429 names the knobs that help (storm runs exited with the raw

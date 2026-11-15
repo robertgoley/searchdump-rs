@@ -6617,3 +6617,193 @@ async fn l812_routed_documents_into_a_data_stream_are_named_once() {
     assert_eq!(err.matches("allow_custom_routing").count(), 1, "{err}");
     assert!(err.contains("Failed Writes: 2"), "{err}");
 }
+
+// L2-003 (1.2-1c): a whole `_bulk` request refused with HTTP 429 by a circuit breaker is split in
+// half (down to what fits) instead of being re-sent unchanged until the retries run out. Every
+// document is written exactly once, in input order, and later bulks start at the smaller size.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn l2_003_bulk_breaker_429_splits_the_request_in_half() {
+    let dir = tempfile::tempdir().unwrap();
+    let input = dir.path().join("in.json");
+    let lines: String = (0..16).fold(String::new(), |mut acc, i| {
+        acc.push_str(&hit(&format!("d{i:02}"), r#"{"f":"x"}"#));
+        acc.push('\n');
+        acc
+    });
+    std::fs::write(&input, lines).unwrap();
+    let docs_in = |b: &[u8]| b.split(|c| *c == b'\n').filter(|l| !l.is_empty()).count() / 2;
+    let breaker = r#"{"error":{"root_cause":[{"type":"circuit_breaking_exception","reason":"[parent] Data too large"}],"type":"circuit_breaking_exception","reason":"[parent] Data too large, data for [<http_request>] would be [154mb]"},"status":429}"#;
+    let ok2 =
+        r#"{"took":1,"errors":false,"items":[{"index":{"status":201}},{"index":{"status":201}}]}"#;
+    let m = RouterMock::builder()
+        .route(Route::exact("GET", "/").reply(Reply::ok(INFO)))
+        .route(
+            Route::contains("POST", "/_bulk")
+                .body(move |b| docs_in(b) > 2)
+                .reply(Reply::json(429, breaker)),
+        )
+        .route(
+            Route::contains("POST", "/_bulk")
+                .body(move |b| docs_in(b) == 2)
+                .reply(Reply::ok(ok2)),
+        )
+        .fallback(Reply::ok(
+            r#"{"_shards":{"total":1,"successful":1,"failed":0}}"#,
+        ))
+        .start()
+        .await;
+    let o = run_async(
+        s(&[
+            "--input",
+            input.to_str().unwrap(),
+            "--output",
+            &format!("{}/dst", m.url()),
+            "--noRefresh",
+            "--limit",
+            "8",
+            "--retryAttempts",
+            "3",
+            "--retryDelay",
+            "1",
+        ]),
+        vec![],
+    )
+    .await;
+    let e = stderr(&o);
+    assert_eq!(o.status.code(), Some(0), "{e}");
+    assert!(e.contains("Total Writes: 16"), "{e}");
+    assert!(e.contains("splitting it in half"), "{e}");
+    let bulks: Vec<String> = m
+        .requests()
+        .iter()
+        .filter(|r| r.path.ends_with("/_bulk"))
+        .map(|r| r.body_str())
+        .collect();
+    let ok_ids: Vec<String> = bulks
+        .iter()
+        .filter(|b| docs_in(b.as_bytes()) == 2)
+        .flat_map(|b| {
+            b.lines()
+                .filter(|l| l.contains("\"index\""))
+                .map(|l| l.split("\"_id\":\"").nth(1).unwrap()[..3].to_string())
+                .collect::<Vec<_>>()
+        })
+        .collect();
+    let want: Vec<String> = (0..16).map(|i| format!("d{i:02}")).collect();
+    assert_eq!(ok_ids, want, "each document once, in order");
+    // batch 1: 8 -> 4+4 -> 2+2+2+2 (7 requests); batch 2 starts at the lowered cap (4 docs
+    // fit 2 x 2-doc requests after one more split at most), never at the full 8 again
+    let first_batch_8 = bulks.iter().filter(|b| docs_in(b.as_bytes()) == 8).count();
+    assert_eq!(
+        first_batch_8, 1,
+        "the 8-document bulk is sent once: {bulks:?}"
+    );
+}
+
+// L2-003 (1.2-1c): a 429 for a full write queue (no memory limit named) is not a size problem:
+// the same bulk is retried unchanged, as before 1.2.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn l2_003_bulk_queue_full_429_is_retried_unsplit() {
+    let dir = tempfile::tempdir().unwrap();
+    let input = dir.path().join("in.json");
+    let lines: String = (0..4).fold(String::new(), |mut acc, i| {
+        acc.push_str(&hit(&format!("q{i}"), "{}"));
+        acc.push('\n');
+        acc
+    });
+    std::fs::write(&input, lines).unwrap();
+    let queue = r#"{"error":{"type":"es_rejected_execution_exception","reason":"rejected execution of coordinating operation on EsThreadPoolExecutor[name = n/write, queue capacity = 200]"},"status":429}"#;
+    let ok4 = r#"{"took":1,"errors":false,"items":[{"index":{"status":201}},{"index":{"status":201}},{"index":{"status":201}},{"index":{"status":201}}]}"#;
+    let m = RouterMock::builder()
+        .route(Route::exact("GET", "/").reply(Reply::ok(INFO)))
+        .route(Route::contains("POST", "/_bulk").replies([
+            Reply::json(429, queue),
+            Reply::json(429, queue),
+            Reply::ok(ok4),
+        ]))
+        .fallback(Reply::ok(
+            r#"{"_shards":{"total":1,"successful":1,"failed":0}}"#,
+        ))
+        .start()
+        .await;
+    let o = run_async(
+        s(&[
+            "--input",
+            input.to_str().unwrap(),
+            "--output",
+            &format!("{}/dst", m.url()),
+            "--noRefresh",
+            "--retryAttempts",
+            "3",
+            "--retryDelay",
+            "1",
+        ]),
+        vec![],
+    )
+    .await;
+    let e = stderr(&o);
+    assert_eq!(o.status.code(), Some(0), "{e}");
+    assert!(e.contains("Total Writes: 4"), "{e}");
+    assert!(!e.contains("splitting"), "{e}");
+    let bulks: Vec<String> = m
+        .requests()
+        .iter()
+        .filter(|r| r.path.ends_with("/_bulk"))
+        .map(|r| r.body_str())
+        .collect();
+    assert_eq!(bulks.len(), 3, "{e}");
+    assert!(bulks.iter().all(|b| b == &bulks[0]), "unchanged body");
+}
+
+// L2-003 (1.2-1c): the initial scroll search refused by the circuit breaker (HTTP 429, the 8.19
+// 256m `[fetch source]` case) is repeated with half the page, and the rest of the scroll keeps
+// the smaller page; the dump completes with every document.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn l2_003_scroll_breaker_429_halves_the_page() {
+    let dir = tempfile::tempdir().unwrap();
+    let out = dir.path().join("out.json");
+    let breaker = r#"{"error":{"type":"circuit_breaking_exception","reason":"[parent] Data too large, data for [fetch source] would be [161mb]"},"status":429}"#;
+    let hits: Vec<String> = (0..4)
+        .map(|i| hit(&format!("h{i}"), r#"{"f":1}"#))
+        .collect();
+    let m = RouterMock::builder()
+        .route(Route::exact("GET", "/").reply(Reply::ok(INFO)))
+        .route(
+            Route::prefix("POST", "/idx/_search")
+                .body_contains("\"size\":8")
+                .reply(Reply::json(429, breaker)),
+        )
+        .route(
+            Route::prefix("POST", "/idx/_search")
+                .body_contains("\"size\":4")
+                .reply(Reply::ok(page("s1", &hits, 4))),
+        )
+        .route(Route::exact("POST", "/_search/scroll").reply(Reply::ok(page("s1", &[], 4))))
+        .route(Route::prefix("DELETE", "/_search/scroll").reply(Reply::ok(CLEARED)))
+        .fallback(Reply::json(404, r#"{"error":"nope"}"#))
+        .start()
+        .await;
+    let o = run_async(
+        s(&[
+            "--input",
+            &format!("{}/idx", m.url()),
+            "--output",
+            out.to_str().unwrap(),
+            "--limit",
+            "8",
+            "--retryAttempts",
+            "3",
+            "--retryDelay",
+            "1",
+        ]),
+        vec![],
+    )
+    .await;
+    let e = stderr(&o);
+    assert_eq!(o.status.code(), Some(0), "{e}");
+    assert!(e.contains("halving the page from 8 to 4"), "{e}");
+    let written = std::fs::read_to_string(&out).unwrap();
+    assert_eq!(written.lines().count(), 4, "{written}");
+    let searches = count(&m.requests(), "POST", "/idx/_search");
+    assert_eq!(searches, 2, "one refused, one at half size");
+}
