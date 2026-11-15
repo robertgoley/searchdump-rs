@@ -2,7 +2,7 @@
 # shellcheck shell=bash
 
 : "${CONTAINER_ENGINE:=podman}"
-: "${SEARCHDUMP_IMAGE:=ghcr.io/robertgoley/searchdump-rs:1.0.0-dhi-debian}"
+: "${SEARCHDUMP_IMAGE:=ghcr.io/robertgoley/searchdump-rs:1.1.0-dhi-debian}"
 : "${NETWORK:=host}"
 : "${ES_URL:=http://127.0.0.1:9200}"
 : "${DEST_ES_URL:=${ES_URL}}"
@@ -212,7 +212,7 @@ quoted_flags() {
   printf '%s' "${out}"
 }
 
-# Exit status 4 (on main after 1.0.0, L-804b): the run failed after its own retries for a
+# Exit status 4 (since 1.1.0, L-804b): the run failed after its own retries for a
 # transient reason (network, HTTP 429/5xx, a lost scroll context) and nothing was written that a
 # rerun would duplicate, so it is safe to run again. rerun_on_4 runs a command and, on exit 4,
 # runs it again up to RERUNS times (default 1) after RERUN_DELAY seconds (default 30). Any other
@@ -234,7 +234,7 @@ rerun_on_4() {
   done
 }
 
-# Optional --restartOnContextLoss=N (on main after 1.0.0): a scroll dump into a file restarts
+# Optional --restartOnContextLoss=N (since 1.1.0): a scroll dump into a file restarts
 # from the start when the cluster loses its scroll context. Not for --searchAfter --pit, and not
 # accepted by 1.0.0 binaries/images, so it is off unless RESTART_ON_CONTEXT_LOSS is set.
 : "${RESTART_ON_CONTEXT_LOSS:=}"
@@ -245,7 +245,7 @@ restart_flags() {
   fi
 }
 
-# --httpAuthFile wins (on main after 1.0.0, L-645b): when it is set, its user/password is used for
+# --httpAuthFile wins (since 1.1.0, L-645b): when it is set, its user/password is used for
 # both directions, and URL credentials, --input-*/--output-* user flags and SEARCHDUMP_*_USERNAME/
 # _PASSWORD are ignored (with a warning). Say so here before the run.
 warn_auth_file_wins() {

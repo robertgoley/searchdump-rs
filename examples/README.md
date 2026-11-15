@@ -1,10 +1,8 @@
 # Examples
 
-Worked dump and restore commands for [searchdump-rs](../README.md). They use only flags that
-exist on current `main` (the 1.0.0 line). They do not use 1.1-only flags such as
-`--refreshInterval` or `--sliceCap`. A few behaviours are new on `main` after the 1.0.0 tag
-(unreleased); the examples mark them and keep working with 1.0.0 binaries and images (see
-[Changes on main after 1.0.0](#changes-on-main-after-100)).
+Worked dump and restore commands for [searchdump-rs](../README.md) 1.1.0. They use only flags
+that also exist in 1.0.0, so they keep working with 1.0.0 binaries and images; the 1.1.0
+behaviours they rely on or mention are marked (see [New in 1.1.0](#new-in-110)).
 
 These are starting points, not a production runbook. Adjust URLs, index names, resource
 limits and page sizes for your cluster, and test outside production first.
@@ -16,7 +14,7 @@ documents, mappings and settings) against the source.
 
 Credentials belong in `SEARCHDUMP_INPUT_USERNAME` / `SEARCHDUMP_INPUT_PASSWORD`,
 `SEARCHDUMP_OUTPUT_*`, `--httpAuthFile`, or `--inputStorageConfig` / `--outputStorageConfig`
-(or the `SEARCHDUMP_*_STORAGE_CONFIG` environment variables). On `main` after 1.0.0 an
+(or the `SEARCHDUMP_*_STORAGE_CONFIG` environment variables). Since 1.1.0 an
 `--httpAuthFile` **wins** over every other credential source for both directions, so use it only
 when both sides share one user. Never put a password or access
 key in a URL. The templates in this directory leave secret values blank; copy them, fill in a
@@ -25,15 +23,17 @@ private file (`chmod 600`), and do not commit the filled copy.
 The default container image in the Kubernetes and Docker/Podman examples is the project's
 dhi.io Debian image with a shell:
 
-- published: `ghcr.io/robertgoley/searchdump-rs:1.0.0-dhi-debian`
-- local `make image` / `scripts/build-image.sh`: `localhost/searchdump-rs:1.0.0` (and
+- published: `ghcr.io/robertgoley/searchdump-rs:1.1.0-dhi-debian` (published when `v1.1.0` is
+  released; until then use a `:1.0.0-*` tag or a local image, and leave the 1.1.0-only options
+  below off)
+- local `make image` / `scripts/build-image.sh`: `localhost/searchdump-rs:1.1.0` (and
   `:latest`)
 
 The image entrypoint is `searchdump`; `searchdump-multi` is next to it. It runs as uid 65532,
 and `/data` is the writable working directory. The shell-less `dhi-static` image is not used
 here, because several examples run a short `sh` loop (settings, then mapping, then data).
 `sftp://` does not work inside the published 1.0.0 images (no `ssh` client); use `s3://`,
-`b2://`, `fs://`, or the host binaries for SFTP. Images built from `main` after 1.0.0
+`b2://`, `fs://`, or the host binaries for SFTP. 1.1.0 images
 (`make image`, `make image-public`, `make image-alpine`, `make image-dhi-alpine`) include the
 OpenSSH client, so `sftp://` works there; `dhi-static` still has none. Give the key with
 `key_file` in a storage-config INI mounted read-only and readable by uid 65532, and pre-seed
@@ -59,7 +59,7 @@ Each case has a dump and a restore (cluster-to-cluster copy is a single run). Sh
 | 1 | permanent failure (bad URL or credentials, TLS, mapping errors, ...) | fix the cause first |
 | 2 | usage error | fix the command line |
 | 3 | finished, but some documents failed to write | read the item errors; rerun only after fixing them |
-| 4 | **on `main` after 1.0.0:** a transient failure after all retries (network, HTTP 429/5xx, lost scroll context) where nothing was written that a rerun would duplicate | **safe to rerun** as is, after a pause |
+| 4 | **since 1.1.0:** a transient failure after all retries (network, HTTP 429/5xx, lost scroll context) where nothing was written that a rerun would duplicate | **safe to rerun** as is, after a pause |
 | 130 / 143 | interrupted (SIGINT / SIGTERM) | rerun |
 
 1.0.0 reports transient failures as 1. The bash and Docker/Podman dump and cluster-copy scripts
@@ -77,21 +77,23 @@ a Bitnami / constrained Elasticsearch or OpenSearch node.
 
 - `searchdump` already defaults to `--limit=100` and `--concurrency=1`. The examples also set
   `--workers=1`, a modest `--maxResponseMb`, and (on restore) `--concurrency=1`.
-- **`searchdump-multi` default data flags are too heavy for a small heap.** On `main` and
-  1.0.0, every data child gets `--limit=5000`, `--maxResponseMb=0` (no response-size cap) and
+- **`searchdump-multi` 1.0.0 default data flags are too heavy for a small heap.** In 1.0.0,
+  every data child gets `--limit=5000`, `--maxResponseMb=0` (no response-size cap) and
   `--scrollTime=10m`, from `DATA_FLAGS` in `src/bin/searchdump-multi.rs`. A single 5000-document
   page can take the node down during a **dump**, even with one thread and one shard: on
   2026-11-14 a 256 MB-heap Elasticsearch 7.10.2 or 8.6.1 (bitnamilegacy) died with
   `OutOfMemoryError`, and 8.19.23 answered HTTP 429 (`circuit_breaking_exception`) until the
-  retries ran out. Pass `-- --limit=500 --maxResponseMb=64` (a flag after `--` replaces the
-  default of the same name) or `--noDefaultDataFlags` and set `--limit` yourself. Also use
-  `--parallel=1`.
+  retries ran out. With 1.0.0 pass `-- --limit=500 --maxResponseMb=64` (a flag after `--`
+  replaces the default of the same name) or `--noDefaultDataFlags` and set `--limit` yourself.
+  Also use `--parallel=1`. The examples pass these overrides, so they are safe on both versions.
 - **On a `searchdump-multi` load, also cap the bulk size:** `-- --maxBulkBytes=16mb`. The default
   100 MB bulk of 5000 large documents was refused with HTTP 429 (`indexing_pressure`, 10 % of
   the heap) even by a 1 GB heap. The multi-index restore examples pass `MAX_BULK_BYTES`
   (default `16mb`).
-- 1.1 (item 1.1-10, on the `release/1.1` branch, not on `main`) changes these defaults; until it
-  ships, use the overrides above.
+- **1.1.0 (item 1.1-10) changes these defaults:** data children page 1000 documents (fewer when
+  the index's documents average over 16 KB stored, about 16 MB per page), keep the 256 MB response
+  cap, and split loads into 16 MB bulks. `scripts/load/lowheap.py` checks dump and load with these
+  defaults on 256 MB and 384 MB heaps (ES 7.10.2, 8.6.1, 8.19.23, 9.1.2).
 
 Gzip (or zstd at `--compressionLevel=1`) is fine here; the point is the small page size, not the codec.
 
@@ -106,20 +108,22 @@ compression on responses.
 
 Set `--slices` to the **primary shard count** of the index, not higher. On Elasticsearch 7.10
 and earlier (and some OpenSearch builds) too many slices fall back to `_id` slicing and can
-be slower than an unsliced scroll. There is no `--sliceCap` on `main`; you have to pick `N`
+be slower than an unsliced scroll. 1.1.0 caps `--slices` to the primary-shard count on
+Elasticsearch 7.10 by default (`--sliceCap=auto`); on other engines, and with 1.0.0, pick `N`
 yourself.
 
 On restore and on cluster-to-cluster copy, raise `--concurrency` (concurrent write batches)
 and consider `--noRefresh` so the cluster is not asked to refresh after every bulk batch.
-`--noRefresh` exists on `main`; do not invent `--refreshInterval`.
+1.1.0 already refreshes at most every 5 seconds plus once at the end (`--refreshInterval`), so
+`--noRefresh` matters most with 1.0.0, which refreshes after every batch.
 
 Faster also means heavier: more client CPU and memory, and more load on the cluster.
 
 ### Very large index
 
 Split the data file with `--fileSize` (for example `1gb`) or `--maxRows`, and give the scroll
-a longer `--scrollTime` (for example `30m`) so a slow page does not expire the context. On `main`
-after 1.0.0, `--restartOnContextLoss=N` (set `RESTART_ON_CONTEXT_LOSS=N` in the very-large-index
+a longer `--scrollTime` (for example `30m`) so a slow page does not expire the context. Since
+1.1.0, `--restartOnContextLoss=N` (set `RESTART_ON_CONTEXT_LOSS=N` in the very-large-index
 examples) restarts a scroll dump into a file from the start, up to N times, when the cluster
 loses the scroll context; the parts written so far are discarded and rewritten (checked
 2026-11-14: a context deleted mid-dump of 20,000 documents into 11 `--fileSize` parts ended with
@@ -136,7 +140,7 @@ Restoring a split dump with `searchdump` takes one invocation per part, in order
 
 ### Secure TLS and auth
 
-Use `--httpAuthFile` or the `SEARCHDUMP_*` environment variables (on `main` after 1.0.0 the auth
+Use `--httpAuthFile` or the `SEARCHDUMP_*` environment variables (since 1.1.0 the auth
 file wins when both are set, with a warning naming the replaced sources), plus `--ca` / `--cert` /
 `--key` (or the `--input-*` / `--output-*` forms) for a private CA and optional client
 certificates. Do not use `--insecure` in these examples.
@@ -145,7 +149,7 @@ certificates. Do not use `--insecure` in these examples.
 Its own cluster calls (listing indices, counts) use the process's default trust store, which
 honours `SSL_CERT_FILE` / `SSL_CERT_DIR` via rustls-native-certs. For a private CA, point
 `SSL_CERT_FILE` at a bundle that includes it, or install the CA in the system store. mTLS
-for `searchdump-multi` is not fully wired on `main` (a `-- --cert= --key=` after `--` reaches
+for `searchdump-multi` is not fully wired (1.0.0 and 1.1.0) (a `-- --cert= --key=` after `--` reaches
 only data children, not the parent or settings/mapping runs). Use `searchdump` when you need
 client certificates.
 
@@ -163,7 +167,7 @@ to replace an existing object. The same pattern works with `b2://`. See
 One `searchdump` process per item type (`settings`, `mapping`, then `data`) from
 `--input=https://src:9200/index` to `--output=https://dst:9200/index`. Use
 `SEARCHDUMP_INPUT_*` and `SEARCHDUMP_OUTPUT_*` when the users differ. `--httpAuthFile` gives
-one user to both sides; on `main` after 1.0.0 it wins over the `SEARCHDUMP_*` variables and the
+one user to both sides; since 1.1.0 it wins over the `SEARCHDUMP_*` variables and the
 `--input-*` / `--output-*` user flags, so leave it unset when the users differ (the copy
 scripts print a note when both are set). This is not
 `searchdump-multi --direction=copy`, which copies a dump **directory** between stores and
@@ -174,13 +178,14 @@ does not talk to a cluster.
 `--match` selects indices, `--parallel` runs several at a time, `--compression` sets the data
 codec (`gzip`, `zstd1`, `zstd3`, `none`). Load with `--direction=load`. Add `--resume` on a
 retry, and `--skipExisting` on load if some target indices already exist. On a small-heap
-source, still pass `-- --limit=500` as in [Minimum resources](#minimum-resources), and on a
-small-heap target `-- --maxBulkBytes=16mb`.
+source with 1.0.0, pass `-- --limit=500` as in [Minimum resources](#minimum-resources), and on a
+small-heap target `-- --maxBulkBytes=16mb` (both are the 1.1.0 behaviour already).
 
-## Changes on main after 1.0.0
+## New in 1.1.0
 
-Unreleased; in binaries built from `main` and images from `make image*`, not in the 1.0.0
-release archives or the published `:1.0.0-*` images.
+In 1.1.0 binaries, release archives and images; not in 1.0.0 (see
+[`CHANGELOG.md`](../CHANGELOG.md) and the
+[1.1.0 release notes](../project/release/RELEASE-NOTES-1.1.md)).
 
 - **Exit status 4** for transient failures that are safe to rerun (see
   [Exit status and reruns](#exit-status-and-reruns)). Scripts that test for exactly 1 should
@@ -191,6 +196,11 @@ release archives or the published `:1.0.0-*` images.
   `RESTART_ON_CONTEXT_LOSS`).
 - **OpenSSH client in the images** (not `dhi-static`), so `sftp://` works inside them; the
   Debian images carry no user-admin or init-script tools.
+- **Small-heap-safe `searchdump-multi` data defaults** (1.1-10, see
+  [Minimum resources](#minimum-resources)).
+- **Refresh at most every 5 s** (`--refreshInterval`), **`--sliceCap`** on Elasticsearch 7.10,
+  opt-in **`--scrollDocSort`**, and **`searchdump-multi --verifyCounts`**; the examples do not
+  need them.
 
 ## How to run them
 
@@ -214,7 +224,7 @@ able to write it (the scripts create the directory and explain the permission op
 
 ```bash
 export ES_URL=http://127.0.0.1:9200 INDEX=logs
-# SEARCHDUMP_IMAGE=localhost/searchdump-rs:1.0.0
+# SEARCHDUMP_IMAGE=localhost/searchdump-rs:1.1.0
 examples/docker-podman/minimum-resources-dump.sh
 ```
 

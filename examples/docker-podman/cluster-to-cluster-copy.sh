@@ -2,7 +2,7 @@
 # Copy one index from ES_URL to DEST_ES_URL (settings, mapping, then data).
 # This is searchdump cluster-to-cluster, not searchdump-multi --direction=copy.
 # Set SEARCHDUMP_INPUT_* and SEARCHDUMP_OUTPUT_* when the users differ, and
-# leave HTTP_AUTH_FILE unset then: on main after 1.0.0 the auth file wins.
+# leave HTTP_AUTH_FILE unset then: since 1.1.0 the auth file wins.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=./_common.sh

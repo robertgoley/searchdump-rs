@@ -4,9 +4,9 @@
 # also pins --workers=1 and --maxResponseMb=64.
 #
 # If you change this Job to searchdump-multi, do not keep its data-flag
-# defaults: on main and 1.0.0 every data child gets --limit=5000 and
+# defaults in 1.0.0: every data child gets --limit=5000 and
 # --maxResponseMb=0, which can 429 or OOM a small heap even with one thread
-# and one shard. Pass -- --limit=500 --maxResponseMb=64 (see
+# and one shard (1.1.0's defaults are safe). Pass -- --limit=500 --maxResponseMb=64 (see
 # multi-index-dump.yaml and FEATURES-TODO.md item 1.1-10).
 apiVersion: batch/v1
 kind: Job
@@ -28,7 +28,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: searchdump
-          image: ghcr.io/robertgoley/searchdump-rs:1.0.0-dhi-debian
+          image: ghcr.io/robertgoley/searchdump-rs:1.1.0-dhi-debian
           imagePullPolicy: IfNotPresent
           command:
             - /bin/sh

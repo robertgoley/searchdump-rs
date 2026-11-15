@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Dump one index with small pages inside the dhi.io searchdump image.
 # See examples/README.md for the searchdump-multi small-heap 429 note
-# (bitnamilegacy Elasticsearch): its --limit=5000 / --maxResponseMb=0 is unsafe
+# (bitnamilegacy Elasticsearch): its 1.0.0 --limit=5000 / --maxResponseMb=0 is unsafe
 # on a small heap; this script uses searchdump's own --limit=100 instead.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

@@ -5,7 +5,7 @@
 # existing parts). For many indices, use the searchdump-multi examples with
 # --resume instead.
 #
-# On main after 1.0.0: an exit 4 (transient) is rerun once (RERUNS), and
+# Since 1.1.0: an exit 4 (transient) is rerun once (RERUNS), and
 # RESTART_ON_CONTEXT_LOSS=N adds --restartOnContextLoss=N, so a lost scroll
 # context restarts the dump from the start inside the same run (the parts
 # written so far are discarded). Leave it unset with 1.0.0 binaries.

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Dump every index matching MATCH (default ^logs-) with searchdump-multi.
 #
-# IMPORTANT: on main and 1.0.0, data children default to --limit=5000 and
-# --maxResponseMb=0. That can 429 or OOM a small-heap Elasticsearch node even
+# IMPORTANT: in 1.0.0, data children default to --limit=5000 and
+# --maxResponseMb=0 (1.1.0: 1000 per page, response cap kept). That can 429 or OOM a small-heap Elasticsearch node even
 # with --parallel=1 (reproduced on 256 MB-heap ES 7.10.2 / 8.6.1 / 8.19.23).
 # This script always overrides the page size (-- --limit=500
 # --maxResponseMb=64). Raise LIMIT / PARALLEL on a large, well-resourced

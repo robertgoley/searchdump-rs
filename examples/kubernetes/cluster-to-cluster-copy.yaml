@@ -5,7 +5,7 @@
 # SEARCHDUMP_INPUT_* comes from Secret searchdump-es, SEARCHDUMP_OUTPUT_*
 # from searchdump-es-dest. If both clusters share one user, point the
 # destination secretKeyRef at searchdump-es as well, or copy the Secret.
-# Do not add --httpAuthFile here when the users differ: on main after 1.0.0
+# Do not add --httpAuthFile here when the users differ: since 1.1.0
 # the auth file wins over SEARCHDUMP_INPUT_* / SEARCHDUMP_OUTPUT_* for both
 # clusters.
 apiVersion: batch/v1
@@ -28,7 +28,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: searchdump
-          image: ghcr.io/robertgoley/searchdump-rs:1.0.0-dhi-debian
+          image: ghcr.io/robertgoley/searchdump-rs:1.1.0-dhi-debian
           imagePullPolicy: IfNotPresent
           command:
             - /bin/sh

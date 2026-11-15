@@ -1,8 +1,8 @@
 # Kubernetes examples
 
 Job manifests that run the [dhi.io Debian image](../../README.md#container-image)
-(`ghcr.io/robertgoley/searchdump-rs:1.0.0-dhi-debian`; or a locally loaded
-`localhost/searchdump-rs:1.0.0`). The image entrypoint is `searchdump`;
+(`ghcr.io/robertgoley/searchdump-rs:1.1.0-dhi-debian`, published with `v1.1.0`; or a
+locally loaded `localhost/searchdump-rs:1.1.0`). The image entrypoint is `searchdump`;
 Jobs that need `searchdump-multi` or a short shell loop set `command` accordingly.
 The image runs as uid 65532; every Job sets that user and mounts
 [`pvc.yaml`](pvc.yaml) at `/data`.
@@ -49,7 +49,7 @@ separate Jobs.
 Set `imagePullSecrets` if the cluster cannot pull from GHCR (or load the image
 into the node and set `imagePullPolicy: IfNotPresent`, already the default
 here). For a private CA with `searchdump-multi`, also set `SSL_CERT_FILE` to
-the mounted CA bundle; the multi binary has no `--ca` on main. See
+the mounted CA bundle; the multi binary has no `--ca`. See
 [`../README.md`](../README.md).
 
 A `CronJob` around any dump Job is a natural next step for a scheduled backup.

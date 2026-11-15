@@ -1,7 +1,7 @@
 # Dump every index matching MATCH with searchdump-multi.
 #
-# IMPORTANT: on main and 1.0.0, data children default to --limit=5000 and
-# --maxResponseMb=0. That can 429 or OOM a small-heap Elasticsearch node even
+# IMPORTANT: in 1.0.0, data children default to --limit=5000 and
+# --maxResponseMb=0 (1.1.0: 1000 per page, response cap kept). That can 429 or OOM a small-heap Elasticsearch node even
 # with --parallel=1 (reproduced on 256 MB-heap ES 7.10.2 / 8.6.1 / 8.19.23). This Job always overrides the
 # page size after --. Raise LIMIT / PARALLEL on a large, well-resourced
 # cluster. Set RESUME=1 to add --resume and finish a previous run.
@@ -30,7 +30,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: searchdump
-          image: ghcr.io/robertgoley/searchdump-rs:1.0.0-dhi-debian
+          image: ghcr.io/robertgoley/searchdump-rs:1.1.0-dhi-debian
           imagePullPolicy: IfNotPresent
           command:
             - /bin/sh

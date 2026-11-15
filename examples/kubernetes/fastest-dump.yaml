@@ -1,6 +1,6 @@
 # Fast dump: large pages, more workers, zstd level 1, optional sliced PIT.
-# Set SLICES to the primary shard count of the index (0 = unsliced). There is
-# no --sliceCap on main; too many slices can be slower on Elasticsearch 7.10
+# Set SLICES to the primary shard count of the index (0 = unsliced). 1.1.0 caps
+# it on Elasticsearch 7.10 only (--sliceCap=auto); too many slices can be slower on Elasticsearch 7.10
 # and earlier (and some OpenSearch builds). If the cluster has no PIT, set
 # SLICES to 0 so --searchAfter/--pit are not passed.
 apiVersion: batch/v1
@@ -23,7 +23,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: searchdump
-          image: ghcr.io/robertgoley/searchdump-rs:1.0.0-dhi-debian
+          image: ghcr.io/robertgoley/searchdump-rs:1.1.0-dhi-debian
           imagePullPolicy: IfNotPresent
           command:
             - /bin/sh

@@ -4,7 +4,8 @@
 #
 # Set SLICES to the primary shard count of the index. Values higher than the
 # shard count can be slower on Elasticsearch 7.10 and earlier (and some
-# OpenSearch builds). There is no --sliceCap on main; you pick N yourself.
+# OpenSearch builds). 1.1.0 caps it on ES 7.10 only (--sliceCap=auto); elsewhere
+# you pick N yourself.
 # If the cluster has no PIT, drop --searchAfter and --pit and the run falls
 # back to scroll (or omit them up front).
 set -euo pipefail

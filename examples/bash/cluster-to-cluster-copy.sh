@@ -5,7 +5,7 @@
 #
 # Set SEARCHDUMP_INPUT_* and SEARCHDUMP_OUTPUT_* when the clusters use
 # different users. HTTP_AUTH_FILE is used for both sides when the user is the
-# same; on main after 1.0.0 it wins over SEARCHDUMP_INPUT_*/OUTPUT_*, so do
+# same; since 1.1.0 it wins over SEARCHDUMP_INPUT_*/OUTPUT_*, so do
 # not set both. Optional CA_FILE / CLIENT_CERT / CLIENT_KEY, or the INPUT_* / OUTPUT_*
 # forms when the certs differ.
 set -euo pipefail

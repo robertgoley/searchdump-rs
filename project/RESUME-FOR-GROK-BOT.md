@@ -107,3 +107,4 @@ The user runs Grok 4.7 locally through the OpenCode CLI. The handoff/ folder (op
 - L-818 (2026-11-14): low-memory engine test set lowheap.py; release/1.1 PASS 16/16 (results/local/L-818.md)
 - L-819 (2026-11-14): 1.1 open items closed, version 1.1.0, not tagged (results/local/L-819.md)
 - L-820 (2026-11-14): release/1.1 merged into main; lowheap PASS on main (results/local/L-820.md)
+- L-821 (2026-11-15): examples/ refreshed for 1.1.0 after the main merge (owner t103u)

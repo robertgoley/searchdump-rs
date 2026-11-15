@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Fast dump: large pages, more workers, zstd level 1, optional sliced PIT.
-# Set SLICES to the primary shard count (0 = unsliced). There is no --sliceCap
-# on main; too many slices can be slower on ES 7.10 and earlier.
+# Set SLICES to the primary shard count (0 = unsliced). 1.1.0 caps it on
+# ES 7.10 only (--sliceCap=auto); too many slices can be slower there.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=./_common.sh

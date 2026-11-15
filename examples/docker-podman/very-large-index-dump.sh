@@ -3,8 +3,8 @@
 # keep-alive. searchdump has no --resume; retry the index with --overwrite
 # if the run fails. For many indices, use multi-index-dump.sh --resume.
 # Exit 4 (transient) is rerun once (RERUNS). RESTART_ON_CONTEXT_LOSS=N adds
-# --restartOnContextLoss=N: only with an image built from main after 1.0.0
-# (make image); the published 1.0.0 image rejects the flag.
+# --restartOnContextLoss=N: only with a 1.1.0 image (or make image); a 1.0.0
+# image rejects the flag.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=./_common.sh
