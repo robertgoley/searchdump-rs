@@ -5157,3 +5157,103 @@ async fn l2_004_check_exits_0_or_2_for_an_explicit_limit() {
     assert!(e.contains("exceed") && e.contains("--limit=5000"), "{e}");
     assert!(!m.requests().iter().any(|r| r.path.ends_with("/_search")));
 }
+
+/// 1.2-1e (L2-005): the searchdump-multi parent reads the node limits once and every index's
+/// docs/store stats in ONE `_stats/docs,store?level=indices` call (no 1.1-10 per-index
+/// `{index}/_stats` request), and `--serverLimits=check` stops before any data request:
+/// exit 0, or exit 2 when a flag after `--` is above the computed page.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn l2_005_multi_parent_probes_once_and_reads_stats_in_one_call() {
+    use support::router_mock::{Reply, Route, RouterMock};
+    let names = ["logs-a", "logs-b", "logs-c", "logs-d"];
+    let cat: Vec<String> = names
+        .iter()
+        .map(|n| format!(r#"{{"index":"{n}","status":"open"}}"#))
+        .collect();
+    // ~1 MB documents in logs-d, small ones elsewhere
+    let stats: Vec<String> = names
+        .iter()
+        .map(|n| {
+            let per = if *n == "logs-d" { 1u64 << 20 } else { 200 };
+            format!(
+                r#""{n}":{{"primaries":{{"docs":{{"count":1000}},"store":{{"size_in_bytes":{}}}}}}}"#,
+                per * 1000
+            )
+        })
+        .collect();
+    let mock = || {
+        RouterMock::builder()
+            .serve_probes()
+            .route(Route::exact("GET", "/").reply(Reply::ok(L2_INFO)))
+            .route(Route::prefix("GET", "/_nodes/stats").reply(Reply::ok(L2_SMALL_NODE)))
+            .route(
+                Route::prefix("GET", "/_cat/indices")
+                    .reply(Reply::ok(format!("[{}]", cat.join(",")))),
+            )
+            .route(Route::prefix("GET", "/_cat/aliases").reply(Reply::ok("[]")))
+            .route(Route::prefix("GET", "/_data_stream").reply(Reply::ok(r#"{"data_streams":[]}"#)))
+            .route(
+                Route::prefix("GET", "/_stats/docs,store").reply(Reply::ok(format!(
+                    r#"{{"indices":{{{}}}}}"#,
+                    stats.join(",")
+                ))),
+            )
+            .fallback(Reply::json(404, r#"{"error":"nope"}"#))
+            .start()
+    };
+    let multi = |url: String, out: std::path::PathBuf, extra: Vec<&'static str>| {
+        tokio::task::spawn_blocking(move || {
+            let mut c = Command::new(env!("CARGO_BIN_EXE_searchdump-multi"));
+            c.args(["--input", &url, "--output", out.to_str().unwrap()])
+                .args(["--match", "^logs-", "--parallel=4", "--serverLimits=check"])
+                .args(extra)
+                .output()
+                .expect("spawn")
+        })
+    };
+    let d = tempfile::tempdir().unwrap();
+    let m = mock().await;
+    let o = multi(m.url(), d.path().join("out"), vec![]).await.unwrap();
+    let (out, err) = (stdout(&o), stderr(&o));
+    assert_eq!(o.status.code(), Some(0), "{out}\n{err}");
+    assert!(err.contains("server limits:"), "{err}");
+    assert!(out.contains("check passed"), "{out}");
+    let reqs = m.requests();
+    let paths: Vec<&str> = reqs.iter().map(|r| r.path.as_str()).collect();
+    assert_eq!(
+        paths.iter().filter(|p| **p == "/_stats/docs,store").count(),
+        1,
+        "one stats call: {paths:?}"
+    );
+    assert!(
+        !paths
+            .iter()
+            .any(|p| p.starts_with("/logs-") && p.contains("_stats")),
+        "no per-index _stats: {paths:?}"
+    );
+    assert_eq!(
+        paths
+            .iter()
+            .filter(|p| p.starts_with("/_nodes/stats"))
+            .count(),
+        1,
+        "the parent probes once: {paths:?}"
+    );
+    assert!(
+        !paths.iter().any(|p| p.contains("_search")),
+        "check moves no data: {paths:?}"
+    );
+    assert!(!d.path().join("out").exists(), "check writes nothing");
+
+    // an explicit page far above what the 1 MB-document index fits: exit 2
+    let m = mock().await;
+    let o = multi(m.url(), d.path().join("out2"), vec!["--", "--limit=5000"])
+        .await
+        .unwrap();
+    assert_eq!(o.status.code(), Some(2), "{}\n{}", stdout(&o), stderr(&o));
+    assert!(
+        stderr(&o).contains("logs-d: --limit=5000"),
+        "{}",
+        stderr(&o)
+    );
+}

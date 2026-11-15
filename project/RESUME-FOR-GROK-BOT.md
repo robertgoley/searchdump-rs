@@ -116,3 +116,4 @@ The user runs Grok 4.7 locally through the OpenCode CLI. The handoff/ folder (op
 - L2-002 (2026-11-15): 1.2-1b: worker/page matrix on es710/es819 256m/384m with 1.1.0 (12/24 cells pass; fewer workers with full pages most reliable; es710 256m dies, es819 429s)
 - L2-003 (2026-11-15): 1.2-1c: 429 page halving (search) and bulk splitting (breaker/indexing-pressure), never grows back; gates + 5 IT profiles pass
 - L2-004 (2026-11-15): 1.2-1d: --serverLimits=off|auto|min|check probe + budget in searchdump (auto default PROVISIONAL), fallbacks never fail, 63 probe fixtures (all 7 engines boot at 256m); gates + 5 IT profiles pass
+- L2-005 (2026-11-15): 1.2-1e: searchdump-multi: one probe + one _stats call in the parent, worker-first byte budget, 1.1-10 pieces now the off profile, manifest server_limits/sizing; gates (1 known test-helper flake) + 5 IT profiles + live 256m es710/es819 pass
