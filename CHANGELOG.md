@@ -5,11 +5,11 @@ a version with a hyphen (`1.0.0-beta1`) is a pre-release. The release workflow
 (`.github/workflows/release.yml`) uses the section for a version as the release notes of its draft
 GitHub release.
 
-## Unreleased (1.1)
+## 1.1.0
 
-Draft on the local `release/1.1` branch (roadmap: `FEATURES-TODO.md`, "Roadmap: 1.1
-release"; order: `project/plan/ROADMAP-1.1-PLAN.md`). Not tagged and not yet
-performance-measured. The user-facing notes, including the upgrade guide, are in
+Release date: the day `v1.1.0` is tagged (release candidate verified on 2026-11-15; not tagged
+yet). Roadmap: `FEATURES-TODO.md`, "Roadmap: 1.1 release"; order and checks:
+`project/plan/ROADMAP-1.1-PLAN.md`. The user-facing notes, including the upgrade guide, are in
 [`project/release/RELEASE-NOTES-1.1.md`](project/release/RELEASE-NOTES-1.1.md).
 
 ### Disclaimer
@@ -184,6 +184,9 @@ restore yourself (restore it, compare document counts) before you rely on it. Se
   value; the restore warns once per run (shared across `--concurrency` workers) instead of only
   listing item errors. Still exit 3.
 - **The final HTTP 429 names the retry and load knobs** (from the 1.0 line, L-804a).
+- **searchdump-multi names a stopped child cleanly.** After Ctrl-C, an index loaded from a single
+  data file was reported as `FAILED  IX: : interrupted: ...` (an empty context between the
+  colons); the part is named only when the index has several.
 - **A lost scroll context names the point-in-time way out** (from the 1.0 line, L-804c): the
   context-lost error suggests `--searchAfter --pit` and `--restartOnContextLoss N`; exit 4.
 

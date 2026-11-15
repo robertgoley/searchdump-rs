@@ -1,9 +1,10 @@
-# searchdump-rs 1.1 release notes (draft)
+# searchdump-rs 1.1.0 release notes
 
-Status: draft on the local `release/1.1` branch. Not tagged and not published. Point-in-time performance
-is measured (see [Performance](#performance)). These notes describe the changes already committed for 1.1.
+Status: version `1.1.0` (`Cargo.toml`), release candidate verified on 2026-11-15 (the 16-engine L0
+suite, the integration profiles and the low-memory set; `results/local/1.1-rc.md`). Not tagged and not
+published yet: the release date is the day `v1.1.0` is tagged.
 
-The same material is summarised in [`CHANGELOG.md`](../../CHANGELOG.md) under **Unreleased (1.1)**.
+The same material is summarised in [`CHANGELOG.md`](../../CHANGELOG.md) under **1.1.0**.
 Known, deliberate differences from Node elasticdump are also in
 [`NODE-DIFFERENCES.md`](../../NODE-DIFFERENCES.md) (#25–#27).
 
@@ -265,7 +266,7 @@ default cap to ES 7.10. Compression-thread and multi changes still had no clear 
 
 ## See also
 
-- [`CHANGELOG.md`](../../CHANGELOG.md) — Unreleased (1.1)
+- [`CHANGELOG.md`](../../CHANGELOG.md) — 1.1.0
 - [`README.md`](../../README.md) — flags, intentional differences, `searchdump-multi`
 - [`NODE-DIFFERENCES.md`](../../NODE-DIFFERENCES.md) — #25 refresh targets, #26 cadence, #27 `_doc` sort
 - [`project/plan/ROADMAP-1.1-PLAN.md`](../plan/ROADMAP-1.1-PLAN.md) — implementation order and the

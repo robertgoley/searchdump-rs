@@ -2135,13 +2135,7 @@ async fn load_one(ctx: &Ctx, cluster: &Cluster, f: &Found) -> Outcome {
                     let stats = runner
                         .run_as(&f.index, "data", &label, &input, &url, &extra)
                         .await
-                        .with_context(|| {
-                            if f.data.len() > 1 {
-                                format!("part {n} ({})", part.display())
-                            } else {
-                                String::new()
-                            }
-                        })?;
+                        .map_err(|e| with_part(e, f.data.len(), n, part))?;
                     // 1.1-7: the documents the run read (written + failed), else read the part
                     total += match stats.docs_read() {
                         Some(read) if !ctx.args.verify_counts => read,
@@ -2225,6 +2219,17 @@ async fn load_one(ctx: &Ctx, cluster: &Cluster, f: &Found) -> Outcome {
         Ok(Some(s)) => Outcome::Done(s),
         Ok(None) => Outcome::Skipped(format!("{target} already exists")),
         Err(e) => Outcome::Failed(format!("{e:#}")),
+    }
+}
+
+/// The part a failed data load step was reading, when the index has more than one. A single data
+/// file adds no context: an empty one printed as "FAILED  IX: : interrupted: ..." (1.1-item-checks,
+/// check 4).
+fn with_part(e: anyhow::Error, parts: usize, n: usize, part: &Path) -> anyhow::Error {
+    if parts > 1 {
+        e.context(format!("part {n} ({})", part.display()))
+    } else {
+        e
     }
 }
 
@@ -3619,6 +3624,21 @@ mod tests {
     }
 
     #[cfg(unix)]
+    #[test]
+    fn a_failed_load_step_names_its_part_only_when_there_are_several() {
+        let p = Path::new("/d/ix.data-2.json.gz");
+        let one = format!(
+            "{:#}",
+            with_part(anyhow::anyhow!("interrupted: stopped"), 1, 1, p)
+        );
+        assert_eq!(one, "interrupted: stopped");
+        let many = format!(
+            "{:#}",
+            with_part(anyhow::anyhow!("interrupted: stopped"), 3, 2, p)
+        );
+        assert_eq!(many, "part 2 (/d/ix.data-2.json.gz): interrupted: stopped");
+    }
+
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn a_failed_child_reports_its_log_tail() {
         let d = tempfile::tempdir().unwrap();
