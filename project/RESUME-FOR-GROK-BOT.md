@@ -111,3 +111,4 @@ The user runs Grok 4.7 locally through the OpenCode CLI. The handoff/ folder (op
 - L-822 (2026-11-15): 1.1 handoff refreshed and kvmsvr1 perf-run handoff written (owner t103u)
 - L-824 (2026-11-15): 1.2 server-aware sizing plan written (owner t108u); replaces 1.1-10 defaults in 1.2
 - L-825 (2026-11-15): 1.2 examples plan (server limits as main sizing option) added (owner t109u)
+- L-826 (2026-11-15): 1.2 handoff written and release/1.2 cut (owner t112u)
