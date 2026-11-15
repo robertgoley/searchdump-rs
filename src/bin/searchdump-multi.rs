@@ -114,15 +114,40 @@ pub enum Lifecycle {
     Convert,
 }
 
-/// Same defaults as scripts/oslogs.py for data runs.
+/// Default flags for data runs (from scripts/oslogs.py; 1.1-10 made them safe on small heaps).
+/// Until 1.1 they were `--limit=5000` and `--maxResponseMb=0`: a 5000-document scroll page
+/// killed a 256 MB-heap Elasticsearch 7.10.2 / 8.6.1 (Java heap OutOfMemoryError) or tripped
+/// the 8.19 parent breaker (HTTP 429), and no response cap stopped an oversized page. Pages are
+/// now 1000 documents (fewer for large documents, see [`page_limit_for`]) and searchdump's
+/// default `--maxResponseMb` (256) applies. A load splits bulks at 16 MB: 5000 PMC articles
+/// (~105 MB) were refused with HTTP 429 by a 1 GB heap (`indexing_pressure`, 10 % of the heap)
+/// and 1000 of them by a 256 MB heap (parent breaker), until the retries ran out.
 const DATA_FLAGS: &[&str] = &[
-    "--limit=5000",
+    "--limit=1000",
     "--scrollTime=10m",
     "--retryAttempts=5",
     "--retryDelay=2000",
     "--timeout=300000",
-    "--maxResponseMb=0",
+    "--maxBulkBytes=16mb",
 ];
+
+/// Documents per page in [`DATA_FLAGS`].
+const DEFAULT_DATA_LIMIT: u64 = 1000;
+
+/// 1.1-10: stored (primary, compressed) bytes one dump page should hold. `_source` in the
+/// response is usually 1-4x the stored size, so a page stays well under the ~80 MB that a
+/// 256 MB heap survived in the 1.1-10 runs.
+const PAGE_STORE_BUDGET: u64 = 16 << 20;
+
+/// 1.1-10: documents per dump page for an index whose primary documents average
+/// `avg_doc_bytes` stored bytes: the default (1000) for small documents, fewer for large ones
+/// so a page holds about [`PAGE_STORE_BUDGET`], never less than 1.
+fn page_limit_for(avg_doc_bytes: u64) -> u64 {
+    if avg_doc_bytes == 0 {
+        return DEFAULT_DATA_LIMIT;
+    }
+    (PAGE_STORE_BUDGET / avg_doc_bytes).clamp(1, DEFAULT_DATA_LIMIT)
+}
 
 /// The flag name of an argument (`--limit=5` / `--limit` -> `--limit`), or None for a value.
 fn flag_name(arg: &str) -> Option<&str> {
@@ -1327,6 +1352,23 @@ impl Cluster {
             .ok_or_else(|| anyhow!("no count in /{index}/_count response"))
     }
 
+    /// 1.1-10: average stored bytes per primary document (`_stats/docs,store`); None when the
+    /// index is empty or the cluster does not say.
+    pub async fn avg_doc_bytes(&self, index: &str) -> Result<Option<u64>> {
+        let v = self
+            .ok_json(
+                Method::GET,
+                &[index, "_stats", "docs,store"],
+                &[],
+                Body::Empty,
+            )
+            .await?;
+        let p = &v["_all"]["primaries"];
+        let docs = p["docs"]["count"].as_u64().unwrap_or(0);
+        let bytes = p["store"]["size_in_bytes"].as_u64().unwrap_or(0);
+        Ok((docs > 0 && bytes > 0).then(|| bytes / docs))
+    }
+
     pub async fn put_mapping(&self, index: &str, mappings: &serde_json::Value) -> Result<()> {
         self.ok_json(Method::PUT, &[index, "_mapping"], &[], Body::json(mappings))
             .await
@@ -1789,6 +1831,25 @@ async fn dump_one(
                     extra.push(format!("--maxRows={n}"));
                 }
                 extra.extend(ctx.runner.data_flags.iter().cloned());
+                // 1.1-10: smaller pages for large documents, unless the user chose --limit.
+                let default_limit = format!("--limit={DEFAULT_DATA_LIMIT}");
+                if let Some(pos) = extra.iter().position(|a| *a == default_limit)
+                    && !ctx
+                        .args
+                        .extra
+                        .iter()
+                        .any(|a| flag_name(a) == Some("--limit"))
+                    && let Ok(Some(avg)) = cluster.avg_doc_bytes(index).await
+                {
+                    let limit = page_limit_for(avg);
+                    if limit < DEFAULT_DATA_LIMIT {
+                        eprintln!(
+                            "note: {index}: documents average {} KB stored; dumping {limit} per page instead of {DEFAULT_DATA_LIMIT} (give -- --limit=N to choose)",
+                            avg.div_ceil(1024)
+                        );
+                        extra[pos] = format!("--limit={limit}");
+                    }
+                }
                 // searchdump adds the codec extension to each part itself.
                 let name = if split {
                     item_file_for(node, index, "data", Compression::None)
@@ -2849,7 +2910,7 @@ mod tests {
             .map(|s| s.to_string())
             .collect();
         let got = super::merge_data_flags(super::DATA_FLAGS, &extra);
-        assert!(!got.iter().any(|a| a == "--limit=5000"), "{got:?}");
+        assert!(!got.iter().any(|a| a == "--limit=1000"), "{got:?}");
         assert!(!got.iter().any(|a| a == "--scrollTime=10m"), "{got:?}");
         assert_eq!(got.iter().filter(|a| a.starts_with("--limit")).count(), 1);
         assert!(got.contains(&"--retryAttempts=5".to_string()));
@@ -2860,6 +2921,34 @@ mod tests {
             super::strings(super::DATA_FLAGS)
         );
         assert!(super::merge_data_flags(&[], &[]).is_empty());
+    }
+
+    /// 1.1-10: the defaults are safe on a small heap: 1000-document pages and searchdump's
+    /// default response cap (no `--maxResponseMb=0`).
+    #[test]
+    fn default_data_flags_are_small_heap_safe() {
+        let d = super::strings(super::DATA_FLAGS);
+        assert!(d.contains(&"--limit=1000".to_string()), "{d:?}");
+        assert!(!d.iter().any(|a| a.starts_with("--maxResponseMb")), "{d:?}");
+        assert!(!d.iter().any(|a| a == "--limit=5000"), "{d:?}");
+        assert!(d.contains(&"--maxBulkBytes=16mb".to_string()), "{d:?}");
+        // a user's --maxResponseMb=0 still passes through
+        let got = super::merge_data_flags(super::DATA_FLAGS, &["--maxResponseMb=0".to_string()]);
+        assert!(got.contains(&"--maxResponseMb=0".to_string()), "{got:?}");
+    }
+
+    /// 1.1-10: page size from the average stored document size.
+    #[test]
+    fn page_limit_shrinks_for_large_documents() {
+        use super::page_limit_for as f;
+        assert_eq!(f(0), 1000); // unknown
+        assert_eq!(f(500), 1000); // log lines
+        assert_eq!(f(12 * 1024), 1000); // PMC articles (~12 KB stored)
+        assert_eq!(f(16 * 1024), 1000);
+        assert_eq!(f(80 * 1024), 204); // ~80 KB documents
+        assert_eq!(f(1 << 20), 16);
+        assert_eq!(f(10 << 20), 1);
+        assert_eq!(f(u64::MAX), 1);
     }
 
     use super::*;

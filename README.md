@@ -535,8 +535,11 @@ searchdump-multi --direction=load --input=/data/logs --output=https://dst:9200 -
   `--prefix`/`--suffix` rename targets (indices and streams, not cluster-wide items).
 - `--parallel` (default 2) indices at a time, started in name order (`--order desc` reverses it); `--interval=MS` (default 0) is the least time between starting one
   index and the next, as Node's `--interval`.
-- Data runs get `--limit=5000 --scrollTime=10m --retryAttempts=5 --retryDelay=2000 --timeout=300000 --maxResponseMb=0`
-  (`--noDefaultDataFlags` drops them); anything after `--` is passed to every data run, and a flag given there replaces the default of the same name (`-- --limit=200`). Credentials:
+- Data runs get `--limit=1000 --scrollTime=10m --retryAttempts=5 --retryDelay=2000 --timeout=300000 --maxBulkBytes=16mb`, and searchdump's
+  default 256 MB response cap (`--maxResponseMb`) applies (since 1.1, item 1.1-10; 1.0 used `--limit=5000 --maxResponseMb=0`,
+  which could take down a small-heap cluster). A dump of an index whose documents average more than 16 KB stored
+  (`_stats` primaries) uses fewer documents per page, about 16 MB stored per page, and prints a note
+  (`--noDefaultDataFlags` drops them); anything after `--` is passed to every data run, and a flag given there replaces the default of the same name (`-- --limit=200`; an explicit `--limit` also turns the per-index page size off). Credentials:
   `SEARCHDUMP_INPUT_USERNAME`/`_PASSWORD` and `SEARCHDUMP_OUTPUT_USERNAME`/`_PASSWORD`, or `--httpAuthFile`.
 - Per-run logs go to `--logDir` (default a temp dir; one log per data part); a failure prints the last lines.
   `--dryRun` lists what would run. Exit status: 0 all done, 1 any item failed or nothing matched, 2 usage error,

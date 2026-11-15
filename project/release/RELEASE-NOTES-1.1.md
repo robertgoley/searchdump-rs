@@ -42,6 +42,9 @@ See [Disclaimer](../../README.md#disclaimer).
 - **`searchdump-multi` takes record counts from its children**, so a large compressed dump is no
   longer read back just to fill the manifest. Ctrl-C now stops running children. `--verifyCounts`
   keeps the old full re-read when you want it.
+- **`searchdump-multi` no longer takes down small-heap clusters** (1.1-10). Data runs page 1000
+  documents (fewer for large documents) with a 256 MB response cap, instead of 5000 with no cap,
+  which killed 256 MB-heap Elasticsearch 7.10 and 8.6 nodes and tripped the 8.19 breaker.
 
 - **Today's 1.0-line fixes are included** (merged 2026-11-14): exit status 4 for transient
   failures that are safe to rerun, `--httpAuthFile` winning over every other credential source,
@@ -58,6 +61,7 @@ See [Disclaimer](../../README.md#disclaimer).
 | `--scrollDocSort` | off | `searchdump` | Opt-in. Adds `"sort":["_doc"]` to an unscored scroll body that has no user sort. |
 | `--sliceCap=auto\|min\|total\|false` | `auto` | `searchdump` | A scroll dump lowers `--slices` to the primary-shard count of the input indices (one shard: unsliced) and prints a warning. `auto` (`true` is an alias) caps only on Elasticsearch 7.10, to the smallest primary-shard count, and keeps `--slices` as given on every other engine and undetectable versions (1.1-4a). `min` / `total` force one; `false` keeps the number you passed. |
 | `--sliceField=<field>` | unset | `searchdump` | Slice on this numeric or date field with doc values, instead of `_id`. The mapping is checked first; a missing, non-numeric, or `doc_values:false` field is an error before the first search. Using this flag turns the shard-count cap off. |
+| data-run `--limit` / `--maxResponseMb` / `--maxBulkBytes` | `1000` (fewer for documents over 16 KB stored) / searchdump default 256 / `16mb` | `searchdump-multi` | 1.1-10: was `--limit=5000 --maxResponseMb=0` (and 100 MB bulks), which killed or overloaded 256 MB-heap Elasticsearch 7.10/8.6/8.19 nodes. `-- --limit=N` sets the page size and turns the per-index sizing off. |
 | `--verifyCounts` | off | `searchdump-multi` | Always re-read dumped or loaded data and fail the index when the child's reported record count differs. |
 | `--restartOnContextLoss N` | `0` (off) | `searchdump` | Restart a scroll data dump into a file from the start, up to N times, when the scroll context is lost. Not for PIT/search_after, `--scrollId`, or outputs other than a file. |
 
@@ -195,6 +199,10 @@ No Node compatibility difference (searchdump-only behaviour, or the same request
 - **Ctrl-C on `searchdump-multi` now stops children.** Do not rely on them running to completion
   after the parent is interrupted. Use `--resume` (and the child's log) to continue a stopped
   load.
+- **`searchdump-multi` data runs use smaller pages** (1.1-10): 1000 documents (fewer when the
+  documents average more than 16 KB stored) and a 256 MB response cap, instead of 5000 and no
+  cap, and loads split bulks at 16 MB. Large clusters dump and load with more, smaller requests;
+  pass `-- --limit=5000 --maxResponseMb=0 --maxBulkBytes=100mb` for the 1.0 behaviour.
 - **Pass `--verifyCounts`** if you want `searchdump-multi` to keep re-reading every data file and
   to fail the index when that count disagrees with the child. Without it, a successful child's
   reported count is trusted for the manifest and the summary.

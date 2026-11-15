@@ -56,6 +56,17 @@ restore yourself (restore it, compare document counts) before you rely on it. Se
 
 ### Changed
 
+- **Safer `searchdump-multi` data defaults (1.1-10).** Data runs used `--limit=5000` and
+  `--maxResponseMb=0`. On a small heap a single 5000-document scroll page took the cluster down:
+  Elasticsearch 7.10.2 and 8.6.1 (bitnamilegacy, 256 MB heap) died with `OutOfMemoryError`
+  (also at 384 MB with ~80 KB documents), and 8.19.23 answered HTTP 429 (parent breaker) until
+  the retries ran out. Data runs now default to `--limit=1000` and keep searchdump's 256 MB
+  response cap. A dump of an index whose documents average more than 16 KB stored uses
+  proportionally fewer per page (about 16 MB stored per page, at least 1) and prints a note; an
+  explicit `-- --limit=N` turns that off. With the new defaults all four engines (7.10.2, 8.6.1,
+  8.19.23, 9.1.2) dump the same data at a 256 MB heap. Loads send at most 1000 documents and
+  16 MB per bulk (`--maxBulkBytes=16mb`): 5000 PMC articles (~105 MB) were refused with HTTP 429
+  even by a 1 GB heap (`indexing_pressure`), and 1000 of them by a 256 MB heap (parent breaker).
 - **Refresh cadence (1.1-1).** The writer used to refresh the target after every bulk batch, as
   Node elasticdump does. It now refreshes the indices it wrote at most every 5 seconds (the
   clock starts at the first finished batch) and always once at the end of the run, including
@@ -178,6 +189,10 @@ restore yourself (restore it, compare document counts) before you rely on it. Se
 
 ### Upgrade notes
 
+- **`searchdump-multi` page size.** Data runs now use 1000 documents per page (fewer for large
+  documents) and the default 256 MB response cap. To get the 1.0 behaviour, pass
+  `-- --limit=5000 --maxResponseMb=0`. Loads split bulks at 16 MB (`-- --maxBulkBytes=100mb` for the
+  1.0 size).
 - **Exit status 4.** Scripts that test for exactly 1 should also accept 4 (transient, safe to
   rerun). Scripts that treat any non-zero status as failure are unaffected.
 - **`--httpAuthFile`.** If you pass an auth file together with URL or flag credentials, the file

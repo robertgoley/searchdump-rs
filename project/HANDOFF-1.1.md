@@ -416,6 +416,17 @@ median versus Node, so the beta1 baseline is complete for every engine. Listing 
 pending or deferred on 2026-11-14 was a tracking error; nothing is left to run here. The
 commands that were used are in `project/HANDOFF-20261112.md` on `main`.
 
+### 5a. 1.1-10 small-heap `searchdump-multi` defaults (2026-11-14)
+
+Reproduced on the box (bitnamilegacy ES 7.10.2 and 8.6.1 die with `OutOfMemoryError` at a 256m heap
+under the old `--limit=5000 --maxResponseMb=0`; ES 8.19.23 returns HTTP 429 from the parent
+breaker) and fixed on `release/1.1` only (see `project/plan/ROADMAP-1.1-PLAN.md` 1.1-10 and
+`results/local/1.1-10.md`). For the kvmsvr1 RC run: `searchdump-multi` data runs now page 1000
+documents (fewer for documents over 16 KB stored) with the 256 MB response cap, and loads split
+bulks at 16 MB; any perf step that
+times `searchdump-multi` without `-- --limit=...` measures the new default. Whether the same change
+should also go to `main` (the 1.0 line) is the owner's decision.
+
 ---
 
 ## 6. Routine behaviour

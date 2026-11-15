@@ -1,7 +1,7 @@
 # searchdump-rs 1.1: implementation plan (for review)
 
 Status: **steps 1-9 approved and committed without building** (see Status below); compiled, tested and point-in-time perf measured (2026-11-14, `scripts/perf/results/pit-1.1.md`). Branch `release/1.1` is on GitHub as `origin/release/1.1` (UNCOMPILED / UNTESTED). Do not merge to `main` without Robert.
-Scope: roadmap items 1.1-1 to 1.1-9 from `FEATURES-TODO.md`, section "Roadmap: 1.1 release (performance and robustness)".
+Scope: roadmap items 1.1-1 to 1.1-9 from `FEATURES-TODO.md`, plus 1.1-10 (added 2026-11-14 from `main` 13c0725, owner t95u), section "Roadmap: 1.1 release (performance and robustness)".
 Line references were rechecked at `0847643` (main, 2026-11-11). The roadmap table quotes them as of `a98be22`.
 
 Rules that still apply: Rust 1.91 minimum (`rust-version = "1.91"`). No secrets in the repo; credentials appear only as blank variable references. Opt-in flags use Node-style camelCase names. Every change keeps or extends the existing tests.
@@ -21,6 +21,7 @@ Owner go-ahead for steps 1-4 on 2026-11-11 (t163u), and for steps 5-9 the same w
 | 7 | 1.1-6 encode overlap | in progress (release/1.1): committed; compiled and tested 2026-11-12 (wip/1.1-fixups); point-in-time perf measured 2026-11-14 (scripts/perf/results/pit-1.1.md) |
 | 8 | 1.1-8 tokio::process | in progress (release/1.1): committed; compiled and tested 2026-11-12 (wip/1.1-fixups); point-in-time perf measured 2026-11-14 (scripts/perf/results/pit-1.1.md); item check: Ctrl-C check passed 2026-11-14 (exit 130, children named) (results/local/1.1-item-checks.md) |
 | 9 | 1.1-7 child counts | in progress (release/1.1): committed; compiled and tested 2026-11-12 (wip/1.1-fixups); point-in-time perf measured 2026-11-14 (scripts/perf/results/pit-1.1.md); item check: `--verifyCounts` many-index check passed 2026-11-14 (results/local/1.1-item-checks.md) |
+| 10 | 1.1-10 multi small-heap data defaults | in progress (release/1.1): reproduced 2026-11-14 on bitnamilegacy ES 7.10.2 / 8.6.1 (256m: node OutOfMemoryError) and ES 8.19.23 (256m: HTTP 429 parent breaker); fixed (`--limit=1000`, response cap kept, `--maxBulkBytes=16mb`, per-index page size for large documents); load + dump on all four engines incl. 9.1.2 pass at 256m (results/local/1.1-10.md) |
 
 "In progress" means committed on `release/1.1`; the point-in-time batch finished 2026-11-14 (3 engines x 9 steps, no Node; report `scripts/perf/results/pit-1.1.md`). The item checks below all passed on 2026-11-14 (`results/local/1.1-item-checks.md`). Remaining: the 16-engine RC run. Compile (`pit.sh check`) and HEAD tests/clippy/selftest passed on 2026-11-12 after two folded fixups (see `project/HANDOFF-1.1.md`).
 
@@ -116,6 +117,7 @@ All five passed on 2026-11-14 on 85d4185 (es819-plain; details and evidence in `
 | 7 | 1.1-6 encode next bulk batch while one is in flight | 4: pipeline CPU | M | `src/pipeline/bulk.rs` | Riskiest change in the hottest file. Done after 1.1-1/1.1-2 so it doesn't conflict with them, and so refresh no longer hides the overlap win |
 | 8 | 1.1-8 `tokio::process` children in searchdump-multi | 5: multi | M | `src/bin/searchdump-multi.rs`, `Cargo.toml` (tokio `process` feature) | Restructures the child runner. Goes before 1.1-7 because 1.1-7 changes what the runner returns |
 | 9 | 1.1-7 child-reported record counts | 5: multi | M (S if log-line based) | `src/bin/searchdump-multi.rs`, maybe `src/lib.rs` | Builds on the async runner from step 8. Keeps `count_records` as the fallback |
+| 9a | 1.1-10 `searchdump-multi` small-heap data defaults | 5: multi | S-M | `src/bin/searchdump-multi.rs` (`DATA_FLAGS`, dump data run) | Added after the nine (owner t95u). A correctness fix for small clusters; it changes only the multi defaults, so it does not disturb the perf steps |
 | 10 | Release-candidate check | 5 | — | — | Full 16-engine L0 run of `release/1.1` against the beta1 baseline, plus the parity checks. Report written to `scripts/perf/results/v1.1.0-rc-L0.md` |
 
 How the order follows from the criteria:
@@ -340,6 +342,32 @@ Each item is one commit on `release/1.1` (or two: tests, then the change), with 
   * The existing `count_records` test at ~2761 stays.
 * **Measure:** `multi-dump-p*` with gzip/zstd. The win is minutes on dumps of 100 GB or more, and is negligible at L0, so check correctness at L0 and time it at L1 if Q4 allows.
 
+### 1.1-10: `searchdump-multi` small-heap data defaults (S-M), added 2026-11-14
+
+* **Problem (from `main` 13c0725, FEATURES-TODO):** `DATA_FLAGS` gave every data run `--limit=5000` and
+  `--maxResponseMb=0`, so a dump asked for 5000 documents per scroll page with no client-side response cap.
+* **Reproduced (2026-11-14, box, `results/local/1.1-10.md`):** 20,000 PMC articles (~12 KB stored each) and
+  3,000 ~80 KB documents, one shard, `searchdump-multi` with the default flags:
+  * bitnamilegacy ES 7.10.2, 256m heap: both dumps kill the node (`java.lang.OutOfMemoryError: Java heap
+    space`, fatal error in a search thread); 384m: PMC passes, the 80 KB index kills the node.
+  * bitnamilegacy ES 8.6.1: the same pattern (256m both die, 384m the 80 KB index dies).
+  * ES 8.19.23 (official image), 256m: HTTP 429 `circuit_breaking_exception` (`[fetch source]` 154.5 MB over the
+    153.5 MB parent limit) on every retry, exit 1; the node survives.
+  * bitnamilegacy ES 9.1.2, 256m/384m: PMC passed earlier the same day (its real-memory breaker and G1).
+  * With `-- --limit=1000` every case passed on 7.10.2 and 8.6.1 at 256m. No scroll context was left open after
+    any run where the node survived (`open_contexts` 0), so child scroll cleanup needed no change.
+* **Load side (found while testing the fix):** a `searchdump-multi` load with 5000-document bulks of PMC articles
+  (~105 MB) gets HTTP 429 `es_rejected_execution_exception` (`indexing_pressure`, 10 % of the heap) even at a 1 GB heap,
+  and 1000-document bulks get HTTP 429 `circuit_breaking_exception` at 256m; with 16 MB bulks both load.
+* **Fix:** `DATA_FLAGS` `--limit=1000`, `--maxBulkBytes=16mb` added, `--maxResponseMb=0` removed (searchdump's 256 MB cap applies); for a dump,
+  `page_limit_for(avg)` lowers the page to about 16 MB of stored primary data (`_stats/docs,store`), at least 1 and at
+  most 1000, with a note, unless the user gave `--limit`. Not done: halving the page on HTTP 429 inside searchdump.
+  A node that dies from `OutOfMemoryError` sends no 429, so only a smaller first page helps there; the adaptive
+  retry stays a possible follow-up.
+* **Tests:** unit tests for the defaults and `page_limit_for`; live: on all four engines (7.10.2, 8.6.1, 8.19.23,
+  9.1.2) at 256m a `searchdump-multi` load and then dump of both indices with the new defaults pass, digests equal
+  to the source, node alive, no open scroll context.
+
 ## 3. Open questions for Robert
 
 1. **Q1, refresh default (1.1-1):** should the new default be interval refresh (recommended: every 5 s plus a final refresh, with `--refreshInterval=0` restoring Node's refresh-every-batch), or should we keep Node's per-batch default and make the interval opt-in?
@@ -365,5 +393,6 @@ Each item is one commit on `release/1.1` (or two: tests, then the change), with 
 | 1.1-6 encode overlap | M |
 | 1.1-8 tokio::process | M |
 | 1.1-7 child counts | M (S with the log-line source only) |
+| 1.1-10 multi small-heap defaults | S-M |
 
 S means under a day and M a few days. Coding total: about 2-3 weeks. The perf A/B runs take about 1-2 h per item on the quick trio, and the release-candidate run takes as long as the beta1 suite (most of a day).
