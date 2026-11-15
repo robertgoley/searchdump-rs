@@ -6,7 +6,7 @@ A one-screen engine coverage matrix (dump, restore, PIT, slices, storage, TLS) i
 
 Every test task with a commit on `main`, oldest first within each group. The commit message is the short result; full results, numbers and findings for each task are in [`project/plan/PROGRESS.md`](project/plan/PROGRESS.md), and the requirement IDs are in [`project/plan/TEST-REQUIREMENTS.md`](project/plan/TEST-REQUIREMENTS.md).
 
-Total: 232 task commits (including follow-up fixes with a letter suffix). Last updated from commit L-826 (`git log -1 --grep '^L-826'`; the next commit fills in its sha).
+Total: 233 task commits (including follow-up fixes with a letter suffix). Last updated from commit L2-001 (`git log -1 --grep '^L2-001'`; the next commit fills in its sha).
 
 ## Setup and planning (L-0xx)
 
@@ -284,7 +284,7 @@ Total: 232 task commits (including follow-up fixes with a letter suffix). Last u
 | L-822 | 8952185 | 2026-11-15 | 1.1 handoff refreshed and kvmsvr1 perf-run handoff written (owner t103u) |
 | L-824 | 9632a38 | 2026-11-15 | 1.2 server-aware sizing plan written (owner t108u); replaces 1.1-10 defaults in 1.2 |
 | L-825 | bc1338c | 2026-11-15 | 1.2 examples plan (server limits as main sizing option) added (owner t109u) |
-| L-826 | this commit | 2026-11-15 | 1.2 handoff written and release/1.2 cut (owner t112u) |
+| L-826 | 47a73cc | 2026-11-15 | 1.2 handoff written and release/1.2 cut (owner t112u) |
 
 ## Supply-chain scans (Grok Bot)
 
@@ -338,3 +338,9 @@ Rootless podman 5.4.2 with `--network=host`, debug build, Rust 1.85.1 (L-809a) a
 | L-810e dhi-debian base refresh and accepted CVEs | New pin `dhi.io/debian-base:trixie-debian13-dev@sha256:94571f3d…` (Docker Hub DHI catalog, pushed 2026-11-08, apt 3.0.4+dhi0) could not be pulled here (no dhi.io login). Isolated podman store (`--root ~/.local/share/edrs-odt-podman`, graphroot verified): dhi-debian rebuilt on the cached previous base (tag override, not committed); `scripts/test-image.sh` all PASS except the base-digest check (expected: the stand-in uses a tag without digest). grype `--fail-on high` with `docker/grype-ignore.dhi-debian.yaml` and trivy with `docker/trivyignore.dhi-debian.yaml`: only CVE-2026-109518 (apt 3.0.3, fixed in the new base) left. check-pins, hygiene and workflow lints pass. Confirming scan on the new digest: CI (`security.yml`, base dhi-debian) | `make scan IMAGE_VARIANT=dhi-debian` |
 | L-810f offline-build toolchain, publishers refresh, SFTP known issue | `scripts/sup/offline-build.sh` (isolated podman store, `docker.io/library/rust:1.99-trixie`, `--network none`): probe network unreachable, `toolchain: 1.99.1-x86_64-unknown-linux-gnu (image default)`, `cargo build --offline --locked --release` finished, `offline-build: OK` (it failed in CI run 42994732897 when rustup tried to download the 1.91.1 pin). `scripts/sup/repro.sh` gets the same guard (no-op in the default dhi.io builder, which has no rustup); the Dockerfile never copies `rust-toolchain.toml`. `supply-chain/publishers.json` regenerated with `publishers.py snapshot` from the CI `sc.json` (331 crates / 189 publishers); `publishers.py diff` reports no changes. shellcheck, check-pins, hygiene and workflow lints pass | `scripts/sup/offline-build.sh`; `scripts/sup/publishers.py diff supply-chain/publishers.json sc.json` |
 | Backblaze B2 | not run: no usable mock (OpenDAL's B2 service authorizes against the fixed `https://api.backblazeb2.com`); real account pending, see TESTING-TODO | `scripts/opendal-tests/b2-real.sh` |
+
+## Release 1.2 (L2-NNN, branch release/1.2)
+
+| Task | Commit | Date | Result |
+|---|---|---|---|
+| L2-001 | this commit | 2026-11-15 | 1.2-1a: RC multi slowdown not reproducible: the suite runs --noDefaultDataFlags so the 1.1-10 probe and 1000-doc pages never run; 1.1.0 = beta1 (es710-secure multi-dump-p8 0.345 s vs 0.421 s); section 9 PROVISIONAL choices; automax design only (section 13, FEATURES-TODO 1.2-2) |

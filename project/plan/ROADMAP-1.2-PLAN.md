@@ -259,13 +259,27 @@ Single-index `searchdump` keeps its own defaults (`--limit=100`, `--concurrency=
 
 ## 9. Open questions for Robert
 
+Owner t196u (2026-11-15): "Will have to review and provide answers later for 9". Until then the 1.2-1
+phases use the choices below, each **PROVISIONAL pending Robert**; every one is a constant or a default
+that changes in one place.
+
 1. Default `auto` in 1.2, or ship `off` as default for one release and make `auto` opt-in?
+   **PROVISIONAL: `auto` is the default**, trivially switchable (`limits::DEFAULT_MODE`, one line;
+   `--serverLimits=off` restores 1.1.0 exactly).
 2. `min` margin: half of `auto` (proposal), or a fixed fraction of the heap?
+   **PROVISIONAL: half of `auto`** (`limits::fractions`).
 3. Should `check` also be a separate subcommand (`searchdump-multi check-limits`) for discoverability?
+   **PROVISIONAL: no subcommand**; `--serverLimits=check` only.
 4. User-facing `--pageBytes`, or keep byte paging internal?
+   **PROVISIONAL: internal** (no new flag).
 5. AWS: hard-code the published payload table, or always use the 10 MiB floor unless the user raises it?
+   **PROVISIONAL: the 10 MiB floor** (`limits::AWS_PAYLOAD_FLOOR`) unless the user gives
+   `--maxBulkBytes`.
 6. Should the 429 page-halving (section 5) ship alone first (1.1.1 or 1.2-early), since it is independent?
+   **PROVISIONAL: ships within 1.2** (phase 1.2-1c, commit L2-003); no 1.1.1.
 7. OpenSearch small-heap floor for the acceptance set: 256m like ES, or the smallest heap OS 2/3 boot with?
+   **PROVISIONAL: the smallest heap OpenSearch boots with that is >= 256m**, measured by
+   `scripts/load/limits_fixtures.py` (boot.json; recorded in results/local/L2-004.md and L2-006.md).
 
 ## 10. Risks
 
@@ -283,7 +297,7 @@ Single-index `searchdump` keeps its own defaults (`--limit=100`, `--concurrency=
 
 | Phase | Content | Size |
 |---|---|---|
-| 1.2-1a | Diagnose the es710-secure p8 slowdown (section 1.2) | S (0.5 day incl. write-up) |
+| 1.2-1a | Diagnose the es710-secure p8 slowdown (section 1.2) — **done (L2-001)** | S (0.5 day incl. write-up) |
 | 1.2-1b | Worker/page trade-off matrix on low-heap engines | S |
 | 1.2-1c | 429 page-halving / bulk-splitting in `searchdump` (section 5), with `off` default sizing | M |
 | 1.2-1d | Probe module + budget + `--serverLimits` (`off`/`auto`/`min`/`check`) in `searchdump`; fixtures; fallbacks incl. AWS | M-L |
@@ -375,3 +389,53 @@ Documented in `examples/README.md` and as comments in the scripts:
 - Optional: add the safe-simple multi dump/restore to `lowheap.py` as a mode so the examples' exact command
   lines are regression-tested.
 
+
+## 13. Automax: growing limits above the defaults (DESIGN ONLY / NOT IMPLEMENTED)
+
+Owner t196u (2026-11-15): "Think about an automax option that can grow limits but do not implement now."
+Nothing in 1.2-1 implements this; it is a design for a later release (FEATURES-TODO 1.2-2).
+
+**What.** `--serverLimits=automax` (opt-in only; never the default, never chosen by `auto`): like `auto`,
+but sizes may also *grow* during a run, above `auto`'s starting values, when the cluster shows headroom.
+
+**What may grow, and when.**
+
+| Knob | Starts at | Grows when | Step | Ceiling |
+|---|---|---|---|---|
+| Page size (`--limit`, search) | `auto`'s page | N=4 consecutive pages with no 429, response bytes < 50 % of the page budget, and a re-probe shows parent-breaker headroom >= 2x the next page | x1.5 | `min(10000 = index.max_result_window, page budget / (avg x EXPANSION), response cap)`; multi: 5000 per worker |
+| Workers (multi `--parallel` in flight) | `auto`'s fit (worker-first) | same as above for the whole run, and the search thread pool queue is empty in a re-probe (`_cat/thread_pool/search` `queue=0`, `rejected` unchanged) | +1 | the user's `--parallel` if given, else `min(search pool size, 2 x data nodes x cores reported)`; never above the byte budget |
+| Bulk size (`--maxBulkBytes`) | `auto`'s bulk | N=4 bulks with no item 429/503, `indexing_pressure` current < 25 % of its limit, `write` queue empty | x1.5 | `min(http.max_content_length - 1 MB, AWS floor on AWS, indexing-pressure budget / workers, 100 MB)` |
+
+**Safety rules.**
+
+- Never above the probed server limits: every ceiling is computed from the same probe as `auto` and re-checked
+  by a cheap re-probe (`_nodes/stats/breaker,indexing_pressure` with `filter_path`, at most once per 30 s,
+  same 5 s deadline). A failed or fallback re-probe freezes growth (no growth without fresh numbers).
+- Headroom first: growth needs the *next* step to fit with 2x margin in the current parent-breaker free
+  bytes (`limit - estimated`), not just the start-of-run numbers.
+- 429 feedback wins: any size 429 (section 5) halves the knob (as today) **and** stops growth of that knob for
+  the rest of the run; a queue-full 429 freezes worker growth. Growth never undoes a halving.
+- Grow slowly (x1.5, then wait N clean steps), shrink fast (/2).
+- One knob at a time, workers last: page first, then bulk, then workers, so a regression is attributable.
+- Every change is logged once (`server limits: automax: page 5000 -> 7500 (headroom 410 MB)`) and recorded in
+  the statsFile / manifest `server_limits.automax` history.
+
+**Interaction with explicit values.** An explicit user value is a hard ceiling **and** the start for that
+knob only if it fits the limits; automax never raises a knob the user set (`--limit`, `--maxBulkBytes`,
+`--parallel`, `-- --limit=N` in multi). Unset knobs grow. `--noDefaultDataFlags` implies `off` as now.
+
+**Interaction with `check`.** `--serverLimits=check` stays read-only; with a new `--serverLimits=check`
+line `automax ceilings: page <= N, bulk <= M, workers <= P` it prints how far automax could grow, so a user
+can preview it. `automax` itself never exits 2; explicit too-large values warn as in `auto`.
+
+**Tests it would need.**
+
+- Unit: growth step and ceilings per fixture (es710/es819/es912/os2/os3 at 256m/1024m); never above
+  `max_content_length`, the AWS floor, `max_result_window`, the user's value; growth frozen after a 429.
+- Mock (RouterMock): pages grow after N clean pages; a breaker 429 halves and freezes; a re-probe 403 freezes;
+  bulk grows and stops at `max_content_length - 1 MB`.
+- Chaos: 429 storm after growth; slow re-probe (deadline); flapping headroom (no oscillation: frozen after
+  the first back-off).
+- Load (lowheap.py `--mode automax`): every 256m/384m cell still passes with `node_alive` and equality; no new
+  circuit_breaking counts vs `auto`.
+- Perf (L0/L1): automax >= auto on 1024m+ engines and never slower than `off` by more than noise.
