@@ -133,6 +133,10 @@ a Bitnami / constrained Elasticsearch or OpenSearch node.
   the index's documents average over 16 KB stored, about 16 MB per page), keep the 256 MB response
   cap, and split loads into 16 MB bulks. `scripts/load/lowheap.py` checks dump and load with these
   defaults on 256 MB and 384 MB heaps (ES 7.10.2, 8.6.1, 8.19.23, 9.1.2).
+- **1.2.0 (`--serverLimits`, default `auto`)** sizes pages and bulks from the node itself, so none of
+  the overrides above are needed: `lowheap.py` passes every 256 MB and 384 MB cell with `auto` on
+  ES 7.10.2, 8.6.1, 8.19.23, 9.1.2 and OpenSearch 1.3, 2 and 3 (results/local/L2-006.md). Use
+  `--serverLimits=min` for a node that is also busy with other work.
 
 Gzip (or zstd at `--compressionLevel=1`) is fine here; the point is the small page size, not the codec.
 

@@ -340,7 +340,7 @@ podman store on PATH.
 
 ## Low-memory engines (LOAD-LM, L-818, `lowheap.py`)
 
-`python3 scripts/load/lowheap.py [--engines es710,es861,es819,es912] [--heaps 256m,384m] [--datasets pmc,fat] [--regression] [--pmc FILE] [--run-id ID] [--port 19413] [--keep]`
+`python3 scripts/load/lowheap.py [--engines es710,es861,es819,es912[,os13,os2,os3]] [--heaps 256m,384m] [--datasets pmc,fat] [--mode auto|off|min|none] [--regression] [--pmc FILE] [--run-id ID] [--port 19413] [--keep]`
 
 The standard low-memory test set for `searchdump-multi` (1.1-10): the tiers above run at 768 MB or more, and
 CI's integration tests at 512 MB, so neither would catch data defaults that are too big for a small node. For
@@ -367,6 +367,16 @@ load `--limit=5000 --maxBulkBytes=100mb`) and records whether each one failed (n
 is not asserted, because some cells pass with the old flags too (384m with pmc); a dead node is restarted for
 the next step. On `main`, where `searchdump-multi` still has the old defaults until 1.1-10 is ported, the
 default mode fails the same way.
+
+1.2 (L2-006): `--mode` adds `--serverLimits=MODE` to every dump and load (default `auto`; `off` must reproduce the
+1.1.0 defaults; `none` adds nothing, for a 1.1.x build via `LOAD_BIN_DIR`). The OpenSearch cells `os13` (1.3.20),
+`os2` and `os3` (the pinned `opensearch:2` / `:3` images) run at the same heaps; all three boot at 256m
+(`tests/fixtures/server-limits/boot.json`), which is the OpenSearch floor of the acceptance set (ROADMAP-1.2 Q7,
+provisional). The JSON records each dump's `server limits:` line.
+
+Two companions (1.2): `limits_fixtures.py` captures the probe answers of every engine at 256m/384m/1024m into
+`tests/fixtures/server-limits/` for the unit tests, and `workerpage.py` measures the worker/page trade-off
+(`--parallel P -- --limit=L` over 8 indices) that the multi sizing policy is based on (results/local/L2-002.md).
 
 Run it with the isolated podman store on PATH. The whole set (4 engines x 2 heaps, both datasets) takes about
 an hour on the shared box and needs about 2 GB free RAM; one engine and heap is a quick check, e.g.

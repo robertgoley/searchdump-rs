@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
-"""LOAD-LM (L-818): low-memory engines with searchdump-multi default data flags (1.1-10).
+"""LOAD-LM (L-818): low-memory engines with searchdump-multi default data flags (1.1-10;
+1.2: `--serverLimits`, L2-006).
 
-    scripts/load/lowheap.py [--engines es710,es861,es819,es912] [--heaps 256m,384m]
-                            [--datasets pmc,fat] [--regression] [--pmc FILE]
-                            [--run-id ID] [--port 19413] [--keep]
+    scripts/load/lowheap.py [--engines es710,es861,es819,es912[,os13,os2,os3]] [--heaps 256m,384m]
+                            [--datasets pmc,fat] [--mode auto|off|min|none] [--regression]
+                            [--pmc FILE] [--run-id ID] [--port 19413] [--keep]
+
+--mode (1.2, default auto) adds `--serverLimits=MODE` to every searchdump-multi dump and load:
+`auto` sizes from the probed limits, `off` must reproduce the 1.1.0 defaults, `min` is half of auto;
+`none` adds nothing (for a 1.1.x build, which has no --serverLimits).
 
 For every engine x heap it provisions one single-node engine with scripts/it/up.sh (ES_HEAP) and,
 for each dataset:
@@ -31,6 +36,12 @@ Engines (scripts/it/matrix.sh keys):
   es861  bitnamilegacy elasticsearch 8.6.1        (elasticsearch8-plain)
   es819  docker.elastic.co elasticsearch 8.19.23  (es819-plain)
   es912  bitnamilegacy elasticsearch 9.1.2        (elasticsearch-plain)
+  os13   opensearch 1.3.20                        (os13-plain)
+  os2    opensearch 2 (pinned in images.lock)     (opensearch-plain, OS_TAG=2)
+  os3    opensearch 3 (pinned in images.lock)     (opensearch-plain, OS_TAG=3)
+
+The OpenSearch cells (L2-006) are not in the default --engines list; the acceptance set runs them at
+256m, the smallest heap all three boot with (tests/fixtures/server-limits/boot.json; ROADMAP-1.2 Q7).
 
 Datasets (generated, deterministic; cached under $LOAD_WORK/lowheap-data):
   pmc  20,000 article-like documents, ~22 KB of word text each (--pmc FILE uses a searchdump-format
@@ -51,7 +62,9 @@ import run as R  # noqa: E402
 
 ROOT = R.ROOT
 ENGINES = {"es710": "es710-plain", "es861": "elasticsearch8-plain", "es819": "es819-plain",
-           "es912": "elasticsearch-plain"}
+           "es912": "elasticsearch-plain", "os13": "os13-plain", "os2": "opensearch-plain",
+           "os3": "opensearch-plain"}
+OS_TAGS = {"os2": "2", "os3": "3"}
 OLD_DUMP = ["--limit=5000", "--maxResponseMb=0"]
 OLD_LOAD = ["--limit=5000", "--maxBulkBytes=100mb"]
 MAPPING = {"settings": {"number_of_shards": 1, "number_of_replicas": 0},
@@ -125,9 +138,12 @@ class Engine:
             k, v = line.split("=", 1)
             base[k] = v
         self.profile = base.pop("UP_PROFILE")
+        if key in OS_TAGS:
+            base.update(OS_TAG=OS_TAGS[key], OS_IMAGE=f"docker.io/opensearchproject/opensearch:{OS_TAGS[key]}")
         heap_mb = int(heap.rstrip("m"))
         self.run_id = f"lm{os.getpid()}{key}{heap_mb}"
-        self.name = f"it-es-plain-{self.run_id}"
+        kind = "os" if self.profile.startswith("opensearch") else "es"
+        self.name = f"it-{kind}-plain-{self.run_id}"
         env = {k: v for k, v in os.environ.items()
                if not k.startswith(("IT_", "ES_", "OS_")) and k not in ("RUN_ID", "PORT", "UP_PROFILE")}
         self.env = dict(env, **base, IT_DIR=os.path.join(work, f"it-{key}-{heap_mb}"), IT_LOCK_HELD="1",
@@ -208,6 +224,8 @@ def main():
     ap.add_argument("--engines", default="es710,es861,es819,es912")
     ap.add_argument("--heaps", default="256m,384m")
     ap.add_argument("--datasets", default="pmc,fat")
+    ap.add_argument("--mode", default="auto", choices=["auto", "off", "min", "none"],
+                    help="--serverLimits for the multi runs (none: a 1.1.x build)")
     ap.add_argument("--regression", action="store_true", help="also run the pre-1.1-10 flags (expected to fail)")
     ap.add_argument("--pmc", help="searchdump-format pmc file instead of the generated one")
     ap.add_argument("--run-id")
@@ -235,8 +253,9 @@ def main():
     resdir = os.path.join(ROOT, "results", "load", run_id)
     os.makedirs(resdir, exist_ok=True)
     tool, multi = R.tool_path("searchdump"), R.tool_path("searchdump-multi")
+    sl = [] if a.mode == "none" else [f"--serverLimits={a.mode}"]
     res = dict(schema="edrs-lowheap/v1", run_id=run_id, engines=engines, heaps=heaps, datasets={},
-               regression=a.regression,
+               regression=a.regression, mode=a.mode,
                git=subprocess.run(["git", "-C", ROOT, "rev-parse", "--short", "HEAD"],
                                   capture_output=True, text=True).stdout.strip(),
                tool=subprocess.run([tool, "--version"], capture_output=True, text=True).stdout.strip(),
@@ -301,12 +320,15 @@ def main():
                         cl.req("POST", f"/{d}/_refresh")
                         # dump with the default data flags
                         out = os.path.join(cw, f"dump-{d}")
-                        r = step(f"dump-{d}", [multi, "--input", eng.url, "--output", out, "--match", f"^{d}$"], "dump")
+                        r = step(f"dump-{d}", [multi, "--input", eng.url, "--output", out, "--match", f"^{d}$", *sl], "dump")
                         f = glob.glob(os.path.join(out, f"{d}.data.json*"))
                         r["docs"], r["digest"] = digest_file(f[0]) if f and r["exit"] == 0 else (None, None)
                         note = [x for x in open(os.path.join(cw, f"dump-{d}.log"), errors="replace")
                                 if "per page" in x]
                         r["page_note"] = note[-1].strip()[:200] if note else ""
+                        lim = [x for x in open(os.path.join(cw, f"dump-{d}.log"), errors="replace")
+                               if x.startswith("server limits")]
+                        r["limits_line"] = lim[-1].strip()[:400] if lim else ""
                         r["equal"] = (r["docs"], r["digest"]) == (s["docs"], s["digest"])
                         cell["steps"].append(r)
                         for bad, msg in ((r["exit"] != 0, f"dump {d}: exit {r['exit']}"),
@@ -322,7 +344,7 @@ def main():
                         # load with the default data flags
                         cl.req("DELETE", f"/{d}", ok404=True)
                         r = step(f"load-{d}", [multi, "--direction", "load", "--input", out, "--output", eng.url,
-                                               "--match", f"^{d}$"], "load")
+                                               "--match", f"^{d}$", *sl], "load")
                         if r["exit"] == 0 and r["node_alive"]:
                             cl.req("POST", f"/{d}/_refresh")
                             back = os.path.join(cw, f"readback-{d}.json")
