@@ -1,6 +1,6 @@
 # 1.2 progress note (wip/1.2-sizing; for whoever resumes after an interruption)
 
-Updated: 2026-11-15 08:08 EST (box local time).
+Updated: 2026-11-15 08:16 EST (box local time).
 
 ## Where things are
 - `origin/release/1.2`: L2-001 (73d38f5, 1.2-1a), L2-002 (67d8ee6, 1.2-1b), L2-003 (c07e00f, 1.2-1c),
@@ -41,7 +41,16 @@ containers or /workspace/perf-pit-1.1). Nothing else removed.
   (es710, es819, os2 256m -> live/safe-*.json, log logs12/chain-1g.log), then the 16-engine L0 suite with
   bin-1.2rc (--skip-node, reps 3; resumable per engine; summary /workspace/logs12/perf-1.2.summary), then
   1.1.0 back-to-back on es710-secure and es819-plain. Relaunch with `nohup ./chain-1g.sh &` after a reboot.
-- [ ] 1f L2-006: `/workspace/perf-1.2/chain-1f.sh` (nohup; waits for chain-1e CHAIN-DONE; resumable) runs
+- [ ] 1f L2-006 FINISH RECIPE (after `CHAIN-DONE` in logs12/chain-1f.log): `/workspace/perf-1.2/make_l2006.sh`
+  (copies results/load/L2-006-*/lowheap.json -> results/local/L2-006-<mode>-lowheap.json, writes
+  results/local/L2-006.md via perf-1.2/lowheap_agg.py); review the Notes (os3/384m auto load-fat 104.9 s outlier);
+  add a 1.2 lowheap sentence to examples/README.md "Minimum resources" (after "defaults on 256 MB and 384 MB
+  heaps ..."); `TREE=/workspace/rel-1.2-chk python3 /workspace/perf-1.2/track.py L2-006 1.2-1f "..." "..."`;
+  `git add` scripts/load/{lowheap.py,README.md} results/local/L2-006* examples/README.md + the 8 tracking docs
+  (never -A); secret-scan (source perf-1.2/env.sh first: needs rustc 1.91 from ~/.cargo/bin); push HEAD:release/1.2.
+  auto DONE 08:12: 14/14 cells PASS (ES 7.10/8.6/8.19/9.1, OS 1.3.20/2.19.7/3.9.0 at 256m+384m); 1.0 flags 20/56 fail.
+  off started 08:12 (box busier; ~20 min/mode), then v110, then min (ETA CHAIN-DONE ~09:15).
+- [ ] 1f L2-006 (orig): `/workspace/perf-1.2/chain-1f.sh` (nohup; waits for chain-1e CHAIN-DONE; resumable) runs
   lowheap on 7 engines x 256m/384m: L2-006-auto (+--regression), -off, -v110 (1.1.0 bins, --mode none), -min;
   logs /workspace/logs12/lowheap-*.log, chain-1f.log; JSON in rel-1.2-chk/results/load/L2-006-*/.
   lowheap.py + scripts/load/README.md already copied into the chk tree (uncommitted, part of L2-006).
