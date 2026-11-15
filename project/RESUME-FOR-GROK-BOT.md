@@ -109,3 +109,4 @@ The user runs Grok 4.7 locally through the OpenCode CLI. The handoff/ folder (op
 - L-820 (2026-11-14): release/1.1 merged into main; lowheap PASS on main (results/local/L-820.md)
 - L-821 (2026-11-15): examples/ refreshed for 1.1.0 after the main merge (owner t103u)
 - L-822 (2026-11-15): 1.1 handoff refreshed and kvmsvr1 perf-run handoff written (owner t103u)
+- L-824 (2026-11-15): 1.2 server-aware sizing plan written (owner t108u); replaces 1.1-10 defaults in 1.2

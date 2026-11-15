@@ -254,7 +254,8 @@ Start: 2026-10-29 13:05 EDT at `511a6f5`.
 | L-819 | done | a76635b | release/1.1: searchdump-multi 'FAILED  IX: : interrupted' empty context fixed (with_part + unit test); FEATURES-TODO 1.1-10 row and 1.1 rows done; version 1.1.0 (Cargo, Dockerfile, CHANGELOG '## 1.1.0', release notes); not tagged; 540 unit/contract/chaos pass (results/local/L-819.md) |
 | L-820 | done | 0d7d518 | release/1.1 merged into main (normal merge, owner t103u); code = a76635b; CHANGELOG/README/FEATURES-TODO/selftest conflicts resolved; IT es819/os2/es710/es912 90/0 (es912 after one timing-flake rerun), lowheap.py PASS 16/16 on main, secret-scan OK (results/local/L-820.md) |
 | L-821 | done | f7bc7ba | examples/ refreshed for 1.1.0 (image 1.1.0-dhi-debian, New in 1.1.0 section); shellcheck clean, kubeconform 14/14 |
-| L-822 | done | this commit (`git log --grep '^L-822'`) | HANDOFF-1.1.md refreshed for 1.1.0 on main; kvmsvr1 perf-run handoff (section 5b) |
+| L-822 | done | 8952185 | HANDOFF-1.1.md refreshed for 1.1.0 on main; kvmsvr1 perf-run handoff (section 5b) |
+| L-824 | done | this commit (`git log --grep '^L-824'`) | 1.2 plan: server-aware sizing (--serverLimits) in project/plan/ROADMAP-1.2-PLAN.md; FEATURES-TODO 1.2-1 |
 
 ## Resume note (2026-10-30, stopped on usage cap)
 - Last commit: L-808m (edverify fits the 1 GB smoke heap; after L-808l 30f2122; 2026-11-09, on `main`, pushed to origin = github.com/robertgoley/elasticdump-rs-fork; `git log -1 --grep '^L-808m'`). Tree clean. **Next: L-809 (LOAD-014: 300 indices here; design notes on branch wip/L-809)**.

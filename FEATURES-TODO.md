@@ -78,3 +78,11 @@ Added 2026-11-11 from the post-beta1 code review. Measure each change with the p
 Line numbers are as of `a98be22` and will drift. Status: "planned", "in progress (release/1.1)" = code committed on the local `release/1.1` branch but not yet built/tested or A/B measured, "done" = built, tested and measured. Order and details: `project/plan/ROADMAP-1.1-PLAN.md`.
 
 The 1.1 plan, `project/plan/ROADMAP-1.1-PLAN.md`, came to `main` with the release/1.1 merge (owner decision 2026-11-14 t103u).
+
+## Roadmap: 1.2
+
+Added 2026-11-15 (owner request t108u). 1.1.0 is frozen; these items do not change it. Details, evidence and the remove/rewrite list for 1.1-10: `project/plan/ROADMAP-1.2-PLAN.md`.
+
+| # | Item | Where | Why | Expected impact | Effort | Status |
+|---|---|---|---|---|---|---|
+| 1.2-1 | Server-aware sizing: `--serverLimits=off\|auto\|min\|check` probes heap, breakers, indexing pressure, `http.max_content_length` and thread pools once per run and sizes pages, bulks and multi parallelism from them (fewer workers before smaller pages; byte-based pages; one stats call in the multi parent); 429 page-halving / bulk-splitting mid-run; fallbacks for 403, serverless and AWS OpenSearch Service. Replaces the fixed 1.1-10 multi defaults (`off` keeps 1.1.0 behaviour) | `src/bin/searchdump-multi.rs` (`DATA_FLAGS`, `page_limit_for`, `Cluster::avg_doc_bytes`, `dump_one`), new sizing module, `searchdump` retrieval/bulk retry, `scripts/load/lowheap.py` | 1.1-10's fixed `--limit=1000` / 16 MB bulks keep small heaps alive but slow multi p4/p8 on ES 7.10 in the 1.1.0 RC (up to 1.4x; es710-secure `multi-dump-p8` 0.40 -> 1.55 s, unexplained: diagnose first, 1.2-1a) | small heaps safe by default, ES and OpenSearch; beta1 multi timings back on big clusters | M-L (phases 1.2-1a..g) | planned (design in ROADMAP-1.2-PLAN) |
