@@ -49,7 +49,10 @@ restore yourself (restore it, compare document counts) before you rely on it. Se
   package manager install the OpenSSH client OpenDAL's SFTP backend runs (`openssh-client` on
   Debian-based images, `ssh-keysign` setuid bit removed; `openssh-client-default` on Alpine). The
   COPY-only `dhi-static` image is unchanged. The added Debian OpenSSH/Kerberos CVEs are accepted
-  in SECURITY-CVE.md (owner, 2026-11-14).
+  in SECURITY-CVE.md (owner, 2026-11-14). The user-admin and init-script tools its dependencies
+  pull in (`useradd`/`usermod`/`chpasswd`/`vipw`, `service`, `update-rc.d`, `deb-systemd-*`, their
+  dpkg maintainer scripts) are deleted from the Debian images (L-810j); the documented executable
+  set is unchanged.
 
 ### Changed
 

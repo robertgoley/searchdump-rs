@@ -649,7 +649,8 @@ Other behaviour:
 **`sftp://` in the container images (L-810i, new in 1.1; 1.0.0 images lack it).** OpenDAL's SFTP backend runs the
 system OpenSSH `ssh` client (Dropbear's client is not compatible). Since L-810i every image built with a package
 manager installs it: Debian-based images (`dhi-debian` default, `public`) get `openssh-client` (no recommends,
-`ssh-keysign` without its setuid bit), Alpine-based images (`dhi-alpine`, `alpine`) get `openssh-client-default`.
+`ssh-keysign` without its setuid bit, and since L-810j without the user-admin and init-script tools its
+dependencies bring), Alpine-based images (`dhi-alpine`, `alpine`) get `openssh-client-default`.
 The COPY-only `dhi-static` image still has no `ssh`, so `sftp://` does not work there. Give the key with
 `key_file` in a `--inputStorageConfig`/`--outputStorageConfig` file (mounted read-only and readable by uid 65532)
 and pre-seed `known_hosts` (the image has no `~/.ssh`); `known_hosts = accept` works but trusts any host key. In
@@ -747,7 +748,8 @@ base name).
 **`sftp://` in the container images (L-810i, new in 1.1; 1.0.0 images lack it).** OpenDAL's SFTP backend runs the
 system OpenSSH `ssh` client (Dropbear's client is not compatible). Since L-810i every image built with a package
 manager installs it: Debian-based images (`dhi-debian` default, `public`) get `openssh-client` (no recommends,
-`ssh-keysign` without its setuid bit), Alpine-based images (`dhi-alpine`, `alpine`) get `openssh-client-default`.
+`ssh-keysign` without its setuid bit, and since L-810j without the user-admin and init-script tools its
+dependencies bring), Alpine-based images (`dhi-alpine`, `alpine`) get `openssh-client-default`.
 The COPY-only `dhi-static` image still has no `ssh`, so `sftp://` does not work there. Give the key with
 `key_file` in a `--inputStorageConfig`/`--outputStorageConfig` file (mounted read-only and readable by uid 65532)
 and pre-seed `known_hosts` (the image has no `~/.ssh`); `known_hosts = accept` works but trusts any host key. In

@@ -117,6 +117,11 @@ COPY --from=builder /out/root/usr/share/doc/searchdump-rs/ /usr/share/doc/search
 #   `ssh` binary (Dropbear's client is not compatible). Alpine: openssh-client-default (ssh only,
 #   no keysign); Debian: openssh-client without recommends, apt lists removed, and the setuid bit
 #   dropped from ssh-keysign (host-based auth only; the image runs as 65532 with no setuid files).
+#   L-810j (owner decision 2026-11-14): the account and service tools its dependencies pull in
+#   (passwd: useradd/usermod/chpasswd/vipw/...; init-system-helpers: service, update-rc.d,
+#   invoke-rc.d, deb-systemd-*; adduser's example hook; their dpkg maintainer scripts) are
+#   deleted. A non-root image never runs them, and test-image keeps its executable allowlist
+#   unchanged. The packages stay in the dpkg database, so SBOMs and CVE scans still see them.
 #   The COPY-only dhi-static type has no package manager and stays without SFTP.
 # - compatibility symlinks: elasticdump, elasticdump-rs -> searchdump; multielasticdump -> searchdump-multi
 # - CA bundle only when the base image has none
@@ -130,7 +135,16 @@ RUN --mount=type=bind,from=builder,source=/out/ca-certificates.crt,target=/tmp/c
       && apt-get install -y --no-install-recommends openssh-client \
       && apt-get clean \
       && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*.deb /var/log/apt /var/log/dpkg.log \
-      && if [ -e /usr/lib/openssh/ssh-keysign ]; then chmod u-s /usr/lib/openssh/ssh-keysign; fi; \
+      && if [ -e /usr/lib/openssh/ssh-keysign ]; then chmod u-s /usr/lib/openssh/ssh-keysign; fi \
+      && rm -f /usr/bin/chage /usr/bin/expiry /usr/bin/deb-systemd-helper /usr/bin/deb-systemd-invoke \
+           /usr/sbin/chgpasswd /usr/sbin/chpasswd /usr/sbin/groupadd /usr/sbin/groupdel /usr/sbin/groupmod \
+           /usr/sbin/grpck /usr/sbin/grpconv /usr/sbin/grpunconv /usr/sbin/newusers /usr/sbin/pwck \
+           /usr/sbin/pwconv /usr/sbin/pwunconv /usr/sbin/shadowconfig /usr/sbin/useradd /usr/sbin/userdel \
+           /usr/sbin/usermod /usr/sbin/vipw /usr/sbin/vigr /usr/sbin/service /usr/sbin/update-rc.d \
+           /usr/sbin/invoke-rc.d /usr/share/doc/adduser/examples/adduser.local \
+           /var/lib/dpkg/info/init-system-helpers.postinst /var/lib/dpkg/info/login.defs.postinst \
+           /var/lib/dpkg/info/passwd.preinst /var/lib/dpkg/info/passwd.postinst \
+           /var/lib/dpkg/info/passwd.prerm /var/lib/dpkg/info/passwd.postrm; \
     fi \
  && ssh -V \
  && ln -s searchdump /usr/local/bin/elasticdump \

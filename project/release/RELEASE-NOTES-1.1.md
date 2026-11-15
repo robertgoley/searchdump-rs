@@ -83,7 +83,8 @@ unchanged.
 - **`--httpAuthFile` wins** over URL credentials, `--input-*`/`--output-*`/`--username`/`--password`
   and `SEARCHDUMP_*` variables, with a warning that names (never shows) what it replaced.
 - **`sftp://` works in the container images** that have a package manager (OpenSSH client added);
-  `dhi-static` still has no `ssh`.
+  `dhi-static` still has no `ssh`. The Debian images carry no user-admin or init-script tools
+  (L-810j).
 - **Clearer errors:** the open scroll limit fails at once with exit 1 and names
   `search.max_open_scroll_context`; HTTP 413 names `http.max_content_length` and `--maxBulkBytes`;
   routed documents into a data stream get one warning naming `data_stream.allow_custom_routing`;
