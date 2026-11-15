@@ -5,45 +5,238 @@ a version with a hyphen (`1.0.0-beta1`) is a pre-release. The release workflow
 (`.github/workflows/release.yml`) uses the section for a version as the release notes of its draft
 GitHub release.
 
-## Unreleased
+## 1.1.0
+
+Release date: the day `v1.1.0` is tagged (release candidate verified on 2026-11-15; not tagged
+yet). Roadmap: `FEATURES-TODO.md`, "Roadmap: 1.1 release"; order and checks:
+`project/plan/ROADMAP-1.1-PLAN.md`. The user-facing notes, including the upgrade guide, are in
+[`project/release/RELEASE-NOTES-1.1.md`](project/release/RELEASE-NOTES-1.1.md).
+
+### Disclaimer
+
+searchdump-rs is provided "as is", without warranty of any kind, as stated in the MIT license
+(the same warranty disclaimer as the elasticdump-rs code it derives from; Node elasticdump,
+whose behaviour it follows, has the equivalent disclaimer in Apache-2.0, sections 7 and 8).
+The authors are not liable for any damage from its use, including data loss, corruption,
+downtime or service disruption, in production or elsewhere. It has been stable and fast in
+our testing, but no test suite covers every cluster version, configuration, plugin and
+storage backend. Test in a non-production environment first, and verify every backup and
+restore yourself (restore it, compare document counts) before you rely on it. See
+[Disclaimer](README.md#disclaimer).
 
 ### Added
 
-- **`--restartOnContextLoss N`** (L-804b, P3): a scroll data dump from a cluster into a file restarts from the start, rewriting the file, up to N times when the scroll context is lost (default 0 = off). Refused with a usage error for PIT/search_after dumps, `--scrollId`, and outputs other than a file.
-- The scroll-context-lost error suggests a point-in-time dump (`--searchAfter --pit`) and `--restartOnContextLoss` (P4).
-- When most failed writes are `cluster_block_exception`s, the exit-3 summary names the block; for a disk flood-stage block it suggests freeing disk, then rerunning with a higher `--retryAttempts` (P5).
-- Error causes stay typed through the pipeline (`.context` instead of re-formatting; P2), so exit codes classify them reliably.
+- **`--refreshInterval=<seconds>`** (default `5`). Refresh written indices at most this often
+  while writing, plus once at the end of the run. Accepts seconds, optional decimals, and an
+  optional trailing `s` (`0` to `86400`). `0` restores a refresh after every batch.
+- **`--scrollDocSort`** (opt-in, default off). Adds `"sort":["_doc"]` to an unscored scroll
+  body that has no user sort.
+- **`--sliceCap=auto|min|total|false`** (default `auto`; `true` is an alias of `auto`) and
+  **`--sliceField=<field>`**. `auto` caps a scroll dump's `--slices` to the smallest
+  primary-shard count on Elasticsearch 7.10 only and keeps it as given on every other engine
+  and undetectable versions (1.1-4a); `min` / `total` force the cap on any engine; `false`
+  never caps. `--sliceField` slices on a numeric or date field with doc values.
+- **`searchdump-multi --verifyCounts`**. Always re-read dumped or loaded data and fail the
+  index when the child's reported record count differs.
+
+- **`--restartOnContextLoss N`** (from the 1.0 line, L-804b). A scroll data dump from a cluster
+  into a file restarts from the start, rewriting the file, up to N times when the scroll context
+  is lost (default 0 = off). Refused with a usage error for PIT/search_after dumps, `--scrollId`,
+  and outputs other than a file. The scroll-context-lost error suggests a point-in-time dump and
+  this flag; when most failed writes are `cluster_block_exception`s, the exit-3 summary names the
+  block (for a disk flood-stage block it suggests freeing disk and a higher `--retryAttempts`).
+- **`sftp://` inside the container images** (from the 1.0 line, L-810i). Images built with a
+  package manager install the OpenSSH client OpenDAL's SFTP backend runs (`openssh-client` on
+  Debian-based images, `ssh-keysign` setuid bit removed; `openssh-client-default` on Alpine). The
+  COPY-only `dhi-static` image is unchanged. The added Debian OpenSSH/Kerberos CVEs are accepted
+  in SECURITY-CVE.md (owner, 2026-11-14). The user-admin and init-script tools its dependencies
+  pull in (`useradd`/`usermod`/`chpasswd`/`vipw`, `service`, `update-rc.d`, `deb-systemd-*`, their
+  dpkg maintainer scripts) are deleted from the Debian images (L-810j); the documented executable
+  set is unchanged.
+
+- **Examples updated for 1.1** (from the 1.0 line, L-810k). The `examples/` scripts rerun a step that
+  exits 4 (`RERUNS`, `RERUN_DELAY`), the very-large-index dumps take an opt-in
+  `RESTART_ON_CONTEXT_LOSS`, the copy scripts note that `--httpAuthFile` wins, the multi-index
+  restores pass `--maxBulkBytes`, and 7 Kubernetes manifests with numeric `env` values (invalid) are
+  fixed.
+- **Low-memory test set** (L-818). `scripts/load/lowheap.py` runs `searchdump-multi` dump and load
+  with the default flags against ES 7.10.2, 8.6.1, 8.19.23 and 9.1.2 at 256 MB and 384 MB heap;
+  `--regression` shows the pre-1.1 flags failing.
+
+### Changed
+
+- **Safer `searchdump-multi` data defaults (1.1-10).** Data runs used `--limit=5000` and
+  `--maxResponseMb=0`. On a small heap a single 5000-document scroll page took the cluster down:
+  Elasticsearch 7.10.2 and 8.6.1 (bitnamilegacy, 256 MB heap) died with `OutOfMemoryError`
+  (also at 384 MB with ~80 KB documents), and 8.19.23 answered HTTP 429 (parent breaker) until
+  the retries ran out. Data runs now default to `--limit=1000` and keep searchdump's 256 MB
+  response cap. A dump of an index whose documents average more than 16 KB stored uses
+  proportionally fewer per page (about 16 MB stored per page, at least 1) and prints a note; an
+  explicit `-- --limit=N` turns that off. With the new defaults all four engines (7.10.2, 8.6.1,
+  8.19.23, 9.1.2) dump the same data at a 256 MB heap. Loads send at most 1000 documents and
+  16 MB per bulk (`--maxBulkBytes=16mb`): 5000 PMC articles (~105 MB) were refused with HTTP 429
+  even by a 1 GB heap (`indexing_pressure`), and 1000 of them by a 256 MB heap (parent breaker).
+- **Refresh cadence (1.1-1).** The writer used to refresh the target after every bulk batch, as
+  Node elasticdump does. It now refreshes the indices it wrote at most every 5 seconds (the
+  clock starts at the first finished batch) and always once at the end of the run, including
+  the `--concurrency 1` path, which before relied on the last batch's refresh.
+  `--refreshInterval=0` restores the per-batch refresh (Node-identical request pattern);
+  `--noRefresh` still sends no refresh and wins over `--refreshInterval`. After the run the
+  same documents are visible; only readers watching *during* a restore see them up to the
+  interval later. NODE-DIFFERENCES.md #26.
+
+- **`_doc` sort for scroll dumps (1.1-3).** `--scrollDocSort` adds `"sort":["_doc"]` to a
+  scroll body with no `sort` and a `match_all`/`match_none` query (or none). It is skipped,
+  with an info log, for PIT, `--searchAfter`, `--scrollId`, `--searchWithTemplate`, a user
+  sort, scoring queries and `track_scores`/`min_score`/`rescore`. The injected `sort` member
+  is stripped from written hits; `"_score": null` remains. Default off: without the flag,
+  requests and dump lines are unchanged. Node sets `sort: ['_doc']` on its request options
+  object, not the body, so it never actually sends the sort and writes `"_score": 1`.
+  NODE-DIFFERENCES.md #27.
+
+- **Scroll slices capped to the shard count on Elasticsearch 7.10 (1.1-4, limited in 1.1-4a).**
+  1.1-4a (owner decision 2026-11-14): the default `--sliceCap=auto` now caps only on
+  Elasticsearch 7.10.x. The point-in-time perf run (`scripts/perf/results/pit-1.1.md`) showed the
+  cap fixing ES 7.10 (`dump-scroll-s2` -63%, `s4` -34%) but slowing sliced scrolls on ES 8.19
+  (`s4` +45%, `s8` +59%) and OpenSearch 3 (`s4` +62%, `s8` +101%), so every other engine keeps
+  the pre-1.1-4 behaviour (`--slices` as given; `auto` reads the version with `GET /`). The
+  version-aware basis below now applies only when the cap runs (ES 7.10, or a forced
+  `--sliceCap=min|total`). Original 1.1-4 text: a sliced scroll with more slices than
+  primary shards makes the engine filter every document of a shard per extra slice, which can
+  be slower than an unsliced scroll. A scroll dump now reads `index.number_of_shards` of the
+  input indices and lowers `--slices` to it with a warning (one shard: unsliced). The count is
+  version-aware (`--sliceCap=auto`, default): Elasticsearch 7.11-9.4 assign slices across all
+  shards of the request (elastic/elasticsearch#65706), so the total primary-shard count is the
+  limit; Elasticsearch 5.0-7.10 and OpenSearch assign them per index, and Elasticsearch 9.5+
+  scroll filters per shard again (elastic/elasticsearch#148664), so the smallest count is the
+  limit there and when the version cannot be detected. The version (`GET /`) is only read when
+  the input names several indices. `--sliceCap=min` / `total` force one count;
+  `--sliceCap=false` keeps the requested number. `--sliceField` adds `"field"` to
+  every slice (numeric/date field with doc values, checked with
+  `GET /<index>/_mapping/field/<field>`; a missing, non-numeric or doc-values-less field is
+  an error before the first search) and disables the cap. PIT is not capped. When the
+  settings or mapping cannot be read, a warning is printed and the flags are used as given.
+  Node has no slicing.
+
+- **Compression runs on its own thread (1.1-9).** A compressed file output (`--fsCompress`,
+  `--compressionType gzip|zstd`, split parts too) now feeds each part's encoder on a
+  dedicated `searchdump-compress` thread, so gzip/zstd no longer stall the writer between
+  batches. The compressed bytes are identical to 1.0. An encoder error surfaces on the next
+  write, flush or seal; dropping a part (cancel, abort, error) stops its thread. The memory
+  estimate counts 3 extra batches for compressed output. No flag.
+
+- **Bulk encode/send overlap at `--concurrency 1` (1.1-6).** A batch is now validated and
+  encoded while the previous one is in flight, then sent once that send has finished
+  (written, retried or reported). Sends never overlap, so the requests and their order are
+  unchanged; an error in batch N means batch N+1 is never sent. A run that ends with an
+  error finishes the one batch in flight before exiting. `SEARCHDUMP_BULK_PIPELINE=0` turns
+  it off (A/B switch, not a CLI flag). The version-conflict (409) and data-stream hints are
+  now shared by all workers, so they are printed once per run also with `--concurrency N > 1`
+  (they were printed once per batch there). The memory estimate counts 2 extra batches.
+
+- **searchdump-multi runs its children asynchronously (1.1-8).** Child `searchdump` processes
+  are awaited without holding a runtime thread per child. Ctrl-C now stops running children:
+  SIGTERM first, SIGKILL after 5 s, and each stopped child is named with its log
+  (`interrupted: stopped searchdump --type=data for INDEX (...)`); before, running children
+  were left to finish. Exit status 130 is unchanged.
+
+- **searchdump-multi uses the record counts its children report (1.1-7).** A data run of
+  searchdump gets a hidden `--statsFile` and writes written/failed/overwritten/rejected
+  counts when it succeeds. The dump summary and manifest `records` use that count; without
+  it, the child's last `Total Writes: N` log line (searchdump and Node elasticdump formats);
+  without both, the data files are read back as before. A load adds up each part's written +
+  failed instead of reading every part before loading it. `--verifyCounts` always reads the
+  files back and fails the index when the reported count differs. `--statsFile` is passed
+  only when the child binary resolves to `searchdump*` (compatibility symlinks included; a
+  Node `--elasticdumpBin` gets no unknown flag). `SEARCHDUMP_MULTI_DEBUG=1` prints the count
+  source. Summary and manifest formats are unchanged.
+
+- **Perf harness timer (1.1-5).** `scripts/load/measure.py` now blocks in `wait4` and samples
+  `/proc` on a side thread, instead of polling `wait4` every 0.1 s. Wall times are no longer
+  rounded up to the next ~0.1 s tick. Results carry `"timer": "blocking-wait4"`; 1.0.0-beta1
+  numbers measured with the old harness are re-measured before any 1.1 comparison. Binaries
+  are unchanged.
+
+- **Exit status 4 for transient, rerun-safe failures** (from the 1.0 line, L-804b; behaviour
+  change). A run that still fails after its retries because of the network, HTTP 429 or 5xx, or
+  a lost scroll context now exits 4 instead of 1 when nothing was committed that a rerun would
+  duplicate. A restore that already sent documents without `_id`, and every permanent failure,
+  still exit 1; 0, 2, 3, 130 and 143 are unchanged. `searchdump-multi` keeps its own codes.
+- **`--httpAuthFile` wins over every other credential source** (from the 1.0 line, L-645b;
+  behaviour change). Its `user=`/`password=` pair is used for both directions even when the URL,
+  `--input-*`/`--output-*`/`--username`/`--password` flags or `SEARCHDUMP_*` variables also give
+  credentials; a warning names the sources it replaced, never their values.
+- **Restore CPU and memory** (from the 1.0 line, L-808n to L-808r). memchr line splitting, one
+  checked parse per document, the encoded batch moved (not copied) into the bulk request,
+  pre-sized file batch buffers, and batches shared as `Bytes` through the sink. On 1.0 these cut
+  100k-doc restore CPU by about half and peak RSS by about 17%; on 1.1 they were merged into the
+  1.1-6 encode/send pipeline (not re-measured with the PIT batch).
 
 ### Fixed
 
-- **A lost scroll context names the point-in-time way out** (L-804c). When the scroll context is gone (expired, index deleted, node restarted), the error now suggests `--searchAfter --pit` and `--restartOnContextLoss N`, as the failed-continuation error already did. Exit 4, as since L-804b.
-- **Routed documents into a data stream are explained once** (L-812). A data stream refuses documents that carry a routing value unless its index template sets `data_stream.allow_custom_routing: true` (Elasticsearch 8.1+); each such document failed with only the cluster's item error. The restore now warns once that every routed document will fail and suggests a regular index or removing the routing. The failed writes still count (exit 3).
-- **HTTP 413 (request too large) names the limit** (L-810). Elasticsearch and OpenSearch answer a bulk larger than `http.max_content_length` (100mb by default) with 413 and an empty body; the error now says so, suggests a lower `--maxBulkBytes`, and notes that a single document above the limit needs the setting raised. Still exit 1, not retried.
-- **Scroll dumps that pass the cluster's open scroll limit** (L-809). When the cluster refuses a scroll with "too many scroll contexts" (`search.max_open_scroll_context`, 500 by default; one context per shard and slice), the dump is no longer retried and exits 1 instead of 4, with a message that names the setting, `--slices`, and the point-in-time dump (`--searchAfter --pit`) that opens no scroll contexts.
-- **`sftp://` inside the container images** (owner decision 2026-11-14, L-810i). The runtime stage installs the
-  OpenSSH client that OpenDAL's SFTP backend runs: `openssh-client` (no recommends, `ssh-keysign` setuid bit
-  removed) on Debian-based images, `openssh-client-default` on Alpine-based images. The COPY-only `dhi-static`
-  image is unchanged (no package manager, no SFTP). On Debian the package pulls in Kerberos libraries; see
-  SECURITY-CVE.md for the High/Critical findings this adds, accepted by the owner on 2026-11-14 (no fix upstream;
-  `make scan` ignores exactly those ids while they stay unfixed).
-- **No account or service tools in the Debian images** (owner decision 2026-11-14, L-810j). `openssh-client`'s
-  dependencies pulled `useradd`/`usermod`/`userdel`, `chpasswd`, `vipw`, `service`, `update-rc.d`, `invoke-rc.d`,
-  `deb-systemd-*` and their dpkg maintainer scripts into the image, which the `security` workflow's image job
-  rejected as undocumented executables. The runtime stage now deletes them; the documented executable set
-  (`docker/image-binaries.*.txt`) is unchanged. The packages stay in the dpkg database, so SBOMs and scans still
-  list them. `ssh`/`sftp://` are unaffected.
+- **No whole-cluster refresh (1.1-2).** A restore with no output index (documents keep their
+  `_index`) used to send `POST /_refresh`, refreshing every index in the cluster after every
+  batch. It now refreshes only the indices the run wrote (after `--prefix`/`--suffix`/rename),
+  as `POST /a,b,…/_refresh?ignore_unavailable=true&allow_no_indices=true`, split so each URL
+  stays under ~3 KB, and sends nothing when nothing was written. With an output index the
+  request is unchanged. Node elasticdump refreshes the whole cluster after every batch in
+  this case (`_data.js` `reindex()` posts `${base.url}/_refresh`); this is a deliberate
+  difference. The data visible after the run is the same. NODE-DIFFERENCES.md #25.
 
-### Changed (behaviour change)
+- **Scroll dumps that pass the open scroll limit** (from the 1.0 line, L-809). "Too many scroll
+  contexts" (`search.max_open_scroll_context`) is no longer retried: exit 1 at once, naming the
+  setting, `--slices` and the point-in-time dump.
+- **HTTP 413 names the limit** (from the 1.0 line, L-810). The empty-bodied 413 now says the
+  request is larger than `http.max_content_length` and suggests a lower `--maxBulkBytes`.
+- **Routed documents into a data stream are explained once** (from the 1.0 line, L-812). A data
+  stream without `data_stream.allow_custom_routing: true` refuses documents that carry a routing
+  value; the restore warns once per run (shared across `--concurrency` workers) instead of only
+  listing item errors. Still exit 3.
+- **The final HTTP 429 names the retry and load knobs** (from the 1.0 line, L-804a).
+- **searchdump-multi names a stopped child cleanly.** After Ctrl-C, an index loaded from a single
+  data file was reported as `FAILED  IX: : interrupted: ...` (an empty context between the
+  colons); the part is named only when the index has several.
+- **A lost scroll context names the point-in-time way out** (from the 1.0 line, L-804c): the
+  context-lost error suggests `--searchAfter --pit` and `--restartOnContextLoss N`; exit 4.
 
-- **Exit status 4 for transient, rerun-safe failures** (owner decision 2026-11-14, L-804b; proposal P1 of L-804a). A run that still fails after its retries because of the network (refused, reset, timed out, body cut off), HTTP 429 or 5xx, or a lost scroll context now exits 4 instead of 1, when nothing was committed that a rerun would duplicate. A restore that already sent documents without `_id`, TLS certificate or protocol errors, credentials, mapping errors and every other permanent failure still exit 1; 0, 2, 3, 130 and 143 are unchanged. Scripts that treat any non-zero status as failure are unaffected; scripts that test for exactly 1 should also accept 4. `searchdump-multi` keeps its own codes.
+### Upgrade notes
 
-- **`--httpAuthFile` now wins over every other credential source** (owner decision 2026-11-14, L-645b). When an
-  auth file is given, its `user=`/`password=` pair is used for both directions even if the URL has
-  `user:password@` or `--input-*`/`--output-*`/`--username`/`--password` flags are set; a warning names the sources
-  it replaced, never their values. Before, the auth file only filled in a missing username or password (Node
-  behaviour). Without an auth file the order is unchanged: flags, then URL, then
-  `SEARCHDUMP_{INPUT,OUTPUT}_*`. `searchdump-multi` follows the same order. Auth-file values stay literal and a
-  world-readable file is still only warned about.
+- **`searchdump-multi` page size.** Data runs now use 1000 documents per page (fewer for large
+  documents) and the default 256 MB response cap. To get the 1.0 behaviour, pass
+  `-- --limit=5000 --maxResponseMb=0`. Loads split bulks at 16 MB (`-- --maxBulkBytes=100mb` for the
+  1.0 size).
+- **Exit status 4.** Scripts that test for exactly 1 should also accept 4 (transient, safe to
+  rerun). Scripts that treat any non-zero status as failure are unaffected.
+- **`--httpAuthFile`.** If you pass an auth file together with URL or flag credentials, the file
+  now wins.
+- **Refresh default.** Scripts that need documents to become searchable after every batch
+  should pass `--refreshInterval=0`. `--noRefresh` is unchanged and wins over
+  `--refreshInterval`.
+- **Scroll `--slices`.** On Elasticsearch 7.10 a value higher than the primary-shard count is
+  now lowered, with a warning (the smallest count of the input indices); other engines keep it
+  as given (1.1-4a; see README "Tuning"). Pass `--sliceCap=false` to keep the requested number, or
+  `--sliceCap=min|total` to choose the count. PIT is not capped.
+- **Dump lines.** Unchanged unless `--scrollDocSort` is set (then `"_score": null`, and the
+  returned `sort` member is not written). Leave the flag off to stay identical to 1.0 and
+  Node.
+- **searchdump-multi Ctrl-C.** Running children are now stopped (SIGTERM, then SIGKILL after
+  5 s). Previously they were left to finish.
+- **searchdump-multi counts.** Manifest and summary formats are unchanged. Pass
+  `--verifyCounts` to keep the old always-rescan check and fail the index on a mismatch.
+- **Compatibility.** Dump files, `multielasticdump.json`, `SEARCHDUMP_*` / `ELASTICDUMP_*`
+  names, and the `elasticdump` / `elasticdump-rs` / `multielasticdump` symlinks are
+  unchanged. These changes are for 1.1 only; they are not backported to 1.0.
+
+### Performance
+
+Point-in-time results for each 1.1 commit (es710, es819, os3; plain) finished 2026-11-14: see
+[`project/release/RELEASE-NOTES-1.1.md`](project/release/RELEASE-NOTES-1.1.md#performance) and the full tables in
+[`scripts/perf/results/pit-1.1.md`](scripts/perf/results/pit-1.1.md) (grokbox) and
+[`scripts/perf/results/v1.1-pit-kvmsvr1.md`](scripts/perf/results/v1.1-pit-kvmsvr1.md) (kvmsvr1, 27/27 pass,
+beta1 on every engine, Node median 2.41× / 1.97× / 1.99×). Short version: the 5 s refresh
+cadence (1.1-1) cut restore wall time by roughly 20-40%; the slice cap (1.1-4) fixes the es710 over-sliced
+scroll dumps (-34..-63%) but slowed already-fast scroll slices on ES 8.19 / OpenSearch 3, so 1.1-4a limits the
+default cap to ES 7.10 (not re-measured with the full batch); the other items are within noise.
 
 ## 1.0.0
 

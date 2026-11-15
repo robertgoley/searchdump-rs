@@ -40,7 +40,11 @@ PROTOCOL = "edrs-perf/v1"
 LIMIT = 2000  # existing dump-restore-logs scenario; identical for Node and Rust
 
 
-def cases():
+def cases(ab=False):
+    """The case manifest. It is part of the baseline identity, so the default list is frozen
+    for comparability with recorded baselines (v1.0.0-beta1). `ab=True` (PERF_AB_CASES=1)
+    appends the 1.1 A/B cases, which changes the identity: use them with their own
+    PERF_HOST_ID / baseline directory."""
     rows = []
 
     def add(id_, kind, dataset="logs", codec="none", flags=(), node=True, **extra):
@@ -66,10 +70,15 @@ def cases():
     for p in (1, 4, 8):
         for kind in ("dump", "restore"):
             add(f"multi-{kind}-p{p}", kind, dataset="many", parallel=p)
+    if ab:
+        # 1.1-1 upper bound: no refresh at all (both tools support --noRefresh), to compare the
+        # default interval refresh and Node's per-batch refresh (restore-none, copy) against.
+        add("restore-norefresh", "restore", flags=["--noRefresh"])
+        add("copy-norefresh", "copy", flags=["--noRefresh"])
     return rows
 
 
-CASES = cases()
+CASES = cases(ab=os.environ.get("PERF_AB_CASES") == "1")
 
 
 def write_json(path, data):

@@ -177,6 +177,9 @@ const CASES: &[Case] = &[
                 "{{URL}}/golden_dst",
                 "--limit",
                 "3",
+                // 1.1-1: Node's per-batch refresh, so the recording keeps the E9 refresh
+                // between batches (the default refreshes once at the end of a short run)
+                "--refreshInterval=0",
             ],
             false,
         )
@@ -257,6 +260,7 @@ const CASES: &[Case] = &[
                 "--esCompress",
                 "--limit",
                 "2",
+                "--refreshInterval=0",
             ],
             false,
         )

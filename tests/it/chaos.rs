@@ -363,7 +363,10 @@ async fn l638_page_and_slice_limits_are_explained() {
     seed_index(&c, &index, 20).await;
     for (flags, want) in [
         (vec!["--limit", "20000"], "lower --limit"),
-        (vec!["--slices", "2000"], "lower --slices"),
+        (
+            vec!["--slices", "2000", "--sliceCap=false"],
+            "lower --slices",
+        ),
     ] {
         let out = tmp_path("limits", "json");
         let mut a = io_args(&c, &c.url_with_auth(&index), out.to_str().unwrap());

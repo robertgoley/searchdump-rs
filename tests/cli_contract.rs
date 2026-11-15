@@ -341,6 +341,424 @@ async fn headers_and_params_reach_every_request() {
     assert_eq!(stdout(&o), format!("{}\n", hit("1", "{\"a\":1}")));
 }
 
+// 1.1-3: --scrollDocSort (opt-in) adds "sort":["_doc"] to a match_all scroll body and drops the
+// resulting `sort` member from the written hits; off by default (Node never sends a sort), and
+// skipped for a scoring query.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn scroll_doc_sort_is_opt_in_and_strips_the_hit_sort() {
+    let sorted_hit =
+        r#"{"_index":"idx","_id":"1","_score":null,"_source":{"a":1},"sort":[0]}"#.to_string();
+    let plain = r#"{"_index":"idx","_id":"1","_score":null,"_source":{"a":1}}"#;
+    for (extra, want_sort_in_body, want_line) in [
+        (vec![], false, sorted_hit.as_str()),
+        (vec!["--scrollDocSort"], true, plain),
+        (
+            vec![
+                "--scrollDocSort",
+                "--searchBody",
+                r#"{"query":{"match":{"a":1}}}"#,
+            ],
+            false,
+            sorted_hit.as_str(),
+        ),
+    ] {
+        let mock = MockEs::serve(scroll_script(std::slice::from_ref(&sorted_hit))).await;
+        let mut a: Vec<String> = vec![
+            "--input".into(),
+            mock.input_url("idx"),
+            "--output".into(),
+            "$".into(),
+            "--quiet".into(),
+        ];
+        a.extend(extra.iter().map(|s| s.to_string()));
+        let o = run_async(a, vec![]).await;
+        assert!(o.status.success(), "{extra:?}: {}", stderr(&o));
+        let reqs = mock.recorded();
+        assert!(reqs[0].path.ends_with("/_search"), "{reqs:#?}");
+        let body: serde_json::Value = serde_json::from_slice(&reqs[0].body).unwrap();
+        assert_eq!(
+            body.get("sort") == Some(&serde_json::json!(["_doc"])),
+            want_sort_in_body,
+            "{extra:?}: {body}"
+        );
+        if !want_sort_in_body {
+            assert!(body.get("sort").is_none(), "{extra:?}: {body}");
+        }
+        assert_eq!(stdout(&o), format!("{want_line}\n"), "{extra:?}");
+    }
+}
+
+// 1.1-4: --slices above the primary-shard count is capped (one shard: unsliced) with a
+// warning (on Elasticsearch 7.10, 1.1-4a); --sliceCap=false keeps it; --sliceField adds "field" to every slice and is checked
+// against the mapping (a keyword field is refused before any search).
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn slices_are_capped_to_primary_shards_and_slice_field_is_checked() {
+    use support::router_mock::{Reply, Route, RouterMock};
+    let empty = page("s0", &[], 0);
+    let mapping = |ty: &str| {
+        format!(
+            r#"{{"idx":{{"mappings":{{"ts":{{"full_name":"ts","mapping":{{"ts":{{"type":"{ty}"}}}}}}}}}}}}"#
+        )
+    };
+    for (extra, field_type, want_searches, want_field, want_exit, want_err) in [
+        (
+            vec!["--slices", "4"],
+            "date",
+            1,
+            false,
+            0,
+            Some("running unsliced"),
+        ),
+        (
+            vec!["--slices", "4", "--sliceCap=false"],
+            "date",
+            4,
+            false,
+            0,
+            None,
+        ),
+        (
+            vec!["--slices", "2", "--sliceField", "ts"],
+            "date",
+            2,
+            true,
+            0,
+            None,
+        ),
+        (
+            vec!["--slices", "2", "--sliceField", "ts"],
+            "keyword",
+            0,
+            false,
+            1,
+            Some("keyword field"),
+        ),
+    ] {
+        // 1.1-4a: the default cap applies on Elasticsearch 7.10 only
+        let m = RouterMock::builder()
+            .route(Route::exact("GET", "/").reply(Reply::ok(
+                r#"{"version":{"number":"7.10.2","build_flavor":"default"},"tagline":"You Know, for Search"}"#,
+            )))
+            .route(Route::prefix("GET", "/idx/_settings").reply(Reply::ok(
+                r#"{"idx":{"settings":{"index.number_of_shards":"1"}}}"#,
+            )))
+            .route(
+                Route::prefix("GET", "/idx/_mapping/field/ts")
+                    .reply(Reply::ok(mapping(field_type))),
+            )
+            .route(Route::contains("POST", "/idx/_search").reply(Reply::ok(empty.clone())))
+            .route(
+                Route::prefix("DELETE", "/_search/scroll")
+                    .reply(Reply::ok(r#"{"succeeded":true,"num_freed":1}"#)),
+            )
+            .start()
+            .await;
+        let dir = tempfile::tempdir().unwrap();
+        let out = dir.path().join("d.json");
+        let mut a: Vec<String> = vec![
+            "--input".into(),
+            format!("{}/idx", m.url()),
+            "--output".into(),
+            out.to_str().unwrap().into(),
+        ];
+        a.extend(extra.iter().map(|s| s.to_string()));
+        let o = run_async(a, vec![]).await;
+        assert_eq!(
+            o.status.code(),
+            Some(want_exit),
+            "{extra:?}: {}",
+            stderr(&o)
+        );
+        if let Some(w) = want_err {
+            assert!(stderr(&o).contains(w), "{extra:?}: {}", stderr(&o));
+        }
+        let searches: Vec<_> = m
+            .requests()
+            .into_iter()
+            .filter(|r| r.method == "POST" && r.path.ends_with("/_search"))
+            .collect();
+        assert_eq!(searches.len(), want_searches, "{extra:?}: {searches:#?}");
+        for r in &searches {
+            let body: serde_json::Value = serde_json::from_slice(&r.body).unwrap();
+            let slice = body.get("slice");
+            assert_eq!(slice.is_some(), want_searches > 1, "{extra:?}: {body}");
+            if let Some(sl) = slice {
+                assert_eq!(sl.get("field").is_some(), want_field, "{extra:?}: {body}");
+            }
+        }
+    }
+}
+
+// 1.1-4: a wildcard input whose `_settings` response names no index (`{}`: nothing matched,
+// or not readable as a shard count) leaves --slices as given: no cap, no warning, every
+// search carries its slice.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn slices_are_unchanged_when_wildcard_settings_match_no_index() {
+    use support::router_mock::{Reply, Route, RouterMock};
+    let empty = page("s0", &[], 0);
+    // ES 7.10 so the default cap reads the shard count (1.1-4a)
+    let m = RouterMock::builder()
+        .route(Route::exact("GET", "/").reply(Reply::ok(
+            r#"{"version":{"number":"7.10.2","build_flavor":"default"},"tagline":"You Know, for Search"}"#,
+        )))
+        .route(Route::prefix("GET", "/logs-").reply(Reply::ok("{}")))
+        .route(Route::contains("POST", "/_search").reply(Reply::ok(empty.clone())))
+        .route(
+            Route::prefix("DELETE", "/_search/scroll")
+                .reply(Reply::ok(r#"{"succeeded":true,"num_freed":1}"#)),
+        )
+        .start()
+        .await;
+    let dir = tempfile::tempdir().unwrap();
+    let out = dir.path().join("d.json");
+    let o = run_async(
+        vec![
+            "--input".into(),
+            format!("{}/logs-*", m.url()),
+            "--output".into(),
+            out.to_str().unwrap().into(),
+            "--slices".into(),
+            "4".into(),
+        ],
+        vec![],
+    )
+    .await;
+    let err = stderr(&o);
+    assert!(o.status.success(), "{err}");
+    assert!(!err.contains("primary shard"), "capped anyway: {err}");
+    let reqs = m.requests();
+    assert!(
+        reqs.iter()
+            .any(|r| r.method == "GET" && r.path.contains("/_settings")),
+        "the shard count was never read: {reqs:#?}"
+    );
+    let searches: Vec<_> = reqs
+        .iter()
+        .filter(|r| r.method == "POST" && r.path.ends_with("/_search"))
+        .collect();
+    assert_eq!(searches.len(), 4, "{searches:#?}");
+    let mut ids: Vec<u64> = searches
+        .iter()
+        .map(|r| {
+            let body: serde_json::Value = serde_json::from_slice(&r.body).unwrap();
+            assert_eq!(body["slice"]["max"], 4, "{body}");
+            body["slice"]["id"].as_u64().unwrap()
+        })
+        .collect();
+    ids.sort();
+    assert_eq!(ids, vec![0, 1, 2, 3]);
+}
+
+// 1.1-4 / 1.1-4a: --sliceCap=auto (default) over input indices with different shard counts
+// (1 + 5) caps only on Elasticsearch 7.10 (smallest count: unsliced); Elasticsearch 7.17, 8.19,
+// 9.5, OpenSearch and an undetectable version keep --slices 8 as given, with no cap warning;
+// min / total force the cap on any engine and skip version detection.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn slice_cap_auto_applies_only_on_elasticsearch_7_10() {
+    use support::router_mock::{Reply, Route, RouterMock};
+    let empty = page("s0", &[], 0);
+    let es = |v: &str| {
+        format!(
+            r#"{{"version":{{"number":"{v}","build_flavor":"default"}},"tagline":"You Know, for Search"}}"#
+        )
+    };
+    let os = |v: &str| {
+        format!(
+            r#"{{"version":{{"distribution":"opensearch","number":"{v}"}},"tagline":"The OpenSearch Project: https://opensearch.org/"}}"#
+        )
+    };
+    // (case, GET / reply (None: 403), extra flags, searches, version fetched, warning; None:
+    // no cap warning at all)
+    type Case<'a> = (
+        &'a str,
+        Option<String>,
+        Vec<&'a str>,
+        usize,
+        bool,
+        Option<&'a str>,
+    );
+    let cases: Vec<Case> = vec![
+        (
+            "ES 7.10 auto: min",
+            Some(es("7.10.2")),
+            vec![],
+            1,
+            true,
+            Some("--sliceCap=total"),
+        ),
+        (
+            "true is auto",
+            Some(es("7.10.2")),
+            vec!["--sliceCap=true"],
+            1,
+            true,
+            Some("running unsliced"),
+        ),
+        (
+            "ES 7.17 auto: as given",
+            Some(es("7.17.29")),
+            vec![],
+            8,
+            true,
+            None,
+        ),
+        (
+            "ES 8.19 auto: as given",
+            Some(es("8.19.3")),
+            vec![],
+            8,
+            true,
+            None,
+        ),
+        (
+            "ES 9.5 auto: as given",
+            Some(es("9.5.0")),
+            vec![],
+            8,
+            true,
+            None,
+        ),
+        (
+            "OpenSearch auto: as given",
+            Some(os("3.3.0")),
+            vec!["--sliceCap=auto"],
+            8,
+            true,
+            None,
+        ),
+        ("unknown version: as given", None, vec![], 8, true, None),
+        (
+            "total forced on OpenSearch",
+            Some(os("2.19.0")),
+            vec!["--sliceCap=total"],
+            6,
+            false,
+            Some("in total"),
+        ),
+        (
+            "min forced on ES 8",
+            Some(es("8.19.3")),
+            vec!["--sliceCap=min"],
+            1,
+            false,
+            Some("running unsliced"),
+        ),
+    ];
+    for (case, root, extra, want_searches, want_root, want_warn) in cases {
+        let root_reply = match root {
+            Some(b) => Reply::ok(b),
+            None => Reply::json(403, r#"{"error":"forbidden","status":403}"#),
+        };
+        let m = RouterMock::builder()
+            .route(Route::exact("GET", "/").reply(root_reply))
+            .route(Route::prefix("GET", "/logs-").reply(Reply::ok(
+                r#"{"logs-a":{"settings":{"index.number_of_shards":"1"}},"logs-b":{"settings":{"index.number_of_shards":"5"}}}"#,
+            )))
+            .route(Route::contains("POST", "/_search").reply(Reply::ok(empty.clone())))
+            .route(
+                Route::prefix("DELETE", "/_search/scroll")
+                    .reply(Reply::ok(r#"{"succeeded":true,"num_freed":1}"#)),
+            )
+            .start()
+            .await;
+        let dir = tempfile::tempdir().unwrap();
+        let out = dir.path().join("d.json");
+        let mut a: Vec<String> = vec![
+            "--input".into(),
+            format!("{}/logs-*", m.url()),
+            "--output".into(),
+            out.to_str().unwrap().into(),
+            "--slices".into(),
+            "8".into(),
+        ];
+        a.extend(extra.iter().map(|s| s.to_string()));
+        let o = run_async(a, vec![]).await;
+        let err = stderr(&o);
+        assert!(o.status.success(), "{case}: {err}");
+        match want_warn {
+            Some(w) => assert!(err.contains(w), "{case}: {err}"),
+            None => assert!(!err.contains("primary shard"), "{case}: capped: {err}"),
+        }
+        let reqs = m.requests();
+        assert_eq!(
+            reqs.iter().any(|r| r.method == "GET" && r.path == "/"),
+            want_root,
+            "{case}: {reqs:#?}"
+        );
+        let searches: Vec<_> = reqs
+            .iter()
+            .filter(|r| r.method == "POST" && r.path.ends_with("/_search"))
+            .collect();
+        assert_eq!(searches.len(), want_searches, "{case}: {searches:#?}");
+        for r in &searches {
+            let body: serde_json::Value = serde_json::from_slice(&r.body).unwrap();
+            if want_searches > 1 {
+                assert_eq!(body["slice"]["max"], want_searches, "{case}: {body}");
+            } else {
+                assert!(body.get("slice").is_none(), "{case}: {body}");
+            }
+        }
+    }
+}
+
+// 1.1-4a: a single input index is capped by --sliceCap=auto on Elasticsearch 7.10 only; on
+// ES 8.19 and OpenSearch 3 the dump keeps --slices 8 (the version is read with GET /).
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn slice_cap_auto_on_one_index_caps_only_on_es_7_10() {
+    use support::router_mock::{Reply, Route, RouterMock};
+    let empty = page("s0", &[], 0);
+    for (root, want) in [
+        (
+            r#"{"version":{"number":"7.10.2","build_flavor":"default"},"tagline":"You Know, for Search"}"#,
+            3,
+        ),
+        (
+            r#"{"version":{"number":"8.19.23","build_flavor":"default"},"tagline":"You Know, for Search"}"#,
+            8,
+        ),
+        (
+            r#"{"version":{"distribution":"opensearch","number":"3.3.0"},"tagline":"The OpenSearch Project: https://opensearch.org/"}"#,
+            8,
+        ),
+    ] {
+        let m = RouterMock::builder()
+            .route(Route::exact("GET", "/").reply(Reply::ok(root)))
+            .route(Route::prefix("GET", "/idx/_settings").reply(Reply::ok(
+                r#"{"idx":{"settings":{"index.number_of_shards":"3"}}}"#,
+            )))
+            .route(Route::contains("POST", "/idx/_search").reply(Reply::ok(empty.clone())))
+            .route(
+                Route::prefix("DELETE", "/_search/scroll")
+                    .reply(Reply::ok(r#"{"succeeded":true,"num_freed":1}"#)),
+            )
+            .start()
+            .await;
+        let dir = tempfile::tempdir().unwrap();
+        let out = dir.path().join("d.json");
+        let o = run_async(
+            vec![
+                "--input".into(),
+                format!("{}/idx", m.url()),
+                "--output".into(),
+                out.to_str().unwrap().into(),
+                "--slices".into(),
+                "8".into(),
+            ],
+            vec![],
+        )
+        .await;
+        let err = stderr(&o);
+        assert!(o.status.success(), "{root}: {err}");
+        assert_eq!(err.contains("using --slices 3"), want == 3, "{root}: {err}");
+        let searches = m
+            .requests()
+            .iter()
+            .filter(|r| r.method == "POST" && r.path.ends_with("/_search"))
+            .count();
+        assert_eq!(searches, want, "{root}");
+    }
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn source_only_writes_raw_sources() {
     let mock = MockEs::serve(scroll_script(&[
@@ -1249,10 +1667,13 @@ async fn bulk_item_429_retry_413_and_item_count_mismatch() {
     );
 }
 
-// L-413 (TST-API-022): one `_refresh` per written batch (concurrency 1), none with
-// `--noRefresh`; a failing refresh is a warning, not a failure.
+// L-413 (TST-API-022), changed by 1.1-1: by default the written index is refreshed at most every
+// 5 s plus once at the end (here: once, the run is short); `--refreshInterval=0` restores Node's
+// one `_refresh` per written batch; none with `--noRefresh` (also when combined); a failing
+// refresh is a warning, not a failure. With `--concurrency` the final refresh still happens
+// exactly once by default.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn refresh_per_batch_no_refresh_and_refresh_failure_is_a_warning() {
+async fn refresh_cadence_no_refresh_and_refresh_failure_is_a_warning() {
     use support::router_mock::{Reply, Route, RouterMock};
     let dir = tempfile::tempdir().unwrap();
     let input = dir.path().join("in.json");
@@ -1267,9 +1688,15 @@ async fn refresh_per_batch_no_refresh_and_refresh_failure_is_a_warning() {
     )
     .unwrap();
     for (extra, refresh_status, want_refreshes) in [
-        (None, 200, 3),
-        (Some("--noRefresh"), 200, 0),
-        (None, 500, 3),
+        (&[][..], 200, 1..=1),
+        (&["--refreshInterval=0"][..], 200, 3..=3),
+        (&["--noRefresh"][..], 200, 0..=0),
+        (&["--refreshInterval=0", "--noRefresh"][..], 200, 0..=0),
+        (&[][..], 500, 1..=1),
+        (&["--refreshInterval=0"][..], 500, 3..=3),
+        (&["--concurrency=3"][..], 200, 1..=1),
+        // a per-batch refresh is skipped while another runs; the final one covers it
+        (&["--concurrency=3", "--refreshInterval=0"][..], 200, 1..=4),
     ] {
         let m = RouterMock::builder()
             .route(Route::exact("GET", "/").reply(Reply::ok(
@@ -1294,7 +1721,7 @@ async fn refresh_per_batch_no_refresh_and_refresh_failure_is_a_warning() {
             "--retryAttempts".into(),
             "0".into(),
         ];
-        a.extend(extra.map(String::from));
+        a.extend(extra.iter().map(|s| s.to_string()));
         let o = run_async(a, vec![]).await;
         assert!(
             o.status.success(),
@@ -1307,10 +1734,10 @@ async fn refresh_per_batch_no_refresh_and_refresh_failure_is_a_warning() {
             .iter()
             .filter(|r| r.path.ends_with("/_refresh"))
             .count();
-        assert_eq!(
-            (bulks, refreshes),
-            (3, want_refreshes),
-            "{extra:?}/{refresh_status}"
+        assert_eq!(bulks, 3, "{extra:?}/{refresh_status}");
+        assert!(
+            want_refreshes.contains(&refreshes),
+            "{extra:?}/{refresh_status}: {refreshes} refreshes, want {want_refreshes:?}"
         );
         if refresh_status != 200 {
             assert!(
@@ -1319,6 +1746,411 @@ async fn refresh_per_batch_no_refresh_and_refresh_failure_is_a_warning() {
                 stderr(&o)
             );
         }
+        if refreshes > 0 {
+            // the last request of the run is a refresh: nothing written stays unrefreshed
+            assert!(
+                reqs.last().unwrap().path.ends_with("/_refresh"),
+                "{extra:?}: {reqs:#?}"
+            );
+        }
+    }
+}
+
+// 1.1-6: at --concurrency 1 the next batch is encoded while the previous one is sent. The
+// requests, their order and the counts are the same with the overlap on (default) and off
+// (SEARCHDUMP_BULK_PIPELINE=0); a failed batch stops the run before the next one is sent, and
+// --ignore-errors skips exactly the failed batch.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn bulk_pipeline_keeps_order_and_stops_at_the_failed_batch() {
+    use support::router_mock::{Fault, Reply, Route, RouterMock};
+    let dir = tempfile::tempdir().unwrap();
+    let input = dir.path().join("in.json");
+    let lines: String = (0..6)
+        .map(|i| hit(&i.to_string(), r#"{"n":1}"#) + "\n")
+        .collect();
+    std::fs::write(&input, lines).unwrap();
+    let ok2 =
+        r#"{"took":1,"errors":false,"items":[{"index":{"status":201}},{"index":{"status":201}}]}"#;
+    let ids = |body: &str| -> Vec<String> {
+        body.lines()
+            .filter(|l| l.starts_with(r#"{"index":"#))
+            .filter_map(|l| {
+                let v: serde_json::Value = serde_json::from_str(l).ok()?;
+                Some(v["index"]["_id"].as_str()?.to_string())
+            })
+            .collect()
+    };
+    // (fail batch 2?, extra args, want exit 0?, want bulk requests, want ids sent)
+    for (fail, extra, want_ok, want_bulks, want_ids) in [
+        (false, &[][..], true, 3, vec!["0", "1", "2", "3", "4", "5"]),
+        (true, &[][..], false, 2, vec!["0", "1", "2", "3"]),
+        (
+            true,
+            &["--ignore-errors"][..],
+            true,
+            3,
+            vec!["0", "1", "2", "3", "4", "5"],
+        ),
+    ] {
+        let mut outcomes = Vec::new();
+        for pipeline in ["1", "0"] {
+            let tag = format!("fail={fail} {extra:?} SEARCHDUMP_BULK_PIPELINE={pipeline}");
+            let mut b = RouterMock::builder().route(Route::exact("GET", "/").reply(Reply::ok(
+                r#"{"version":{"distribution":"opensearch","number":"2.19.0"}}"#,
+            )));
+            if fail {
+                b = b.route(
+                    Route::contains("POST", "/_bulk")
+                        .body_contains(r#""_id":"2""#)
+                        .reply(Reply::json(
+                            400,
+                            r#"{"error":{"type":"boom"},"status":400}"#,
+                        )),
+                );
+            }
+            let m = b
+                .route(Route::contains("POST", "/_bulk").reply(
+                    Reply::ok(ok2).with_fault(Fault::Delay(std::time::Duration::from_millis(30))),
+                ))
+                .route(Route::contains("POST", "/_refresh").reply(Reply::ok(
+                    r#"{"_shards":{"total":1,"successful":1,"failed":0}}"#,
+                )))
+                .start()
+                .await;
+            let mut a: Vec<String> = vec![
+                "--input".into(),
+                input.to_str().unwrap().into(),
+                "--output".into(),
+                format!("{}/dst", m.url()),
+                "--limit".into(),
+                "2".into(),
+                "--retryAttempts".into(),
+                "0".into(),
+            ];
+            a.extend(extra.iter().map(|s| s.to_string()));
+            let o = run_async(
+                a,
+                vec![("SEARCHDUMP_BULK_PIPELINE".into(), pipeline.into())],
+            )
+            .await;
+            let err = stderr(&o);
+            assert_eq!(o.status.success(), want_ok, "{tag}: {err}");
+            let bodies: Vec<String> = m
+                .requests()
+                .iter()
+                .filter(|r| r.path.ends_with("/_bulk"))
+                .map(|r| r.body_str())
+                .collect();
+            assert_eq!(bodies.len(), want_bulks, "{tag}: {err}");
+            let sent: Vec<String> = bodies.iter().flat_map(|b| ids(b)).collect();
+            assert_eq!(sent, want_ids, "{tag}");
+            if fail && extra.is_empty() {
+                assert!(!sent.contains(&"4".to_string()), "{tag}: batch 3 was sent");
+            }
+            if !extra.is_empty() {
+                assert!(
+                    err.contains("skipping 2 documents") && err.contains("Total Writes: 4"),
+                    "{tag}: {err}"
+                );
+            }
+            let counts: Vec<String> = err
+                .lines()
+                .filter(|l| l.contains("Total Writes:") || l.contains("Failed Writes:"))
+                .map(|l| l.trim().to_string())
+                .collect();
+            outcomes.push((o.status.code(), bodies, counts));
+        }
+        assert_eq!(
+            outcomes[0], outcomes[1],
+            "fail={fail} {extra:?}: pipeline on and off differ"
+        );
+    }
+}
+
+// 1.1-1/1.1-6: a restore that stops on a bulk error still refreshes what it wrote, once, after
+// the last bulk request (Sink::abort -> settle, or drain when the last pipelined batch fails;
+// with a long --refreshInterval no refresh is due during the run). --noRefresh sends none.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn failed_restore_still_sends_the_final_refresh() {
+    use support::router_mock::{Reply, Route, RouterMock};
+    let dir = tempfile::tempdir().unwrap();
+    let input = dir.path().join("in.json");
+    let lines: String = (0..6)
+        .map(|i| hit(&i.to_string(), r#"{"n":1}"#) + "\n")
+        .collect();
+    std::fs::write(&input, lines).unwrap();
+    let ok2 =
+        r#"{"took":1,"errors":false,"items":[{"index":{"status":201}},{"index":{"status":201}}]}"#;
+    // (failing id, concurrency, pipeline, --noRefresh?, want refreshes)
+    for (fail_id, concurrency, pipeline, no_refresh, want_refreshes) in [
+        ("2", "1", "1", false, 1),
+        ("2", "1", "0", false, 1),
+        ("4", "1", "1", false, 1),
+        ("2", "1", "1", true, 0),
+    ] {
+        let tag = format!(
+            "fail id {fail_id} --concurrency {concurrency} SEARCHDUMP_BULK_PIPELINE={pipeline} noRefresh={no_refresh}"
+        );
+        let m = RouterMock::builder()
+            .route(Route::exact("GET", "/").reply(Reply::ok(
+                r#"{"version":{"distribution":"opensearch","number":"2.19.0"}}"#,
+            )))
+            .route(
+                Route::contains("POST", "/_bulk")
+                    .body_contains(&format!(r#""_id":"{fail_id}""#))
+                    .reply(Reply::json(
+                        400,
+                        r#"{"error":{"type":"boom"},"status":400}"#,
+                    )),
+            )
+            .route(Route::contains("POST", "/_bulk").reply(Reply::ok(ok2)))
+            .route(Route::contains("POST", "/_refresh").reply(Reply::ok(
+                r#"{"_shards":{"total":1,"successful":1,"failed":0}}"#,
+            )))
+            .start()
+            .await;
+        let mut a: Vec<String> = vec![
+            "--input".into(),
+            input.to_str().unwrap().into(),
+            "--output".into(),
+            format!("{}/dst", m.url()),
+            "--limit".into(),
+            "2".into(),
+            "--retryAttempts".into(),
+            "0".into(),
+            "--concurrency".into(),
+            concurrency.into(),
+        ];
+        if no_refresh {
+            a.push("--noRefresh".into());
+        } else {
+            a.extend(["--refreshInterval".to_string(), "3600".to_string()]);
+        }
+        let o = run_async(
+            a,
+            vec![("SEARCHDUMP_BULK_PIPELINE".into(), pipeline.into())],
+        )
+        .await;
+        let err = stderr(&o);
+        assert!(!o.status.success(), "{tag}: {err}");
+        let reqs = m.requests();
+        let refreshes: Vec<usize> = reqs
+            .iter()
+            .enumerate()
+            .filter(|(_, r)| r.path == "/dst/_refresh")
+            .map(|(k, _)| k)
+            .collect();
+        assert_eq!(refreshes.len(), want_refreshes, "{tag}: {reqs:#?}");
+        if let Some(&at) = refreshes.last() {
+            let last_bulk = reqs
+                .iter()
+                .rposition(|r| r.path.ends_with("/_bulk"))
+                .expect("a bulk request");
+            assert!(
+                at > last_bulk,
+                "{tag}: the refresh came before the last bulk: {reqs:#?}"
+            );
+        }
+    }
+}
+
+// 1.1-1: with a short --refreshInterval and slow bulk responses, the written index is refreshed
+// during the run (not after every batch) and once at the end.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn refresh_interval_refreshes_during_long_runs() {
+    use support::router_mock::{Fault, Reply, Route, RouterMock};
+    let dir = tempfile::tempdir().unwrap();
+    let input = dir.path().join("in.json");
+    let lines: String = (0..12)
+        .map(|i| hit(&i.to_string(), r#"{"n":1}"#) + "\n")
+        .collect();
+    std::fs::write(&input, lines).unwrap();
+    let m = RouterMock::builder()
+        .route(Route::exact("GET", "/").reply(Reply::ok(
+            r#"{"version":{"distribution":"opensearch","number":"2.19.0"}}"#,
+        )))
+        .route(
+            Route::contains("POST", "/_bulk").reply(
+                Reply::ok(r#"{"took":1,"errors":false,"items":[{"index":{"status":201}}]}"#)
+                    .with_fault(Fault::Delay(std::time::Duration::from_millis(100))),
+            ),
+        )
+        .route(Route::contains("POST", "/_refresh").reply(Reply::ok(
+            r#"{"_shards":{"total":1,"successful":1,"failed":0}}"#,
+        )))
+        .start()
+        .await;
+    let o = run_async(
+        vec![
+            "--input".into(),
+            input.to_str().unwrap().into(),
+            "--output".into(),
+            format!("{}/dst", m.url()),
+            "--limit".into(),
+            "1".into(),
+            "--refreshInterval".into(),
+            "1".into(),
+        ],
+        vec![],
+    )
+    .await;
+    assert!(o.status.success(), "{}", stderr(&o));
+    let reqs = m.requests();
+    let refreshes = reqs
+        .iter()
+        .filter(|r| r.path.ends_with("/_refresh"))
+        .count();
+    // 12 batches of >= 100 ms: the clock starts after the first, at least one interval refresh
+    // after >= 1 s, then the final one. Far fewer than one per batch.
+    assert!(
+        (2..=4).contains(&refreshes),
+        "{refreshes} refreshes: {reqs:#?}"
+    );
+    assert!(reqs.last().unwrap().path.ends_with("/_refresh"));
+}
+
+// 1.1-2: a restore with no output index refreshes exactly the indices it wrote (after
+// --prefix/--suffix), with ignore_unavailable/allow_no_indices, and never `POST /_refresh` on
+// the whole cluster (which Node elasticdump sends).
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn restore_without_output_index_refreshes_only_written_indices() {
+    use support::router_mock::{Reply, Route, RouterMock};
+    let dir = tempfile::tempdir().unwrap();
+    let input = dir.path().join("in.json");
+    let doc =
+        |idx: &str, id: &str| format!(r#"{{"_index":"{idx}","_id":"{id}","_source":{{"n":1}}}}"#);
+    std::fs::write(
+        &input,
+        format!("{}\n{}\n{}\n", doc("b", "1"), doc("a", "2"), doc("b", "3")),
+    )
+    .unwrap();
+    let m = RouterMock::builder()
+        .route(Route::exact("GET", "/").reply(Reply::ok(
+            r#"{"version":{"distribution":"opensearch","number":"2.19.0"}}"#,
+        )))
+        .route(Route::contains("POST", "/_bulk").reply(Reply::ok(
+            r#"{"took":1,"errors":false,"items":[{"index":{"status":201}},{"index":{"status":201}},{"index":{"status":201}}]}"#,
+        )))
+        .route(Route::contains("POST", "_refresh").reply(Reply::ok(
+            r#"{"_shards":{"total":1,"successful":1,"failed":0}}"#,
+        )))
+        .start()
+        .await;
+    let o = run_async(
+        vec![
+            "--input".into(),
+            input.to_str().unwrap().into(),
+            "--output".into(),
+            m.url(),
+            "--prefix".into(),
+            "r_".into(),
+        ],
+        vec![],
+    )
+    .await;
+    assert!(o.status.success(), "{}", stderr(&o));
+    let reqs = m.requests();
+    let refreshes: Vec<_> = reqs
+        .iter()
+        .filter(|r| r.path.ends_with("_refresh"))
+        .collect();
+    assert!(!refreshes.is_empty(), "{reqs:#?}");
+    for r in &refreshes {
+        assert_eq!(r.path, "/r_a,r_b/_refresh", "{reqs:#?}");
+        assert_eq!(r.query_param("ignore_unavailable"), Some("true"));
+        assert_eq!(r.query_param("allow_no_indices"), Some("true"));
+    }
+    assert!(
+        !reqs.iter().any(|r| r.path == "/_refresh"),
+        "whole-cluster refresh sent: {reqs:#?}"
+    );
+}
+
+// 1.1-2: a restore that writes many indices with long names splits the `_refresh` index list
+// into several requests, each under the URL budget, and together they name every written index
+// exactly once per refresh round (never `POST /_refresh` on the whole cluster).
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn restore_refresh_of_a_long_index_list_is_split_into_several_requests() {
+    use support::router_mock::{Reply, Route, RouterMock};
+    let dir = tempfile::tempdir().unwrap();
+    let input = dir.path().join("in.json");
+    // 40 indices of 100 bytes each: about 4 KB joined, more than the 3000-byte budget
+    let names: Vec<String> = (0..40)
+        .map(|k| format!("i{k:03}_{}", "x".repeat(95)))
+        .collect();
+    assert!(names.iter().all(|n| n.len() == 100));
+    let lines: String = names
+        .iter()
+        .enumerate()
+        .map(|(k, idx)| format!(r#"{{"_index":"{idx}","_id":"{k}","_source":{{"n":1}}}}"#) + "\n")
+        .collect();
+    std::fs::write(&input, lines).unwrap();
+    let items = vec![r#"{"index":{"status":201}}"#; names.len()].join(",");
+    let m = RouterMock::builder()
+        .route(Route::exact("GET", "/").reply(Reply::ok(
+            r#"{"version":{"distribution":"opensearch","number":"2.19.0"}}"#,
+        )))
+        .route(Route::contains("POST", "/_bulk").reply(Reply::ok(format!(
+            r#"{{"took":1,"errors":false,"items":[{items}]}}"#
+        ))))
+        .route(Route::contains("POST", "_refresh").reply(Reply::ok(
+            r#"{"_shards":{"total":1,"successful":1,"failed":0}}"#,
+        )))
+        .start()
+        .await;
+    let o = run_async(
+        vec![
+            "--input".into(),
+            input.to_str().unwrap().into(),
+            "--output".into(),
+            m.url(),
+            "--limit".into(),
+            "100".into(),
+        ],
+        vec![],
+    )
+    .await;
+    assert!(o.status.success(), "{}", stderr(&o));
+    let reqs = m.requests();
+    assert!(
+        !reqs.iter().any(|r| r.path == "/_refresh"),
+        "whole-cluster refresh sent: {reqs:#?}"
+    );
+    let refreshes: Vec<_> = reqs
+        .iter()
+        .filter(|r| r.path.ends_with("/_refresh"))
+        .collect();
+    assert!(
+        refreshes.len() >= 2,
+        "the index list was not split: {refreshes:#?}"
+    );
+    let mut named: Vec<String> = Vec::new();
+    for r in &refreshes {
+        let list = r
+            .path
+            .strip_prefix('/')
+            .and_then(|p| p.strip_suffix("/_refresh"))
+            .unwrap_or_else(|| panic!("unexpected refresh path {}", r.path));
+        assert!(list.len() <= 3000, "{} bytes: {}", list.len(), r.path);
+        assert_eq!(r.query_param("ignore_unavailable"), Some("true"));
+        assert_eq!(r.query_param("allow_no_indices"), Some("true"));
+        named.extend(list.split(',').map(String::from));
+    }
+    // every index in every refresh round, exactly once per round, none invented
+    assert_eq!(named.len() % names.len(), 0, "{named:#?}");
+    let mut uniq = named.clone();
+    uniq.sort();
+    uniq.dedup();
+    assert_eq!(
+        uniq, names,
+        "refreshed indices differ from the written ones"
+    );
+    for n in &names {
+        assert_eq!(
+            named.iter().filter(|x| *x == n).count(),
+            named.len() / names.len(),
+            "{n}"
+        );
     }
 }
 

@@ -1,6 +1,7 @@
 use anyhow::Context;
 use anyhow::Result;
 use log::debug;
+use sonic_rs::JsonContainerTrait;
 use sonic_rs::JsonValueMutTrait;
 use sonic_rs::JsonValueTrait;
 use sonic_rs::{Value, json};
@@ -65,6 +66,38 @@ pub fn finalize_search_body(body: Value, limit: usize, size: Option<u64>) -> Val
     final_search_body
 }
 
+/// Why `--scrollDocSort` cannot add `"sort":["_doc"]` to this scroll body, or `None` when it
+/// can (1.1-3). A user sort is never touched, and a body whose hits carry meaningful relevance
+/// scores keeps them: anything but a `match_all`/`match_none` query (or none), or
+/// `track_scores`/`min_score`/`rescore` (Elasticsearch refuses `sort` with `rescore`).
+pub fn doc_sort_blocker(body: &Value) -> Option<&'static str> {
+    if body.get("sort").is_some() {
+        return Some("the search body has its own sort");
+    }
+    if ["track_scores", "min_score", "rescore", "knn"]
+        .iter()
+        .any(|k| body.get(*k).is_some())
+    {
+        return Some("the search body uses scores (track_scores, min_score, rescore or knn)");
+    }
+    let unscored = match body.get("query") {
+        None => true,
+        Some(q) => q.as_object().is_some_and(|o| {
+            o.len() == 1 && (o.get(&"match_all").is_some() || o.get(&"match_none").is_some())
+        }),
+    };
+    (!unscored)
+        .then_some("the query is not match_all/match_none, so its hits carry relevance scores")
+}
+
+/// Add `"sort":["_doc"]` (the cheapest scroll order) to a scroll body; see
+/// [`doc_sort_blocker`] for when it may be used.
+pub fn add_scroll_doc_sort(body: &mut Value) {
+    if let Some(obj) = body.as_object_mut() {
+        obj.insert(&"sort", json!(["_doc"]));
+    }
+}
+
 /// `--searchBody` (or the default) with its page size applied.
 pub async fn prepare_search_body(
     raw: Option<&str>,
@@ -80,8 +113,52 @@ pub async fn prepare_search_body(
 
 #[cfg(test)]
 mod tests {
-    use super::prepare_search_body;
+    use super::{add_scroll_doc_sort, doc_sort_blocker, prepare_search_body};
     use sonic_rs::json;
+
+    // 1.1-3: `_doc` sort only for unscored bodies without their own sort.
+    #[tokio::test]
+    async fn scroll_doc_sort_is_added_only_where_scores_do_not_matter() {
+        let mut body = prepare_search_body(None, 100, None).await.unwrap();
+        assert_eq!(doc_sort_blocker(&body), None, "default match_all body");
+        add_scroll_doc_sort(&mut body);
+        assert_eq!(
+            body,
+            json!({"query": {"match_all": {}}, "stored_fields": ["*"], "_source": true, "size": 100, "sort": ["_doc"]})
+        );
+        for ok in [
+            r#"{"size":5}"#,
+            r#"{"query":{"match_all":{"boost":1.0}}}"#,
+            r#"{"query":{"match_none":{}},"_source":["a"]}"#,
+        ] {
+            let b = prepare_search_body(Some(ok), 10, None).await.unwrap();
+            assert_eq!(doc_sort_blocker(&b), None, "{ok}");
+        }
+        for (bad, why) in [
+            (r#"{"sort":["ts"]}"#, "own sort"),
+            (r#"{"sort":[]}"#, "own sort"),
+            (r#"{"query":{"match":{"msg":"error"}}}"#, "relevance"),
+            (
+                r#"{"query":{"bool":{"filter":[{"term":{"k":1}}]}}}"#,
+                "relevance",
+            ),
+            (
+                r#"{"query":{"match_all":{}},"track_scores":true}"#,
+                "scores",
+            ),
+            (r#"{"query":{"match_all":{}},"min_score":1}"#, "scores"),
+            (r#"{"rescore":{"window_size":10}}"#, "scores"),
+            (
+                r#"{"knn":{"field":"v","query_vector":[1.0],"k":5,"num_candidates":10}}"#,
+                "scores",
+            ),
+            (r#"{"query":{"match_all":{}},"sort":"_doc"}"#, "own sort"),
+        ] {
+            let b = prepare_search_body(Some(bad), 10, None).await.unwrap();
+            let r = doc_sort_blocker(&b).unwrap_or_else(|| panic!("{bad} must be refused"));
+            assert!(r.contains(why), "{bad}: {r}");
+        }
+    }
 
     #[tokio::test]
     async fn default_body_matches_elasticdump() {

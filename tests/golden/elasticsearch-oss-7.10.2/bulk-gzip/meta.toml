@@ -3,6 +3,6 @@ case = "bulk-gzip"
 engine = "elasticsearch-oss"
 version = "7.10.2"
 image = "docker.io/bitnamilegacy/elasticsearch:7.10.2@sha256:73128f92f1d370b782a32928c569772bd7563d54b39b0a11d27269ae4494c593"
-args = ["--input","{{DIR}}/input.ndjson","--output","{{URL}}/golden_dst","--esCompress","--limit","2"]
+args = ["--input","{{DIR}}/input.ndjson","--output","{{URL}}/golden_dst","--esCompress","--limit","2","--refreshInterval=0"]
 exit_code = 0
 has_output = false

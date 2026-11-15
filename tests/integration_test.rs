@@ -1007,8 +1007,9 @@ async fn test_sliced_scroll() -> Result<()> {
         "--output",
         &output_file,
         "--slices",
-        "4",       // Use 4 slices for parallel processing
-        "--quiet", // Suppress progress output
+        "4",                // Use 4 slices for parallel processing
+        "--sliceCap=false", // 1.1-4: exercise the slices as given
+        "--quiet",          // Suppress progress output
     ])?;
 
     // Validate the output
@@ -1080,7 +1081,8 @@ async fn test_sliced_scroll_with_query() -> Result<()> {
         "--output",
         &output_file,
         "--slices",
-        "3", // Use 3 slices for parallel processing
+        "3",                // Use 3 slices for parallel processing
+        "--sliceCap=false", // 1.1-4: exercise the slices as given
         "--searchBody",
         &format!("@{}", &query_file),
         "--quiet", // Suppress progress output
@@ -1181,6 +1183,7 @@ async fn test_slices_performance_comparison() -> Result<()> {
         if slices > 0 {
             args.push("--slices");
             args.push(&slice_str);
+            args.push("--sliceCap=false"); // 1.1-4: exercise the slices as given
         }
 
         run_elasticdump_command(&args)?;
@@ -1422,8 +1425,9 @@ async fn test_sliced_pit() -> Result<()> {
         "--pitKeepAlive",
         "1m",
         "--slices",
-        "4",       // Use 4 slices for parallel processing
-        "--quiet", // Suppress progress bar in tests
+        "4",                // Use 4 slices for parallel processing
+        "--sliceCap=false", // 1.1-4: exercise the slices as given
+        "--quiet",          // Suppress progress bar in tests
     ])?;
 
     // Verify the output file exists and contains the correct data
@@ -1609,7 +1613,8 @@ async fn test_sliced_pit_large_dataset() -> Result<()> {
         "--pitKeepAlive",
         "1m",
         "--slices",
-        "4", // Use 4 slices for parallel processing
+        "4",                // Use 4 slices for parallel processing
+        "--sliceCap=false", // 1.1-4: exercise the slices as given
         "--limit",
         "50",      // Smaller batch size to test multiple batches per slice
         "--quiet", // Suppress progress bar in tests
@@ -1980,6 +1985,7 @@ async fn test_slices_one_runs_unsliced() -> Result<()> {
             search_type,
             "--slices",
             "1",
+            "--sliceCap=false", // 1.1-4: exercise the slices as given
             "--quiet",
         ])?;
         assert!(
@@ -2099,6 +2105,7 @@ async fn test_backpressure_matrix() -> Result<()> {
             search_type,
             "--slices",
             "3",
+            "--sliceCap=false", // 1.1-4: exercise the slices as given
             "--workers",
             "2",
             "--bufferSize",

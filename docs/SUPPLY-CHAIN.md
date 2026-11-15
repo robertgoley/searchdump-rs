@@ -86,6 +86,7 @@ Every non-default feature enabled in `Cargo.toml` is listed below with its reaso
 | tokio | `fs`, `io-util`, `io-std` | async file input/output; stdin/stdout as `$` endpoints |
 | tokio | `sync`, `time` | channels and semaphores between reader and writers; retry backoff and throttling |
 | tokio | `signal` | SIGINT/SIGTERM handling (staging-file cleanup) |
+| tokio | `process` | `searchdump-multi` awaits its child `searchdump` processes and stops them on Ctrl-C (1.1-8); tokio's own module, no new crate |
 | reqwest | `gzip` | transparent decompression of gzip-encoded responses |
 | reqwest | `rustls-tls-manual-roots` | rustls only, and we choose the trust roots (`--ca`, native, webpki); no OpenSSL (deny.toml bans it) |
 | rustls | `ring`, `std`, `tls12` | crypto provider without aws-lc/cmake; TLS 1.2 for older clusters |

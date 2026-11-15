@@ -1,9 +1,10 @@
 //! Bulk writer: turns document lines (search hits or plain documents) into
 //! `_bulk` requests.
 
+use std::collections::{BTreeSet, HashSet};
 use std::io::Write;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use anyhow::{Result, anyhow, bail};
@@ -81,6 +82,59 @@ impl BulkAction {
     }
 }
 
+/// When the writer refreshes the indices it wrote (1.1-1).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RefreshPolicy {
+    /// `--noRefresh`: never.
+    Off,
+    /// `--refreshInterval=0`: after every successful batch, as Node elasticdump does.
+    EveryBatch,
+    /// Default: at most once per interval while writing, plus once at the end.
+    Interval(Duration),
+}
+
+/// Default `--refreshInterval` (seconds).
+pub const DEFAULT_REFRESH_INTERVAL: Duration = Duration::from_secs(5);
+
+impl Default for RefreshPolicy {
+    fn default() -> Self {
+        RefreshPolicy::Interval(DEFAULT_REFRESH_INTERVAL)
+    }
+}
+
+impl RefreshPolicy {
+    /// From `--noRefresh` (wins) and `--refreshInterval` (`0` = every batch).
+    pub fn from_flags(no_refresh: bool, interval: Option<Duration>) -> Self {
+        match (no_refresh, interval) {
+            (true, _) => RefreshPolicy::Off,
+            (false, Some(d)) if d.is_zero() => RefreshPolicy::EveryBatch,
+            (false, Some(d)) => RefreshPolicy::Interval(d),
+            (false, None) => RefreshPolicy::default(),
+        }
+    }
+
+    pub fn is_off(self) -> bool {
+        self == RefreshPolicy::Off
+    }
+
+    /// Whether a refresh is due after a batch finished at `now`. `last` is the time of the last
+    /// refresh, or of the first finished batch (the interval clock starts there, so a run that
+    /// finishes within one interval refreshes only once, at the end).
+    fn due(self, last: &mut Option<tokio::time::Instant>, now: tokio::time::Instant) -> bool {
+        match self {
+            RefreshPolicy::Off => false,
+            RefreshPolicy::EveryBatch => true,
+            RefreshPolicy::Interval(d) => match *last {
+                None => {
+                    *last = Some(now);
+                    false
+                }
+                Some(t) => now.saturating_duration_since(t) >= d,
+            },
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct BulkOptions {
     pub info: ClusterInfo,
@@ -97,7 +151,7 @@ pub struct BulkOptions {
     pub version_type: Option<String>,
     /// Meta fields copied into the action line (bare names).
     pub meta_fields: Vec<String>,
-    pub refresh: bool,
+    pub refresh: RefreshPolicy,
     pub ignore_es_write_errors: bool,
     pub ignore_errors: bool,
     pub max_bulk_bytes: usize,
@@ -163,8 +217,19 @@ pub struct BulkSink {
     concurrency: usize,
     throttle: Option<Duration>,
     inflight: JoinSet<Result<WriteReport>>,
-    /// At most one `_refresh` in flight (others are skipped).
-    refresh_lock: Arc<tokio::sync::Mutex<()>>,
+    /// At most one `_refresh` in flight (others are skipped). Holds the time of the last
+    /// refresh (or of the first finished batch) for [`RefreshPolicy::Interval`].
+    refresh_lock: Arc<tokio::sync::Mutex<Option<tokio::time::Instant>>>,
+    /// A batch was written since the last refresh started; [`BulkSink::drain`] refreshes once
+    /// more when set (1.1-1: the final refresh, also with `--concurrency 1`).
+    refresh_dirty: Arc<AtomicBool>,
+    /// Every target index name the run sent documents to (after prefix/suffix/rename), shared
+    /// by all workers. With no output index, `_refresh` targets exactly these (1.1-2) instead of
+    /// the whole cluster.
+    written_indices: Arc<Mutex<BTreeSet<String>>>,
+    /// Index names encoded in the current batch (this worker only), merged into
+    /// `written_indices` once the batch was sent.
+    batch_indices: HashSet<String>,
     /// 1-based number (in the input) of the next document handed to `write_batch`, so a
     /// rejected line can be located (TST-BRK-IN-005).
     next_doc: u64,
@@ -176,10 +241,44 @@ pub struct BulkSink {
     /// The single target index was missing (404) when its uuid was to be noted, after
     /// [`UUID_CAPTURE_AFTER`] of writes: it was deleted mid-run (TST-BRK-SRV-008).
     target_gone_mid_run: bool,
-    /// The 409 explanation is printed once per run (TST-BRK-SRV-011).
-    conflict_hint_shown: bool,
-    data_stream_hint_shown: bool,
-    routing_hint_shown: bool,
+    /// The 409 explanation is printed once per run (TST-BRK-SRV-011). Shared by the workers
+    /// (1.1-6: every pipelined batch is sent by a worker).
+    conflict_hint_shown: Arc<AtomicBool>,
+    data_stream_hint_shown: Arc<AtomicBool>,
+    /// L-812: the data-stream custom-routing explanation, once per run.
+    routing_hint_shown: Arc<AtomicBool>,
+}
+
+/// 1.1-6: one batch, validated and encoded, ready to send. Owns its input lines so the send
+/// can run on a worker task while the next batch is encoded.
+struct EncodedBatch {
+    lines: Bytes,
+    encoded: Vec<u8>,
+    /// Per encodable document: its line in `lines`, its action (+ source) lines in `encoded`.
+    docs: Vec<(std::ops::Range<usize>, std::ops::Range<usize>)>,
+    /// Target index names of this batch (see `BulkSink::batch_indices`).
+    indices: HashSet<String>,
+}
+
+/// 1.1-6: a document that stops the run (refused rename merge, [`FatalDoc`]); the message is
+/// completed once the batches before it are written, so it can say how many were.
+struct StopAt {
+    no: u64,
+    err: anyhow::Error,
+}
+
+/// 1.1-6: `SEARCHDUMP_BULK_PIPELINE=0` (or `false`/`off`/`no`) turns the encode/send overlap at
+/// `--concurrency 1` off, for A/B runs; anything else (or unset) leaves it on.
+fn pipeline_from_env(v: Option<&str>) -> bool {
+    !matches!(
+        v.map(|s| s.trim().to_ascii_lowercase()).as_deref(),
+        Some("0" | "false" | "off" | "no")
+    )
+}
+
+fn pipeline_enabled() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| pipeline_from_env(std::env::var("SEARCHDUMP_BULK_PIPELINE").ok().as_deref()))
 }
 
 fn get<'a>(line: &'a [u8], path: &[&str]) -> Option<LazyValue<'a>> {
@@ -521,15 +620,18 @@ impl BulkSink {
             concurrency: 1,
             throttle: None,
             inflight: JoinSet::new(),
-            refresh_lock: Arc::new(tokio::sync::Mutex::new(())),
+            refresh_lock: Arc::new(tokio::sync::Mutex::new(None)),
+            refresh_dirty: Arc::new(AtomicBool::new(false)),
+            written_indices: Arc::default(),
+            batch_indices: HashSet::new(),
             next_doc: 1,
             first_batch: None,
             target_uuid: None,
             uuid_checked: false,
             target_gone_mid_run: false,
-            conflict_hint_shown: false,
-            data_stream_hint_shown: false,
-            routing_hint_shown: false,
+            conflict_hint_shown: Arc::new(AtomicBool::new(false)),
+            data_stream_hint_shown: Arc::new(AtomicBool::new(false)),
+            routing_hint_shown: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -647,7 +749,18 @@ impl BulkSink {
     pub fn with_concurrency(mut self, concurrency: usize, throttle: Option<Duration>) -> Self {
         self.concurrency = concurrency.max(1);
         self.throttle = throttle.filter(|d| !d.is_zero());
+        if self.pipelined() {
+            // 1.1-6: the batch in flight (its lines and encoded body) next to the one encoded
+            crate::memplan::add_batches(2);
+        }
         self
+    }
+
+    /// 1.1-6: encode/send overlap applies at `--concurrency 1` without `--throttleInterval`.
+    /// With a throttle the pause must follow the finished send (as before 1.1-6); overlapping
+    /// it with the next send would shorten the gap the user asked for.
+    fn pipelined(&self) -> bool {
+        self.concurrency <= 1 && self.throttle.is_none() && pipeline_enabled()
     }
 
     fn worker(&self) -> BulkSink {
@@ -662,14 +775,17 @@ impl BulkSink {
             throttle: None,
             inflight: JoinSet::new(),
             refresh_lock: Arc::clone(&self.refresh_lock),
+            refresh_dirty: Arc::clone(&self.refresh_dirty),
+            written_indices: Arc::clone(&self.written_indices),
+            batch_indices: HashSet::new(),
             next_doc: 1,
             first_batch: None,
             target_uuid: None,
             uuid_checked: false,
             target_gone_mid_run: false,
-            conflict_hint_shown: false,
-            data_stream_hint_shown: false,
-            routing_hint_shown: false,
+            conflict_hint_shown: Arc::clone(&self.conflict_hint_shown),
+            data_stream_hint_shown: Arc::clone(&self.data_stream_hint_shown),
+            routing_hint_shown: Arc::clone(&self.routing_hint_shown),
         }
     }
 
@@ -693,8 +809,25 @@ impl BulkSink {
         self.note_target_uuid().await;
         let first = self.next_doc;
         self.next_doc += nonempty_lines(&data).count() as u64;
-        if self.concurrency <= 1 {
-            self.process_batch(&data, first).await?;
+        if self.pipelined() {
+            // 1.1-6: encode this batch while the previous one is still being sent, then send
+            // it once that send is done. Sends never overlap, so the cluster sees the same
+            // requests in the same order as without the overlap.
+            let encoded = self.encode_batch(data, first);
+            // Batch N is finished (written, retried or reported) before N+1 is sent; an error
+            // from N means N+1 is never sent. An encoding error of N+1 is reported after N.
+            self.join_inflight().await?;
+            let batch = match encoded? {
+                Ok(b) => b,
+                Err(stop) => return Err(self.stop_error(stop)),
+            };
+            let mut worker = self.worker();
+            self.inflight.spawn(async move {
+                worker.send_batch(batch).await?;
+                Ok(worker.report)
+            });
+        } else if self.concurrency <= 1 {
+            self.process_batch(data, first).await?;
         } else {
             while self.inflight.len() >= self.concurrency {
                 let joined = self.inflight.join_next().await.expect("non-empty");
@@ -706,7 +839,7 @@ impl BulkSink {
             let mut worker = self.worker();
             // L-808r: the shared batch moves into the worker; it used to be copied here
             self.inflight.spawn(async move {
-                worker.process_batch(&data, first).await?;
+                worker.process_batch(data, first).await?;
                 Ok(worker.report)
             });
         }
@@ -716,25 +849,81 @@ impl BulkSink {
         Ok(())
     }
 
-    /// Wait for every in-flight batch; the first error wins.
+    /// Wait for every in-flight batch; the first error wins. Then the final refresh: whatever
+    /// was written since the last refresh (an interval not yet elapsed, or a per-batch refresh
+    /// skipped while another ran) is refreshed once, unless `--noRefresh`.
     pub async fn drain(&mut self) -> Result<()> {
-        let concurrent = self.concurrency > 1;
+        while let Some(joined) = self.inflight.join_next().await {
+            if let Err(e) = self.merge(joined) {
+                self.inflight.abort_all();
+                self.best_effort_final_refresh().await;
+                return Err(e);
+            }
+        }
+        self.final_refresh().await;
+        self.check_target_index().await
+    }
+
+    /// One refresh of whatever was written since the last one (nothing when `--noRefresh` or
+    /// nothing is pending).
+    async fn final_refresh(&self) {
+        if self.opts.refresh.is_off() || !self.refresh_dirty.load(Ordering::SeqCst) {
+            return;
+        }
+        let lock = Arc::clone(&self.refresh_lock);
+        let mut last = lock.lock().await;
+        if self.refresh_dirty.load(Ordering::SeqCst) {
+            self.refresh_now(&mut last).await;
+        }
+    }
+
+    /// The run is ending with an error or an interrupt: with an interval policy the batches
+    /// written since the last refresh would otherwise stay unsearchable until the index's own
+    /// refresh (never, with `index.refresh_interval: -1`), where 1.0 had refreshed after every
+    /// batch. Bounded so a dead cluster cannot hold up the exit.
+    async fn best_effort_final_refresh(&self) {
+        if tokio::time::timeout(FINAL_REFRESH_TIMEOUT, self.final_refresh())
+            .await
+            .is_err()
+        {
+            log::warn!(
+                "final refresh did not finish within {}s while stopping; documents written since the last refresh become searchable at the index's next refresh",
+                FINAL_REFRESH_TIMEOUT.as_secs()
+            );
+        }
+    }
+
+    pub fn abort(&mut self) {
+        self.inflight.abort_all();
+    }
+
+    /// The run is ending with an error. With `--concurrency 1` the one pipelined batch in flight
+    /// (1.1-6) is finished first, as the sequential writer did before 1.1-6 (each batch was
+    /// complete before the next was read); errors from it are logged, the run's error wins.
+    /// With `--concurrency N > 1` the in-flight batches are aborted as before.
+    pub async fn settle(&mut self) {
+        if self.concurrency > 1 {
+            self.abort();
+        } else {
+            while let Some(joined) = self.inflight.join_next().await {
+                if let Err(e) = self.merge(joined) {
+                    log::debug!("bulk batch in flight when the run stopped: {e:#}");
+                }
+            }
+        }
+        self.best_effort_final_refresh().await;
+    }
+
+    /// Wait for every in-flight batch (at most one with `--concurrency 1`), merging reports;
+    /// the first error aborts the rest and is returned.
+    async fn join_inflight(&mut self) -> Result<()> {
         while let Some(joined) = self.inflight.join_next().await {
             if let Err(e) = self.merge(joined) {
                 self.inflight.abort_all();
                 return Err(e);
             }
         }
-        if concurrent && self.opts.refresh {
-            // A per-batch refresh may have been skipped while another ran.
-            let _g = self.refresh_lock.lock().await;
-            self.refresh().await;
-        }
-        self.check_target_index().await
-    }
-
-    pub fn abort(&mut self) {
-        self.inflight.abort_all();
+        Ok(())
     }
 
     fn index_for(&self, top: &Top) -> Result<String> {
@@ -800,7 +989,11 @@ impl BulkSink {
         out.extend_from_slice(b"{\"");
         out.extend_from_slice(action.as_str().as_bytes());
         out.extend_from_slice(b"\":{\"_index\":");
-        push_json_str(out, &self.index_for(top)?);
+        let index = self.index_for(top)?;
+        push_json_str(out, &index);
+        if self.opts.index.is_none() && !self.batch_indices.contains(index.as_str()) {
+            self.batch_indices.insert(index);
+        }
         if is_hit && let Some(id) = top.get("_id") {
             out.extend_from_slice(b",\"_id\":");
             push_id_like(out, "_id", id)?;
@@ -921,39 +1114,88 @@ impl BulkSink {
 
     /// Write one batch of document lines; returns once every item was
     /// written, retried or reported.
-    async fn process_batch(&mut self, buf: &[u8], first_doc: u64) -> Result<()> {
-        // Validate and encode every line first: a line that is not one JSON
-        // object (INJ-F1) or whose action fields are unusable (bad `_index`,
-        // non-string `_id`, non-integer `version`: INJ-F2/F3) is rejected on
-        // its own, so it can never fail the whole bulk request.
-        let mut encoded = Vec::with_capacity(buf.len() + buf.len() / 4);
-        let mut docs: Vec<(&[u8], std::ops::Range<usize>)> = Vec::new();
-        for (no, line) in (first_doc..).zip(nonempty_lines(buf)) {
+    async fn process_batch(&mut self, lines: Bytes, first_doc: u64) -> Result<()> {
+        let batch = match self.encode_batch(lines, first_doc)? {
+            Ok(b) => b,
+            Err(stop) => return Err(self.stop_error(stop)),
+        };
+        self.send_batch(batch).await
+    }
+
+    /// The error for a document that stops the run, counting what was written before it.
+    fn stop_error(&self, stop: StopAt) -> anyhow::Error {
+        let StopAt { no, err } = stop;
+        anyhow!(
+            "{err:#}. Stopped at document {no} of the input before sending its batch; {} document(s) of earlier batches were already written",
+            self.report.written
+        )
+    }
+
+    /// 1.1-6, CPU part of a batch: validate and encode every line. A line that is not one JSON
+    /// object (INJ-F1) or whose action fields are unusable (bad `_index`, non-string `_id`,
+    /// non-integer `version`: INJ-F2/F3) is rejected on its own, so it can never fail the
+    /// whole bulk request. The outer error is a rejection that stops the run; the inner one a
+    /// document that stops it ([`StopAt`]).
+    fn encode_batch(
+        &mut self,
+        lines: Bytes,
+        first_doc: u64,
+    ) -> Result<std::result::Result<EncodedBatch, StopAt>> {
+        let mut encoded = Vec::with_capacity(lines.len() + lines.len() / 4);
+        let mut docs: Vec<(std::ops::Range<usize>, std::ops::Range<usize>)> = Vec::new();
+        let mut no = first_doc;
+        let mut pos = 0usize;
+        while pos < lines.len() {
+            let end = memchr::memchr(b'\n', &lines[pos..]).map_or(lines.len(), |i| pos + i);
+            let range = pos..end;
+            pos = end + 1;
+            if range.is_empty() {
+                continue;
+            }
+            let line = &lines[range.clone()];
+            let this = no;
+            no += 1;
             let parsed = match check_and_parse(line) {
                 Ok(top) => Ok(top),
                 Err(CheckErr::Line(reason)) => {
-                    self.reject_line(line, &reason, no)?;
+                    self.reject_line(line, &reason, this)?;
                     continue;
                 }
                 Err(CheckErr::Parse(e)) => Err(e),
             };
             let at = encoded.len();
             match parsed.and_then(|top| self.encode_top(line, &top, &mut encoded)) {
-                Ok(()) => docs.push((line, at..encoded.len())),
+                Ok(()) => docs.push((range, at..encoded.len())),
                 Err(e) => {
                     encoded.truncate(at);
                     if e.downcast_ref::<crate::rename::MergeRefused>().is_some()
                         || e.downcast_ref::<FatalDoc>().is_some()
                     {
-                        return Err(anyhow!(
-                            "{e:#}. Stopped at document {no} of the input before sending its batch; {} document(s) of earlier batches were already written",
-                            self.report.written
-                        ));
+                        self.batch_indices.clear();
+                        return Ok(Err(StopAt { no: this, err: e }));
                     }
-                    self.reject_line(line, &format!("{e:#}"), no)?;
+                    self.reject_line(line, &format!("{e:#}"), this)?;
                 }
             }
         }
+        Ok(Ok(EncodedBatch {
+            lines,
+            encoded,
+            docs,
+            indices: std::mem::take(&mut self.batch_indices),
+        }))
+    }
+
+    /// 1.1-6, network part of a batch: send it in `--maxBulkBytes` chunks; returns once every
+    /// item was written, retried or reported.
+    async fn send_batch(&mut self, batch: EncodedBatch) -> Result<()> {
+        let EncodedBatch {
+            lines,
+            mut encoded,
+            docs,
+            indices,
+        } = batch;
+        self.batch_indices.extend(indices);
         let mut start = 0;
         while start < docs.len() {
             // Split oversized batches at --maxBulkBytes. The encoded documents are contiguous
@@ -980,7 +1222,10 @@ impl BulkSink {
             } else {
                 encoded[range].to_vec()
             };
-            let chunk: Vec<&[u8]> = docs[start..end].iter().map(|(l, _)| *l).collect();
+            let chunk: Vec<&[u8]> = docs[start..end]
+                .iter()
+                .map(|(l, _)| &lines[l.clone()])
+                .collect();
             match self.write_chunk(&chunk, body).await {
                 Ok(()) => {}
                 Err(e) if self.opts.ignore_errors && !crate::http::is_cancelled(&e) => {
@@ -990,15 +1235,31 @@ impl BulkSink {
                     );
                     self.report.failed += chunk.len() as u64;
                 }
-                Err(e) => return Err(self.rerun_safety(e)),
+                Err(e) => {
+                    // Earlier chunks of this batch may have been written: keep them in the
+                    // final refresh (drain/settle) of the failing run.
+                    self.note_written_indices();
+                    if !self.opts.refresh.is_off() && start > 0 {
+                        self.refresh_dirty.store(true, Ordering::SeqCst);
+                    }
+                    return Err(self.rerun_safety(e));
+                }
             }
             start = end;
         }
-        if self.opts.refresh && !docs.is_empty() {
-            // Skip when another worker's refresh is already running.
+        self.note_written_indices();
+        if !self.opts.refresh.is_off() && !docs.is_empty() {
+            self.refresh_dirty.store(true, Ordering::SeqCst);
+            // Skip when another worker's refresh is already running (the final refresh in
+            // drain() covers this batch then).
             let lock = Arc::clone(&self.refresh_lock);
-            if let Ok(_g) = lock.try_lock() {
-                self.refresh().await;
+            if let Ok(mut last) = lock.try_lock()
+                && self
+                    .opts
+                    .refresh
+                    .due(&mut last, tokio::time::Instant::now())
+            {
+                self.refresh_now(&mut last).await;
             }
         }
         Ok(())
@@ -1206,32 +1467,30 @@ impl BulkSink {
                 rejected.push((doc_idx, item.as_raw_str().to_string()));
             } else {
                 if status == 400
-                    && !self.data_stream_hint_shown
+                    && !self.data_stream_hint_shown.load(Ordering::Relaxed)
                     && self.opts.action == BulkAction::Index
                     && item
                         .as_raw_str()
                         .contains("op_type of create are allowed in data streams")
                 {
                     // L-656: name the fix once, not per document
-                    self.data_stream_hint_shown = true;
+                    self.data_stream_hint_shown.store(true, Ordering::Relaxed);
                     log::warn!(
                         "the target is a data stream, which accepts only `create`: every document written with --bulkAction index fails; re-run with --bulkAction create"
                     );
                 }
                 if status == 400
-                    && !self.routing_hint_shown
                     && item.as_raw_str().contains("targeting data stream")
                     && item.as_raw_str().contains("custom routing")
+                    && !self.routing_hint_shown.swap(true, Ordering::Relaxed)
                 {
                     // L-812: documents dumped from a routed index keep their routing
-                    self.routing_hint_shown = true;
                     log::warn!(
                         "the target is a data stream, which refuses documents that carry a routing value unless its index template sets data_stream.allow_custom_routing: true (Elasticsearch 8.1+); every routed document fails. Restore them into a regular index, or remove the routing from the input"
                     );
                 }
-                if status == 409 && !self.conflict_hint_shown {
+                if status == 409 && !self.conflict_hint_shown.swap(true, Ordering::Relaxed) {
                     // TST-BRK-SRV-011: name the concurrent change once, not per document
-                    self.conflict_hint_shown = true;
                     log::warn!(
                         "version conflict (409): a document was created or changed by another writer (a concurrent restore, or an earlier run) between reads; it is counted as failed{}",
                         if self.opts.action == BulkAction::Create {
@@ -1252,28 +1511,120 @@ impl BulkSink {
         Ok(rejected)
     }
 
+    /// Move this batch's target names into the run-wide set (1.1-2).
+    fn note_written_indices(&mut self) {
+        if self.batch_indices.is_empty() {
+            return;
+        }
+        let mut all = self.written_indices.lock().unwrap();
+        all.extend(self.batch_indices.drain());
+    }
+
+    /// Target names the run has written so far (sorted). Empty with an output index set.
+    pub fn written_indices(&self) -> Vec<String> {
+        self.written_indices
+            .lock()
+            .unwrap()
+            .iter()
+            .cloned()
+            .collect()
+    }
+
+    /// `_refresh` path segments: the output index, or (with no output index) the indices this
+    /// run wrote, in comma-joined groups that keep each URL under [`REFRESH_URL_BUDGET`] bytes.
+    /// Never the whole cluster (`POST /_refresh`, which Node elasticdump sends in that case):
+    /// on a shared production cluster that refreshes every index after every batch (1.1-2).
+    fn refresh_targets(&self) -> Vec<String> {
+        match &self.opts.index {
+            Some(i) => vec![format!("{}{}{}", self.opts.prefix, i, self.opts.suffix)],
+            None => chunk_index_list(&self.written_indices(), REFRESH_URL_BUDGET),
+        }
+    }
+
+    /// Refresh now (the caller holds `refresh_lock`) and restart the interval clock. The dirty
+    /// flag is cleared *before* the request, so a batch finishing while it runs sets it again
+    /// and is refreshed by a later call.
+    async fn refresh_now(&self, last: &mut Option<tokio::time::Instant>) {
+        self.refresh_dirty.store(false, Ordering::SeqCst);
+        self.refresh().await;
+        *last = Some(tokio::time::Instant::now());
+    }
+
     async fn refresh(&self) {
-        let segments = match &self.opts.index {
-            Some(i) => vec![
-                format!("{}{}{}", self.opts.prefix, i, self.opts.suffix),
-                "_refresh".into(),
-            ],
-            None => vec!["_refresh".to_string()],
+        let targets = self.refresh_targets();
+        // With an output index the request is unchanged from 1.0 (no extra parameters).
+        let query: &[(&str, &str)] = if self.opts.index.is_some() {
+            &[]
+        } else {
+            &[("ignore_unavailable", "true"), ("allow_no_indices", "true")]
         };
-        let refs: Vec<&str> = segments.iter().map(String::as_str).collect();
-        match self
-            .client
-            .send(Method::POST, &refs, &[], false, Body::Empty)
-            .await
-        {
-            Ok(r) if r.status().is_success() => {}
-            Ok(r) => log::warn!("refresh failed: HTTP {}", r.status()),
-            Err(e) => log::warn!("refresh failed: {e}"),
+        for target in &targets {
+            let refs = [target.as_str(), "_refresh"];
+            match self
+                .client
+                .send(Method::POST, &refs, query, false, Body::Empty)
+                .await
+            {
+                Ok(r) if r.status().is_success() => {}
+                Ok(r) => log::warn!("refresh failed: HTTP {}", r.status()),
+                Err(e) => log::warn!("refresh failed: {e}"),
+            }
         }
     }
 }
 
-/// `status` of a bulk item `{"<any action>": {"status": N, …}}` with exactly one key.
+/// Bytes of comma-joined index names per `_refresh` URL (path only; well under the 4 KB
+/// `http.max_initial_line_length` default of Elasticsearch and OpenSearch, leaving room for
+/// a base path, percent-encoding and the query string).
+const REFRESH_URL_BUDGET: usize = 3000;
+
+/// Upper bound on the final refresh of a run that is stopping on an error or an interrupt.
+const FINAL_REFRESH_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// Join `names` with commas into groups of at most `budget` bytes each. A single name longer
+/// than the budget gets a group of its own (index names are at most 255 bytes, so this only
+/// matters for tiny budgets in tests).
+///
+/// Lengths are measured as sent: the URL percent-encodes a non-ASCII byte (and a few ASCII
+/// characters such as `%`, `^` or `{`) to three bytes, so a list of UTF-8 names (up to 255
+/// bytes each) is budgeted at its encoded size, not its raw size.
+fn chunk_index_list(names: &[String], budget: usize) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    let mut cur = String::new();
+    let mut cur_len = 0usize;
+    for n in names {
+        let n_len = encoded_path_len(n);
+        if !cur.is_empty() && cur_len + 1 + n_len > budget {
+            out.push(std::mem::take(&mut cur));
+            cur_len = 0;
+        }
+        if !cur.is_empty() {
+            cur.push(',');
+            cur_len += 1;
+        }
+        cur.push_str(n);
+        cur_len += n_len;
+    }
+    if !cur.is_empty() {
+        out.push(cur);
+    }
+    out
+}
+
+/// Upper bound of `s`'s length once percent-encoded as a URL path segment: bytes outside a
+/// conservative safe set count three (`%XX`).
+fn encoded_path_len(s: &str) -> usize {
+    s.bytes()
+        .map(|b| {
+            if b.is_ascii_alphanumeric() || b"-_.+,~!$&'()*;=:@".contains(&b) {
+                1
+            } else {
+                3
+            }
+        })
+        .sum()
+}
+
 fn item_status_any_key(raw: &[u8]) -> Option<u64> {
     let mut it = sonic_rs::to_object_iter(raw);
     let (_, v) = it.next()?.ok()?;
@@ -1484,7 +1835,7 @@ mod tests {
                 "timestamp".into(),
                 "ttl".into(),
             ],
-            refresh: true,
+            refresh: RefreshPolicy::default(),
             ignore_es_write_errors: true,
             ignore_errors: false,
             max_bulk_bytes: 100 << 20,
@@ -1715,6 +2066,50 @@ mod tests {
     }
 
     #[test]
+    fn bulk_pipeline_switch_defaults_on() {
+        assert!(pipeline_from_env(None));
+        assert!(pipeline_from_env(Some("1")));
+        assert!(pipeline_from_env(Some("")));
+        for off in ["0", "false", "OFF", " no "] {
+            assert!(!pipeline_from_env(Some(off)), "{off}");
+        }
+    }
+
+    /// 1.1-6: the CPU half of a batch numbers documents like the old single pass (blank lines
+    /// skipped), keeps each document's line, and carries the batch's target indices.
+    #[test]
+    fn encode_batch_keeps_lines_numbers_and_indices() {
+        let mut s = sink(os(), |o| o.ignore_errors = true);
+        let lines = Bytes::from_static(
+            b"{\"_index\":\"a\",\"_id\":\"1\",\"_source\":{}}\n\nnot json\n{\"_index\":\"b\",\"_id\":\"2\",\"_source\":{}}\n",
+        );
+        let b = match s.encode_batch(lines, 7).unwrap() {
+            Ok(b) => b,
+            Err(_) => panic!("no document stops the run"),
+        };
+        assert_eq!(b.docs.len(), 2);
+        assert_eq!(
+            &b.lines[b.docs[0].0.clone()],
+            br#"{"_index":"a","_id":"1","_source":{}}"#
+        );
+        assert_eq!(
+            &b.lines[b.docs[1].0.clone()],
+            br#"{"_index":"b","_id":"2","_source":{}}"#
+        );
+        let enc0 = String::from_utf8(b.encoded[b.docs[0].1.clone()].to_vec()).unwrap();
+        assert!(
+            enc0.starts_with(r#"{"index":{"_index":"a","_id":"1""#),
+            "{enc0}"
+        );
+        let mut idx: Vec<&str> = b.indices.iter().map(String::as_str).collect();
+        idx.sort();
+        assert_eq!(idx, ["a", "b"]);
+        assert!(s.batch_indices.is_empty(), "moved into the batch");
+        // "not json" was document 8 (the blank line is not counted) and was rejected
+        assert_eq!((s.report.failed, s.report.rejected), (1, 1));
+    }
+
+    #[test]
     fn auto_id_docs_are_counted_for_index_and_create_only() {
         let docs: Vec<&[u8]> = vec![
             br#"{"a":1}"#,
@@ -1726,6 +2121,191 @@ mod tests {
         assert_eq!(s.auto_id_docs(&docs, &[1]), 0);
         let s = sink(os(), |o| o.action = BulkAction::Delete);
         assert_eq!(s.auto_id_docs(&docs, &[0, 2]), 0);
+    }
+
+    /// Refreshes for batches finishing at `finish_ms` (concurrency 1), counted the way
+    /// process_batch() and drain() apply the policy: `due` after each batch, plus the final
+    /// refresh when anything was written since the last one.
+    fn refreshes(policy: RefreshPolicy, finish_ms: &[u64]) -> usize {
+        let base = tokio::time::Instant::now();
+        let (mut last, mut dirty, mut n) = (None, false, 0);
+        for &t in finish_ms {
+            if policy.is_off() {
+                continue;
+            }
+            dirty = true;
+            let now = base + Duration::from_millis(t);
+            if policy.due(&mut last, now) {
+                dirty = false;
+                last = Some(now);
+                n += 1;
+            }
+        }
+        n + usize::from(dirty)
+    }
+
+    // 1.1-1: refresh cadence per policy, final refresh always (unless off).
+    #[test]
+    fn refresh_policy_cadence() {
+        let five = RefreshPolicy::default();
+        assert_eq!(five, RefreshPolicy::Interval(Duration::from_secs(5)));
+        let ten_quick: Vec<u64> = (1..=10).map(|i| i * 100).collect();
+        // a run shorter than the interval: one refresh, at the end
+        assert_eq!(refreshes(five, &ten_quick), 1);
+        assert_eq!(refreshes(RefreshPolicy::EveryBatch, &ten_quick), 10);
+        assert_eq!(refreshes(RefreshPolicy::Off, &ten_quick), 0);
+        assert_eq!(
+            refreshes(five, &[]),
+            0,
+            "nothing written, nothing refreshed"
+        );
+        assert_eq!(refreshes(RefreshPolicy::EveryBatch, &[]), 0);
+        // one batch per second for 20 s: the clock starts at the first batch (t=1), refreshes
+        // at t=6, 11, 16, then the final one for t=17..20
+        let slow: Vec<u64> = (1..=20).map(|i| i * 1000).collect();
+        assert_eq!(refreshes(five, &slow), 4);
+        // a last batch that triggers the interval refresh leaves nothing for the final one
+        assert_eq!(refreshes(five, &[1000, 6000]), 1);
+        assert_eq!(
+            refreshes(
+                RefreshPolicy::Interval(Duration::from_millis(250)),
+                &ten_quick
+            ),
+            3,
+            "t=100 starts the clock; refreshes at 400, 700 and 1000, none left for the end"
+        );
+    }
+
+    #[test]
+    fn refresh_policy_from_flags() {
+        let d = Some(Duration::from_secs(2));
+        assert_eq!(RefreshPolicy::from_flags(true, d), RefreshPolicy::Off);
+        assert_eq!(RefreshPolicy::from_flags(true, None), RefreshPolicy::Off);
+        assert_eq!(
+            RefreshPolicy::from_flags(false, Some(Duration::ZERO)),
+            RefreshPolicy::EveryBatch
+        );
+        assert_eq!(
+            RefreshPolicy::from_flags(false, d),
+            RefreshPolicy::Interval(Duration::from_secs(2))
+        );
+        assert_eq!(
+            RefreshPolicy::from_flags(false, None),
+            RefreshPolicy::Interval(DEFAULT_REFRESH_INTERVAL)
+        );
+    }
+
+    // 1.1-1 with the real writer state and a paused clock: workers share the dirty flag, the
+    // lock and the interval clock (no request is sent).
+    #[tokio::test(start_paused = true)]
+    async fn refresh_state_is_shared_and_the_clock_starts_at_the_first_batch() {
+        let s = sink(os(), |o| o.index = Some("dst".into()));
+        let w = s.worker();
+        assert!(!s.refresh_dirty.load(Ordering::SeqCst));
+        w.refresh_dirty.store(true, Ordering::SeqCst);
+        assert!(s.refresh_dirty.load(Ordering::SeqCst), "dirty flag shared");
+        {
+            let mut last = s.refresh_lock.lock().await;
+            assert!(!s.opts.refresh.due(&mut last, tokio::time::Instant::now()));
+            assert!(last.is_some(), "first batch starts the clock");
+            assert!(
+                w.refresh_lock.try_lock().is_err(),
+                "lock shared: others skip"
+            );
+        }
+        tokio::time::advance(Duration::from_millis(4999)).await;
+        {
+            let mut last = w.refresh_lock.lock().await;
+            assert!(!w.opts.refresh.due(&mut last, tokio::time::Instant::now()));
+        }
+        tokio::time::advance(Duration::from_millis(1)).await;
+        let mut last = w.refresh_lock.lock().await;
+        assert!(w.opts.refresh.due(&mut last, tokio::time::Instant::now()));
+    }
+
+    // 1.1-2: with no output index, refresh only the (prefixed/suffixed) indices written.
+    #[test]
+    fn refresh_targets_are_the_written_indices_never_the_cluster() {
+        let mut s = sink(os(), |o| {
+            o.prefix = "p_".into();
+            o.suffix = "_s".into();
+        });
+        assert!(
+            s.refresh_targets().is_empty(),
+            "nothing written: no refresh"
+        );
+        enc(&mut s, r#"{"_index":"b","_id":"1","_source":{}}"#);
+        enc(&mut s, r#"{"_index":"a","_id":"2","_source":{}}"#);
+        enc(&mut s, r#"{"_index":"b","_id":"3","_source":{}}"#);
+        assert!(
+            s.refresh_targets().is_empty(),
+            "not merged before the batch is sent"
+        );
+        s.note_written_indices();
+        assert_eq!(s.refresh_targets(), vec!["p_a_s,p_b_s".to_string()]);
+        assert_eq!(s.written_indices(), vec!["p_a_s", "p_b_s"]);
+        // a worker clone shares the run-wide set
+        let mut w = s.worker();
+        enc(&mut w, r#"{"_index":"c","_id":"4","_source":{}}"#);
+        w.note_written_indices();
+        assert_eq!(s.refresh_targets(), vec!["p_a_s,p_b_s,p_c_s".to_string()]);
+    }
+
+    #[test]
+    fn refresh_target_with_an_output_index_is_unchanged() {
+        let mut s = sink(os(), |o| {
+            o.index = Some("dst".into());
+            o.prefix = "p_".into();
+        });
+        enc(&mut s, r#"{"_index":"src","_id":"1","_source":{}}"#);
+        s.note_written_indices();
+        assert_eq!(s.refresh_targets(), vec!["p_dst".to_string()]);
+        assert!(s.written_indices().is_empty());
+    }
+
+    #[test]
+    fn data_stream_creates_refresh_the_stream() {
+        let mut s = sink(os(), |o| o.action = BulkAction::Create);
+        enc(
+            &mut s,
+            r#"{"_index":".ds-logs-app-2026.10.30-000001","_id":"1","_source":{}}"#,
+        );
+        s.note_written_indices();
+        assert_eq!(s.refresh_targets(), vec!["logs-app".to_string()]);
+    }
+
+    #[test]
+    fn refresh_index_lists_are_split_under_the_url_budget() {
+        let names: Vec<String> = (0..500).map(|i| format!("index-{i:04}")).collect();
+        let groups = chunk_index_list(&names, REFRESH_URL_BUDGET);
+        assert!(groups.len() > 1);
+        assert!(groups.iter().all(|g| g.len() <= REFRESH_URL_BUDGET));
+        let back: Vec<String> = groups
+            .iter()
+            .flat_map(|g| g.split(',').map(String::from))
+            .collect();
+        assert_eq!(back, names, "every name exactly once, in order");
+        assert_eq!(
+            chunk_index_list(&["abc".into(), "de".into(), "f".into()], 6),
+            vec!["abc,de", "f"]
+        );
+        assert_eq!(chunk_index_list(&["toolong".into()], 3), vec!["toolong"]);
+        assert!(chunk_index_list(&[], 10).is_empty());
+        // budgeted at the percent-encoded size: "é" is 2 UTF-8 bytes, 6 once encoded
+        assert_eq!(encoded_path_len("ab-1.x"), 6);
+        assert_eq!(encoded_path_len("é"), 6);
+        assert_eq!(encoded_path_len("a%b"), 5);
+        let wide: Vec<String> = (0..100)
+            .map(|i| format!("{}{i:03}", "é".repeat(100)))
+            .collect();
+        let groups = chunk_index_list(&wide, REFRESH_URL_BUDGET);
+        assert!(
+            groups
+                .iter()
+                .all(|g| encoded_path_len(g) <= REFRESH_URL_BUDGET),
+            "every encoded group fits the budget"
+        );
+        assert!(groups.len() >= 100 * 603 / REFRESH_URL_BUDGET);
     }
 }
 
@@ -2033,7 +2613,7 @@ mod prop_bulk {
                 handle_version: c.handle_version,
                 version_type: c.version_type.clone(),
                 meta_fields: vec!["routing".into(), "parent".into()],
-                refresh: true,
+                refresh: RefreshPolicy::default(),
                 ignore_es_write_errors: true,
                 ignore_errors: false,
                 max_bulk_bytes: 100 << 20,

@@ -26,7 +26,7 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -41,6 +41,7 @@ use searchdump_rs::http::retry::error_chain;
 use searchdump_rs::http::tls::TlsOptions;
 use searchdump_rs::http::{Body, ClientOptions, EsClient};
 use serde::{Deserialize, Serialize};
+use tokio_util::sync::CancellationToken;
 use url::Url;
 
 pub const MANIFEST: &str = "multielasticdump.json";
@@ -113,15 +114,40 @@ pub enum Lifecycle {
     Convert,
 }
 
-/// Same defaults as scripts/oslogs.py for data runs.
+/// Default flags for data runs (from scripts/oslogs.py; 1.1-10 made them safe on small heaps).
+/// Until 1.1 they were `--limit=5000` and `--maxResponseMb=0`: a 5000-document scroll page
+/// killed a 256 MB-heap Elasticsearch 7.10.2 / 8.6.1 (Java heap OutOfMemoryError) or tripped
+/// the 8.19 parent breaker (HTTP 429), and no response cap stopped an oversized page. Pages are
+/// now 1000 documents (fewer for large documents, see [`page_limit_for`]) and searchdump's
+/// default `--maxResponseMb` (256) applies. A load splits bulks at 16 MB: 5000 PMC articles
+/// (~105 MB) were refused with HTTP 429 by a 1 GB heap (`indexing_pressure`, 10 % of the heap)
+/// and 1000 of them by a 256 MB heap (parent breaker), until the retries ran out.
 const DATA_FLAGS: &[&str] = &[
-    "--limit=5000",
+    "--limit=1000",
     "--scrollTime=10m",
     "--retryAttempts=5",
     "--retryDelay=2000",
     "--timeout=300000",
-    "--maxResponseMb=0",
+    "--maxBulkBytes=16mb",
 ];
+
+/// Documents per page in [`DATA_FLAGS`].
+const DEFAULT_DATA_LIMIT: u64 = 1000;
+
+/// 1.1-10: stored (primary, compressed) bytes one dump page should hold. `_source` in the
+/// response is usually 1-4x the stored size, so a page stays well under the ~80 MB that a
+/// 256 MB heap survived in the 1.1-10 runs.
+const PAGE_STORE_BUDGET: u64 = 16 << 20;
+
+/// 1.1-10: documents per dump page for an index whose primary documents average
+/// `avg_doc_bytes` stored bytes: the default (1000) for small documents, fewer for large ones
+/// so a page holds about [`PAGE_STORE_BUDGET`], never less than 1.
+fn page_limit_for(avg_doc_bytes: u64) -> u64 {
+    if avg_doc_bytes == 0 {
+        return DEFAULT_DATA_LIMIT;
+    }
+    (PAGE_STORE_BUDGET / avg_doc_bytes).clamp(1, DEFAULT_DATA_LIMIT)
+}
 
 /// The flag name of an argument (`--limit=5` / `--limit` -> `--limit`), or None for a value.
 fn flag_name(arg: &str) -> Option<&str> {
@@ -329,6 +355,10 @@ pub struct Args {
     /// searchdump binary (default: next to this binary, then $SEARCHDUMP_BIN, then PATH)
     #[arg(long = "elasticdumpBin")]
     pub elasticdump_bin: Option<PathBuf>,
+    /// Count the records of every data file by reading it back (and check the count the
+    /// searchdump run reported), instead of using that count
+    #[arg(long = "verifyCounts")]
+    pub verify_counts: bool,
     /// Where each child run's output is logged (default: a new temp directory)
     #[arg(long = "logDir")]
     pub log_dir: Option<PathBuf>,
@@ -1322,6 +1352,23 @@ impl Cluster {
             .ok_or_else(|| anyhow!("no count in /{index}/_count response"))
     }
 
+    /// 1.1-10: average stored bytes per primary document (`_stats/docs,store`); None when the
+    /// index is empty or the cluster does not say.
+    pub async fn avg_doc_bytes(&self, index: &str) -> Result<Option<u64>> {
+        let v = self
+            .ok_json(
+                Method::GET,
+                &[index, "_stats", "docs,store"],
+                &[],
+                Body::Empty,
+            )
+            .await?;
+        let p = &v["_all"]["primaries"];
+        let docs = p["docs"]["count"].as_u64().unwrap_or(0);
+        let bytes = p["store"]["size_in_bytes"].as_u64().unwrap_or(0);
+        Ok((docs > 0 && bytes > 0).then(|| bytes / docs))
+    }
+
     pub async fn put_mapping(&self, index: &str, mappings: &serde_json::Value) -> Result<()> {
         self.ok_json(Method::PUT, &[index, "_mapping"], &[], Body::json(mappings))
             .await
@@ -1331,29 +1378,167 @@ impl Cluster {
 
 // ----------------------------------------------------------------------------- child runs
 
+/// 1.1-7: where a child's record count came from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CountSource {
+    /// The JSON the child wrote through `--statsFile`.
+    StatsFile,
+    /// Its `Total Writes: N` log line (searchdump and Node elasticdump print it).
+    LogLine,
+}
+
+/// 1.1-7: what a finished child reported. `written` is `None` when it reported nothing usable
+/// (the caller then counts the data file itself).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ChildStats {
+    pub written: Option<u64>,
+    pub failed: u64,
+    pub source: Option<CountSource>,
+}
+
+impl ChildStats {
+    /// Documents the child read from its input: written plus failed (a load compares this with
+    /// the target's `_count`, so documents the child skipped still show as a mismatch).
+    pub fn docs_read(&self) -> Option<u64> {
+        self.written.map(|w| w + self.failed)
+    }
+}
+
+/// `--statsFile` JSON of a finished run (see searchdump's `write_stats_file`).
+pub fn parse_stats_file(text: &str) -> Option<ChildStats> {
+    let v: serde_json::Value = serde_json::from_str(text).ok()?;
+    if v.get("complete").and_then(|c| c.as_bool()) != Some(true) {
+        return None;
+    }
+    Some(ChildStats {
+        written: Some(v.get("written")?.as_u64()?),
+        failed: v.get("failed").and_then(|f| f.as_u64()).unwrap_or(0),
+        source: Some(CountSource::StatsFile),
+    })
+}
+
+/// The last `Total Writes: N` (and `Failed Writes: N`) of a child's log. searchdump prints
+/// `Total Writes: N`; Node elasticdump prints `<date> | Total Writes: N`.
+pub fn parse_total_writes(log: &str) -> Option<ChildStats> {
+    fn number_after(line: &str, key: &str) -> Option<u64> {
+        let rest = &line[line.rfind(key)? + key.len()..];
+        let digits: String = rest
+            .trim_start()
+            .chars()
+            .take_while(|c| c.is_ascii_digit())
+            .collect();
+        digits.parse().ok()
+    }
+    let mut written = None;
+    let mut failed = 0;
+    for line in log.lines() {
+        if let Some(n) = number_after(line, "Total Writes:") {
+            written = Some(n);
+            failed = 0;
+        } else if let Some(n) = number_after(line, "Failed Writes:") {
+            failed = n;
+        }
+    }
+    Some(ChildStats {
+        written: Some(written?),
+        failed,
+        source: Some(CountSource::LogLine),
+    })
+}
+
+/// The last `max` bytes of a file, as text (a child's log can be long; the counts are at its end).
+fn read_tail(path: &Path, max: u64) -> Option<String> {
+    use std::io::{Seek, SeekFrom};
+    let mut f = fs::File::open(path).ok()?;
+    let len = f.metadata().ok()?.len();
+    f.seek(SeekFrom::Start(len.saturating_sub(max))).ok()?;
+    let mut buf = Vec::new();
+    f.read_to_end(&mut buf).ok()?;
+    Some(String::from_utf8_lossy(&buf).into_owned())
+}
+
+/// 1.1-7: the counts of a child that exited 0: its `--statsFile`, else its log line, else none.
+pub fn child_stats(stats_file: Option<&Path>, log: &Path) -> ChildStats {
+    if let Some(p) = stats_file
+        && let Ok(text) = fs::read_to_string(p)
+        && let Some(s) = parse_stats_file(&text)
+    {
+        return s;
+    }
+    read_tail(log, 64 * 1024)
+        .and_then(|t| parse_total_writes(&t))
+        .unwrap_or_default()
+}
+
+/// 1.1-7: whether `bin` is searchdump (which takes `--statsFile`), not Node elasticdump (which
+/// would get an option it does not know). The `elasticdump`/`elasticdump-rs` compatibility
+/// names are symlinks to searchdump, so the name is checked after resolving links.
+pub fn takes_stats_file(bin: &Path) -> bool {
+    let real = fs::canonicalize(bin).unwrap_or_else(|_| bin.to_path_buf());
+    real.file_name()
+        .and_then(|n| n.to_str())
+        .is_some_and(|n| n.starts_with("searchdump"))
+}
+
+/// 1.1-7: whether this `bin` build accepts `--statsFile` (searchdump 1.1+). A searchdump 1.0.x
+/// given with `--elasticdump-bin` has the name but not the option, and would fail every data
+/// run on it. clap rejects an unknown option before it acts on `--help`, so this exits 0 only
+/// when the option is known. Run once at startup.
+fn accepts_stats_file(bin: &Path) -> bool {
+    std::process::Command::new(bin)
+        .arg("--statsFile=/dev/null")
+        .arg("--help")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .is_ok_and(|s| s.success())
+}
+
+/// 1.1-7: `SEARCHDUMP_MULTI_DEBUG=1` prints where each record count came from.
+fn debug_counts() -> bool {
+    std::env::var_os("SEARCHDUMP_MULTI_DEBUG").is_some_and(|v| v != "0" && !v.is_empty())
+}
+
+/// 1.1-8: how long a child gets after SIGTERM (on Ctrl-C) before it is killed.
+pub const CHILD_GRACE: Duration = Duration::from_secs(5);
+
 pub struct Runner {
     pub bin: PathBuf,
     pub log_dir: PathBuf,
     pub common: Vec<String>,
     pub data_flags: Vec<String>,
+    /// Set on Ctrl-C: no new step starts.
     pub cancelled: Arc<AtomicBool>,
+    /// 1.1-8: cancelled on Ctrl-C together with `cancelled`; running children are stopped
+    /// (SIGTERM, then SIGKILL after `grace`).
+    pub cancel: CancellationToken,
+    pub grace: Duration,
+    /// 1.1-7: data runs get `--statsFile` (the binary is searchdump, see [`takes_stats_file`]).
+    pub stats: bool,
 }
 
 impl Runner {
     /// Run searchdump once; output goes to LOGDIR/INDEX.KIND.log.
-    pub fn run(
+    pub async fn run(
         &self,
         index: &str,
         kind: &str,
         input: &str,
         output: &str,
         extra: &[String],
-    ) -> Result<()> {
-        self.run_as(index, kind, kind, input, output, extra)
+    ) -> Result<ChildStats> {
+        self.run_as(index, kind, kind, input, output, extra).await
     }
 
     /// Like `run`, logging to LOGDIR/INDEX.LABEL.log (one log per data part).
-    pub fn run_as(
+    ///
+    /// 1.1-8: the child is a `tokio::process` child, awaited without holding a runtime thread.
+    /// On cancel it gets SIGTERM, then SIGKILL after `grace`; a child still running when its
+    /// future is dropped is killed (`kill_on_drop`).
+    ///
+    /// 1.1-7: returns the counts the child reported ([`child_stats`]).
+    pub async fn run_as(
         &self,
         index: &str,
         kind: &str,
@@ -1361,26 +1546,64 @@ impl Runner {
         input: &str,
         output: &str,
         extra: &[String],
-    ) -> Result<()> {
-        if self.cancelled.load(Ordering::SeqCst) {
+    ) -> Result<ChildStats> {
+        if self.cancelled.load(Ordering::SeqCst) || self.cancel.is_cancelled() {
             bail!("interrupted");
         }
         let log_path = self.log_dir.join(format!("{index}.{label}.log"));
         let log = fs::File::create(&log_path)
             .with_context(|| format!("create {}", log_path.display()))?;
-        let mut cmd = Command::new(&self.bin);
-        cmd.arg(format!("--input={input}"))
-            .arg(format!("--output={output}"))
-            .arg(format!("--type={kind}"))
-            .arg("--overwrite")
-            .args(&self.common)
-            .args(extra)
-            .stdin(Stdio::null())
-            .stdout(log.try_clone()?)
-            .stderr(log);
-        let status = cmd
-            .status()
-            .with_context(|| format!("could not start {}", self.bin.display()))?;
+        let stats_path = (self.stats && kind == "data")
+            .then(|| self.log_dir.join(format!("{index}.{label}.stats.json")));
+        if let Some(p) = &stats_path {
+            // never read the counts of an earlier run
+            let _ = fs::remove_file(p);
+        }
+        let mut child = {
+            let mut cmd = tokio::process::Command::new(&self.bin);
+            cmd.arg(format!("--input={input}"))
+                .arg(format!("--output={output}"))
+                .arg(format!("--type={kind}"))
+                .arg("--overwrite")
+                .args(&self.common)
+                .args(extra)
+                .args(
+                    stats_path
+                        .iter()
+                        .map(|p| format!("--statsFile={}", p.display())),
+                )
+                .stdin(Stdio::null())
+                .stdout(log.try_clone()?)
+                .stderr(log)
+                .kill_on_drop(true);
+            // 1.1-8: its own process group, so a terminal Ctrl-C reaches only this process.
+            // The child then gets exactly one signal (our SIGTERM below); a SIGINT from the
+            // terminal followed by our SIGTERM would be its second signal, a force-quit that
+            // skips finishing in-flight requests and cleaning up staged output.
+            #[cfg(unix)]
+            cmd.process_group(0);
+            cmd.spawn()
+                .with_context(|| format!("could not start {}", self.bin.display()))?
+        };
+        let waited = tokio::select! {
+            s = child.wait() => Some(s),
+            _ = self.cancel.cancelled() => None,
+        };
+        let status = match waited {
+            Some(s) => s.with_context(|| format!("wait for {}", self.bin.display()))?,
+            None => {
+                let how = stop_child(&mut child, self.grace).await;
+                eprintln!(
+                    "interrupted: stopped searchdump --type={kind} for {index} ({how}); log: {}",
+                    log_path.display()
+                );
+                bail!(
+                    "interrupted: searchdump --type={kind} was stopped ({how}); last lines of {}:\n{}",
+                    log_path.display(),
+                    tail(&log_path, 15)
+                );
+            }
+        };
         if !status.success() {
             bail!(
                 "searchdump --type={kind} failed ({status}); last lines of {}:\n{}",
@@ -1388,8 +1611,48 @@ impl Runner {
                 tail(&log_path, 15)
             );
         }
-        Ok(())
+        Ok(child_stats(stats_path.as_deref(), &log_path))
     }
+}
+
+/// 1.1-8: stop a running child: SIGTERM (searchdump then finishes its in-flight requests and
+/// exits), SIGKILL when it is still running after `grace`. Says what happened.
+async fn stop_child(child: &mut tokio::process::Child, grace: Duration) -> String {
+    if let Ok(Some(status)) = child.try_wait() {
+        return format!("it had already exited, {status}");
+    }
+    if let Some(pid) = child.id() {
+        send_term(pid).await;
+    }
+    match tokio::time::timeout(grace, child.wait()).await {
+        Ok(Ok(status)) => format!("SIGTERM, {status}"),
+        Ok(Err(e)) => format!("SIGTERM, then waiting failed: {e}"),
+        Err(_) => {
+            let _ = child.start_kill();
+            match child.wait().await {
+                Ok(status) => format!("SIGKILL after {grace:?} without exiting, {status}"),
+                Err(e) => format!("SIGKILL after {grace:?}, then waiting failed: {e}"),
+            }
+        }
+    }
+}
+
+/// SIGTERM to `pid` through `kill(1)`: this binary forbids unsafe code, so no `libc::kill`.
+/// Elsewhere there is no SIGTERM; the child is killed once the grace period ends.
+async fn send_term(pid: u32) {
+    #[cfg(unix)]
+    {
+        let _ = tokio::process::Command::new("kill")
+            .arg("-TERM")
+            .arg(pid.to_string())
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .await;
+    }
+    #[cfg(not(unix))]
+    let _ = pid;
 }
 
 fn tail(path: &Path, n: usize) -> String {
@@ -1543,6 +1806,8 @@ async fn dump_one(
         ..Default::default()
     };
     let res: Result<String> = async {
+        // 1.1-7: what the data run reported (its record count, unless --verifyCounts)
+        let mut data_stats: Option<ChildStats> = None;
         fs::create_dir_all(&dir).with_context(|| format!("create {}", dir.display()))?;
         let source = cluster.index_url(index);
         entry.source_count = cluster.count(index, false).await.ok();
@@ -1566,6 +1831,25 @@ async fn dump_one(
                     extra.push(format!("--maxRows={n}"));
                 }
                 extra.extend(ctx.runner.data_flags.iter().cloned());
+                // 1.1-10: smaller pages for large documents, unless the user chose --limit.
+                let default_limit = format!("--limit={DEFAULT_DATA_LIMIT}");
+                if let Some(pos) = extra.iter().position(|a| *a == default_limit)
+                    && !ctx
+                        .args
+                        .extra
+                        .iter()
+                        .any(|a| flag_name(a) == Some("--limit"))
+                    && let Ok(Some(avg)) = cluster.avg_doc_bytes(index).await
+                {
+                    let limit = page_limit_for(avg);
+                    if limit < DEFAULT_DATA_LIMIT {
+                        eprintln!(
+                            "note: {index}: documents average {} KB stored; dumping {limit} per page instead of {DEFAULT_DATA_LIMIT} (give -- --limit=N to choose)",
+                            avg.div_ceil(1024)
+                        );
+                        extra[pos] = format!("--limit={limit}");
+                    }
+                }
                 // searchdump adds the codec extension to each part itself.
                 let name = if split {
                     item_file_for(node, index, "data", Compression::None)
@@ -1590,7 +1874,10 @@ async fn dump_one(
                 source.clone()
             };
             let runner = &ctx.runner;
-            tokio::task::block_in_place(|| runner.run(index, kind, &input, &o, &extra))?;
+            let stats = runner.run(index, kind, &input, &o, &extra).await?;
+            if *kind == "data" {
+                data_stats = Some(stats);
+            }
             if !matches!(*kind, "data" | "analyzer" | "template") && !nonempty(&out) {
                 bail!("{kind} export is empty");
             }
@@ -1603,10 +1890,34 @@ async fn dump_one(
                 let f = dir.join(item_file_for(node, index, "data", comp));
                 if f.exists() { vec![f] } else { vec![] }
             };
-            let mut records = 0;
-            for f in &files {
-                records += count_records(f)?;
-            }
+            let reported = data_stats.and_then(|s| s.written.zip(s.source));
+            let records = match reported {
+                // nothing written (no data file) needs no reading either
+                _ if files.is_empty() => 0,
+                Some((n, source)) if !ctx.args.verify_counts => {
+                    if debug_counts() {
+                        eprintln!("debug: {index}: {n} records ({source:?})");
+                    }
+                    n
+                }
+                _ => {
+                    let mut scanned = 0;
+                    for f in &files {
+                        scanned += count_records(f)?;
+                    }
+                    if let Some((n, source)) = reported
+                        && n != scanned
+                    {
+                        bail!(
+                            "the data files hold {scanned} records but the searchdump run reported {n} ({source:?})"
+                        );
+                    }
+                    if debug_counts() {
+                        eprintln!("debug: {index}: {scanned} records (read back)");
+                    }
+                    scanned
+                }
+            };
             if split {
                 entry.data_parts = files.iter().map(|f| file_name(f)).collect();
             } else {
@@ -1681,15 +1992,16 @@ async fn dump_cluster(
     for kind in &ctx.types.cluster {
         let name = format!("{CLUSTER_DIR}/{kind}");
         let file = dir.join(format!("{kind}.json"));
-        let res = fs::create_dir_all(&dir)
-            .with_context(|| format!("create {}", dir.display()))
-            .and_then(|_| {
-                let o = file.to_string_lossy().into_owned();
-                tokio::task::block_in_place(|| {
+        let res =
+            match fs::create_dir_all(&dir).with_context(|| format!("create {}", dir.display())) {
+                Ok(()) => {
+                    let o = file.to_string_lossy().into_owned();
                     ctx.runner
                         .run(CLUSTER_DIR, kind, &cluster.child_base, &o, &[])
-                })
-            });
+                        .await
+                }
+                Err(e) => Err(e),
+            };
         let entry = ClusterEntry {
             file: format!("{kind}.json"),
             status: if res.is_ok() { "done" } else { "failed" }.into(),
@@ -1698,7 +2010,7 @@ async fn dump_cluster(
         out.push((
             name,
             match res {
-                Ok(()) => Outcome::Done(file.display().to_string()),
+                Ok(_) => Outcome::Done(file.display().to_string()),
                 Err(e) => Outcome::Failed(format!("{e:#}")),
             },
         ));
@@ -1738,14 +2050,14 @@ async fn load_cluster(ctx: &Ctx, cluster: &Cluster) -> Vec<(String, Outcome)> {
         }
         let input = file.to_string_lossy().into_owned();
         let extra = cluster_flags(&ctx.args, kind, true);
-        let r = tokio::task::block_in_place(|| {
-            ctx.runner
-                .run(CLUSTER_DIR, kind, &input, &cluster.child_base, &extra)
-        });
+        let r = ctx
+            .runner
+            .run(CLUSTER_DIR, kind, &input, &cluster.child_base, &extra)
+            .await;
         out.push((
             name,
             match r {
-                Ok(()) => Outcome::Done(format!("from {}", file.display())),
+                Ok(_) => Outcome::Done(format!("from {}", file.display())),
                 Err(e) => Outcome::Failed(format!("{e:#}")),
             },
         ));
@@ -1786,9 +2098,9 @@ async fn load_one(ctx: &Ctx, cluster: &Cluster, f: &Found) -> Outcome {
             }
             let input = p.to_string_lossy().into_owned();
             let runner = &ctx.runner;
-            tokio::task::block_in_place(|| {
-                runner.run(&f.index, "template", &input, &cluster.child_base, &extra)
-            })?;
+            runner
+                .run(&f.index, "template", &input, &cluster.child_base, &extra)
+                .await?;
         }
         for kind in kinds {
             if kind == "data" {
@@ -1807,7 +2119,6 @@ async fn load_one(ctx: &Ctx, cluster: &Cluster, f: &Found) -> Outcome {
                 let mut total = 0;
                 for (n, part) in f.data.iter().enumerate() {
                     let c = parse_data_file(&file_name(part)).map_or(Compression::None, |d| d.1);
-                    total += count_records(part)?;
                     let mut extra = strings(c.flags());
                     extra.extend(ctx.runner.data_flags.iter().cloned());
                     if f.datastream && !extra.iter().any(|a| a.starts_with("--bulkAction")) {
@@ -1821,16 +2132,26 @@ async fn load_one(ctx: &Ctx, cluster: &Cluster, f: &Found) -> Outcome {
                     };
                     let input = part.to_string_lossy().into_owned();
                     let runner = &ctx.runner;
-                    tokio::task::block_in_place(|| {
-                        runner.run_as(&f.index, "data", &label, &input, &url, &extra)
-                    })
-                    .with_context(|| {
-                        if f.data.len() > 1 {
-                            format!("part {n} ({})", part.display())
-                        } else {
-                            String::new()
+                    let stats = runner
+                        .run_as(&f.index, "data", &label, &input, &url, &extra)
+                        .await
+                        .map_err(|e| with_part(e, f.data.len(), n, part))?;
+                    // 1.1-7: the documents the run read (written + failed), else read the part
+                    total += match stats.docs_read() {
+                        Some(read) if !ctx.args.verify_counts => read,
+                        reported => {
+                            let scanned = count_records(part)?;
+                            if let Some(read) = reported
+                                && read != scanned
+                            {
+                                bail!(
+                                    "{} holds {scanned} records but the searchdump run read {read}",
+                                    part.display()
+                                );
+                            }
+                            scanned
                         }
-                    })?;
+                    };
                 }
                 records = Some(total);
                 continue;
@@ -1863,10 +2184,9 @@ async fn load_one(ctx: &Ctx, cluster: &Cluster, f: &Found) -> Outcome {
             }
             let input = p.to_string_lossy().into_owned();
             let runner = &ctx.runner;
-            let r =
-                tokio::task::block_in_place(|| runner.run(&f.index, kind, &input, &url, &extra));
+            let r = runner.run(&f.index, kind, &input, &url, &extra).await;
             match r {
-                Ok(()) => settings_applied |= kind == "settings",
+                Ok(_) => settings_applied |= kind == "settings",
                 Err(e) if kind == "mapping" => {
                     eprintln!(
                         "note: {target}: mapping via searchdump failed, applying it directly"
@@ -1899,6 +2219,17 @@ async fn load_one(ctx: &Ctx, cluster: &Cluster, f: &Found) -> Outcome {
         Ok(Some(s)) => Outcome::Done(s),
         Ok(None) => Outcome::Skipped(format!("{target} already exists")),
         Err(e) => Outcome::Failed(format!("{e:#}")),
+    }
+}
+
+/// The part a failed data load step was reading, when the index has more than one. A single data
+/// file adds no context: an empty one printed as "FAILED  IX: : interrupted: ..." (1.1-item-checks,
+/// check 4).
+fn with_part(e: anyhow::Error, parts: usize, n: usize, part: &Path) -> anyhow::Error {
+    if parts > 1 {
+        e.context(format!("part {n} ({})", part.display()))
+    } else {
+        e
     }
 }
 
@@ -2180,21 +2511,32 @@ async fn run_local(args: Args) -> Result<i32> {
         &args.extra,
     );
     let cancelled = Arc::new(AtomicBool::new(false));
+    let cancel = CancellationToken::new();
     {
         let c = cancelled.clone();
+        let token = cancel.clone();
         tokio::spawn(async move {
             if tokio::signal::ctrl_c().await.is_ok() {
-                eprintln!("interrupted: finishing running steps, starting no new ones");
+                eprintln!(
+                    "interrupted: stopping running steps (SIGTERM, SIGKILL after {}s), starting no new ones",
+                    CHILD_GRACE.as_secs()
+                );
                 c.store(true, Ordering::SeqCst);
+                token.cancel();
             }
         });
     }
+    let bin = find_bin(args.elasticdump_bin.as_deref());
+    let stats = takes_stats_file(&bin) && accepts_stats_file(&bin);
     let runner = Runner {
-        bin: find_bin(args.elasticdump_bin.as_deref()),
+        bin,
         log_dir: log_dir.clone(),
         common,
         data_flags,
         cancelled: cancelled.clone(),
+        cancel: cancel.clone(),
+        grace: CHILD_GRACE,
+        stats,
     };
     let pacer = Pacer::new(Duration::from_millis(args.interval));
     let meta = meta_dir(&args);
@@ -2573,7 +2915,7 @@ mod tests {
             .map(|s| s.to_string())
             .collect();
         let got = super::merge_data_flags(super::DATA_FLAGS, &extra);
-        assert!(!got.iter().any(|a| a == "--limit=5000"), "{got:?}");
+        assert!(!got.iter().any(|a| a == "--limit=1000"), "{got:?}");
         assert!(!got.iter().any(|a| a == "--scrollTime=10m"), "{got:?}");
         assert_eq!(got.iter().filter(|a| a.starts_with("--limit")).count(), 1);
         assert!(got.contains(&"--retryAttempts=5".to_string()));
@@ -2584,6 +2926,34 @@ mod tests {
             super::strings(super::DATA_FLAGS)
         );
         assert!(super::merge_data_flags(&[], &[]).is_empty());
+    }
+
+    /// 1.1-10: the defaults are safe on a small heap: 1000-document pages and searchdump's
+    /// default response cap (no `--maxResponseMb=0`).
+    #[test]
+    fn default_data_flags_are_small_heap_safe() {
+        let d = super::strings(super::DATA_FLAGS);
+        assert!(d.contains(&"--limit=1000".to_string()), "{d:?}");
+        assert!(!d.iter().any(|a| a.starts_with("--maxResponseMb")), "{d:?}");
+        assert!(!d.iter().any(|a| a == "--limit=5000"), "{d:?}");
+        assert!(d.contains(&"--maxBulkBytes=16mb".to_string()), "{d:?}");
+        // a user's --maxResponseMb=0 still passes through
+        let got = super::merge_data_flags(super::DATA_FLAGS, &["--maxResponseMb=0".to_string()]);
+        assert!(got.contains(&"--maxResponseMb=0".to_string()), "{got:?}");
+    }
+
+    /// 1.1-10: page size from the average stored document size.
+    #[test]
+    fn page_limit_shrinks_for_large_documents() {
+        use super::page_limit_for as f;
+        assert_eq!(f(0), 1000); // unknown
+        assert_eq!(f(500), 1000); // log lines
+        assert_eq!(f(12 * 1024), 1000); // PMC articles (~12 KB stored)
+        assert_eq!(f(16 * 1024), 1000);
+        assert_eq!(f(80 * 1024), 204); // ~80 KB documents
+        assert_eq!(f(1 << 20), 16);
+        assert_eq!(f(10 << 20), 1);
+        assert_eq!(f(u64::MAX), 1);
     }
 
     use super::*;
@@ -3174,5 +3544,259 @@ mod tests {
             PathBuf::from(format!("{}.meta", r.display()))
         );
         fs::remove_dir_all(format!("{}.meta", r.display())).unwrap();
+    }
+
+    /// 1.1-8: a Runner whose "searchdump" is a shell script.
+    #[cfg(unix)]
+    fn script_runner(dir: &Path, body: &str, grace: Duration) -> Runner {
+        use std::os::unix::fs::PermissionsExt;
+        // a new file each time: never rewrite a script a child may still be executing
+        static N: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+        let n = N.fetch_add(1, Ordering::Relaxed);
+        let bin = dir.join(format!("fake-searchdump-{n}.sh"));
+        fs::write(&bin, format!("#!/bin/sh\n{body}\n")).unwrap();
+        fs::set_permissions(&bin, fs::Permissions::from_mode(0o755)).unwrap();
+        Runner {
+            bin,
+            log_dir: dir.to_path_buf(),
+            common: vec![],
+            data_flags: vec![],
+            cancelled: Arc::new(AtomicBool::new(false)),
+            cancel: CancellationToken::new(),
+            grace,
+            stats: false,
+        }
+    }
+
+    #[cfg(unix)]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn cancel_stops_a_running_child_with_sigterm_then_sigkill() {
+        let d = tempfile::tempdir().unwrap();
+        // exits on SIGTERM
+        let r = Arc::new(script_runner(
+            d.path(),
+            "exec sleep 30",
+            Duration::from_secs(5),
+        ));
+        let started = Instant::now();
+        let task = {
+            let r = r.clone();
+            tokio::spawn(async move { r.run("idx", "data", "in", "out", &[]).await })
+        };
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        r.cancel.cancel();
+        let err = tokio::time::timeout(Duration::from_secs(4), task)
+            .await
+            .expect("stopped within the grace period")
+            .unwrap()
+            .unwrap_err();
+        let msg = format!("{err:#}");
+        assert!(
+            msg.contains("interrupted") && msg.contains("SIGTERM"),
+            "{msg}"
+        );
+        assert!(
+            started.elapsed() < Duration::from_secs(4),
+            "{:?}",
+            started.elapsed()
+        );
+        // ignores SIGTERM: killed once the (short) grace period ends
+        let r = Arc::new(script_runner(
+            d.path(),
+            "trap '' TERM\nexec sleep 30",
+            Duration::from_millis(300),
+        ));
+        let task = {
+            let r = r.clone();
+            tokio::spawn(async move { r.run("idx", "data", "in", "out", &[]).await })
+        };
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        r.cancel.cancel();
+        let err = tokio::time::timeout(Duration::from_secs(4), task)
+            .await
+            .expect("killed after the grace period")
+            .unwrap()
+            .unwrap_err();
+        assert!(format!("{err:#}").contains("SIGKILL"), "{err:#}");
+        // a cancelled runner starts nothing new
+        let err = r.run("idx", "data", "in", "out", &[]).await.unwrap_err();
+        assert_eq!(format!("{err:#}"), "interrupted");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_failed_load_step_names_its_part_only_when_there_are_several() {
+        let p = Path::new("/d/ix.data-2.json.gz");
+        let one = format!(
+            "{:#}",
+            with_part(anyhow::anyhow!("interrupted: stopped"), 1, 1, p)
+        );
+        assert_eq!(one, "interrupted: stopped");
+        let many = format!(
+            "{:#}",
+            with_part(anyhow::anyhow!("interrupted: stopped"), 3, 2, p)
+        );
+        assert_eq!(many, "part 2 (/d/ix.data-2.json.gz): interrupted: stopped");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_failed_child_reports_its_log_tail() {
+        let d = tempfile::tempdir().unwrap();
+        let r = script_runner(
+            d.path(),
+            "echo \"args: $*\"\necho boom-line >&2\nexit 3",
+            CHILD_GRACE,
+        );
+        let err = r
+            .run("idx", "mapping", "http://in/idx", "/tmp/out.json", &[])
+            .await
+            .unwrap_err();
+        let msg = format!("{err:#}");
+        assert!(msg.contains("searchdump --type=mapping failed"), "{msg}");
+        assert!(msg.contains("boom-line"), "{msg}");
+        assert!(
+            msg.contains("--type=mapping") && msg.contains("--overwrite"),
+            "{msg}"
+        );
+        assert!(d.path().join("idx.mapping.log").is_file());
+        r.run("idx", "data", "in", "out", &[]).await.unwrap_err();
+        // success
+        let ok = script_runner(d.path(), "exit 0", CHILD_GRACE);
+        ok.run("idx", "data", "in", "out", &[]).await.unwrap();
+    }
+
+    /// 1.1-8: 16 sleeping children on a 2-thread runtime do not starve other tasks (with
+    /// `block_in_place` every child held a runtime thread).
+    #[cfg(unix)]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn many_children_do_not_starve_the_runtime() {
+        let d = tempfile::tempdir().unwrap();
+        let r = Arc::new(script_runner(d.path(), "exec sleep 1", CHILD_GRACE));
+        let ticks = Arc::new(std::sync::atomic::AtomicU64::new(0));
+        let ticker = {
+            let ticks = ticks.clone();
+            tokio::spawn(async move {
+                loop {
+                    tokio::time::sleep(Duration::from_millis(50)).await;
+                    ticks.fetch_add(1, Ordering::Relaxed);
+                }
+            })
+        };
+        let mut set = tokio::task::JoinSet::new();
+        for i in 0..16 {
+            let r = r.clone();
+            set.spawn(async move { r.run(&format!("i{i}"), "data", "in", "out", &[]).await });
+        }
+        let started = Instant::now();
+        while let Some(j) = set.join_next().await {
+            j.unwrap().unwrap();
+        }
+        let took = started.elapsed();
+        ticker.abort();
+        assert!(
+            took < Duration::from_secs(5),
+            "children ran one after another: {took:?}"
+        );
+        let n = ticks.load(Ordering::Relaxed);
+        assert!(n >= 10, "the ticker ran {n} times in {took:?}");
+    }
+
+    /// 1.1-7: counts from `--statsFile` (searchdump's format), the log line (searchdump and Node
+    /// formats), and nothing (the caller then reads the data file).
+    #[test]
+    fn child_counts_from_stats_file_or_log_line() {
+        let s = parse_stats_file(
+            r#"{"version":1,"complete":true,"written":12345,"failed":2,"overwritten":0,"rejected":1}"#,
+        )
+        .unwrap();
+        assert_eq!(s.written, Some(12345));
+        assert_eq!(s.docs_read(), Some(12347));
+        assert_eq!(s.source, Some(CountSource::StatsFile));
+        assert!(parse_stats_file(r#"{"complete":false,"written":1}"#).is_none());
+        assert!(parse_stats_file(r#"{"written":1}"#).is_none());
+        assert!(parse_stats_file("not json").is_none());
+
+        let rust = "[2026-11-11T10:00:00Z INFO] Starting dump\nTotal Writes: 4200\nOverwritten: 3 (documents that replaced one with the same _id; included in Total Writes)\nFailed Writes: 5\ndump complete\n";
+        let s = parse_total_writes(rust).unwrap();
+        assert_eq!((s.written, s.failed), (Some(4200), 5));
+        assert_eq!(s.source, Some(CountSource::LogLine));
+        let node = "Wed, 11 Nov 2026 15:00:00 GMT | starting dump\nWed, 11 Nov 2026 15:00:01 GMT | got 100 objects from source elasticsearch (offset: 0)\nWed, 11 Nov 2026 15:00:02 GMT | Total Writes: 100\nWed, 11 Nov 2026 15:00:02 GMT | dump complete\n";
+        let s = parse_total_writes(node).unwrap();
+        assert_eq!((s.written, s.failed), (Some(100), 0));
+        // the last one counts (a log that holds an earlier summary)
+        assert_eq!(
+            parse_total_writes("Total Writes: 1\nTotal Writes: 2\n")
+                .unwrap()
+                .written,
+            Some(2)
+        );
+        assert!(parse_total_writes("dump complete\n").is_none());
+        assert!(parse_total_writes("Total Writes: n/a\n").is_none());
+
+        let d = tempfile::tempdir().unwrap();
+        let log = d.path().join("i.data.log");
+        let stats = d.path().join("i.data.stats.json");
+        fs::write(&log, "Total Writes: 9\n").unwrap();
+        // no stats file: the log line
+        assert_eq!(child_stats(Some(&stats), &log).written, Some(9));
+        fs::write(&stats, r#"{"complete":true,"written":10,"failed":0}"#).unwrap();
+        let s = child_stats(Some(&stats), &log);
+        assert_eq!(
+            (s.written, s.source),
+            (Some(10), Some(CountSource::StatsFile))
+        );
+        // neither: nothing reported, the caller scans
+        fs::write(&log, "something else\n").unwrap();
+        assert_eq!(child_stats(None, &log), ChildStats::default());
+        assert_eq!(
+            child_stats(None, &d.path().join("missing.log")),
+            ChildStats::default()
+        );
+    }
+
+    #[test]
+    fn stats_file_only_for_searchdump() {
+        assert!(takes_stats_file(Path::new("searchdump")));
+        assert!(takes_stats_file(Path::new("/opt/x/searchdump")));
+        assert!(!takes_stats_file(Path::new(
+            "/usr/lib/node_modules/.bin/elasticdump"
+        )));
+        #[cfg(unix)]
+        {
+            let d = tempfile::tempdir().unwrap();
+            let real = d.path().join("searchdump");
+            fs::write(&real, "").unwrap();
+            let link = d.path().join("elasticdump");
+            std::os::unix::fs::symlink(&real, &link).unwrap();
+            assert!(
+                takes_stats_file(&link),
+                "compatibility symlink to searchdump"
+            );
+        }
+    }
+
+    /// 1.1-7: the runner passes --statsFile to data runs of searchdump and returns its counts;
+    /// other runs (and a binary that is not searchdump) fall back to the log line.
+    #[cfg(unix)]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn runner_returns_child_counts() {
+        let d = tempfile::tempdir().unwrap();
+        let script = r#"for a in "$@"; do
+  case "$a" in
+    --statsFile=*) printf '{"complete":true,"written":7,"failed":1}' > "${a#--statsFile=}" ;;
+  esac
+done
+echo "Total Writes: 5""#;
+        let mut r = script_runner(d.path(), script, CHILD_GRACE);
+        r.stats = true;
+        let s = r.run("idx", "data", "in", "out", &[]).await.unwrap();
+        assert_eq!((s.written, s.failed), (Some(7), 1));
+        assert_eq!(s.source, Some(CountSource::StatsFile));
+        // not a data run: no --statsFile, the log line
+        let s = r.run("idx", "mapping", "in", "out", &[]).await.unwrap();
+        assert_eq!((s.written, s.source), (Some(5), Some(CountSource::LogLine)));
+        r.stats = false;
+        let s = r.run("idx", "data", "in", "out", &[]).await.unwrap();
+        assert_eq!((s.written, s.source), (Some(5), Some(CountSource::LogLine)));
     }
 }

@@ -4037,10 +4037,19 @@ async fn l647_sigint_during_file_restore_reports_the_resume_offset() {
         ));
     }
     std::fs::write(&input, body).unwrap();
-    for (concurrency, offset) in [("1", 0u64), ("4", 0), ("4", 25)] {
-        let tag = format!("--concurrency {concurrency} --offset {offset}");
+    // 1.1-6: --concurrency 1 runs with the encode/send overlap on (default) and off
+    for (concurrency, offset, pipeline) in [
+        ("1", 0u64, "1"),
+        ("1", 0, "0"),
+        ("4", 0, "1"),
+        ("4", 25, "1"),
+    ] {
+        let tag = format!(
+            "--concurrency {concurrency} --offset {offset} SEARCHDUMP_BULK_PIPELINE={pipeline}"
+        );
         let (m, answered) = l647_slow_destination(Duration::from_millis(40)).await;
         let mut cmd = bin();
+        cmd.env("SEARCHDUMP_BULK_PIPELINE", pipeline);
         cmd.args(["--input", input.to_str().unwrap(), "--output"])
             .arg(format!("{}/dst", m.url()))
             .args(["--limit", "10", "--noRefresh", "--concurrency", concurrency])
@@ -4196,6 +4205,83 @@ async fn l647_sigint_during_cluster_copy_reports_the_resume_offset() {
             .any(|r| r.method == "DELETE" && r.path.starts_with("/_search/scroll")),
         "scroll cleared"
     );
+}
+
+// 1.1-1/1.1-6: SIGINT during a restore (file -> cluster) and a copy (cluster -> cluster) still
+// sends one final refresh of what was written, after the last bulk request, with a
+// --refreshInterval too long for any refresh to be due during the run.
+#[cfg(unix)]
+#[tokio::test(flavor = "multi_thread")]
+async fn sigint_restore_and_copy_send_the_final_refresh() {
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::time::Duration;
+    let dir = tempfile::tempdir().unwrap();
+    let input = dir.path().join("in.json");
+    let mut body = String::new();
+    for i in 1..=3000u64 {
+        body.push_str(&format!(
+            "{{\"_index\":\"x\",\"_id\":\"{i}\",\"_source\":{{\"n\":{i}}}}}\n"
+        ));
+    }
+    std::fs::write(&input, body).unwrap();
+    let page_no = Arc::new(AtomicU64::new(0));
+    let p = page_no.clone();
+    let src = RouterMock::builder()
+        .handler(move |req| {
+            let p = p.clone();
+            async move {
+                if req.method == "GET" {
+                    return Reply::ok(INFO);
+                }
+                if req.method == "DELETE" {
+                    return Reply::ok(CLEARED);
+                }
+                let n = p.fetch_add(1, Ordering::SeqCst);
+                let hits: Vec<String> = (n * 10 + 1..=n * 10 + 10)
+                    .map(|i| format!(r#"{{"_index":"i","_id":"{i}","_source":{{"n":{i}}}}}"#))
+                    .collect();
+                Reply::ok(format!(
+                    r#"{{"_scroll_id":"s1","hits":{{"total":{{"value":1000000,"relation":"eq"}},"hits":[{}]}}}}"#,
+                    hits.join(",")
+                ))
+            }
+        })
+        .start()
+        .await;
+    for (from_cluster, pipeline) in [(false, "1"), (false, "0"), (true, "1"), (true, "0")] {
+        let tag = format!("from_cluster={from_cluster} SEARCHDUMP_BULK_PIPELINE={pipeline}");
+        let (dst, answered) = l647_slow_destination(Duration::from_millis(40)).await;
+        let mut cmd = bin();
+        cmd.env("SEARCHDUMP_BULK_PIPELINE", pipeline);
+        if from_cluster {
+            cmd.args(["--input", &format!("{}/i", src.url())]);
+        } else {
+            cmd.args(["--input", input.to_str().unwrap()]);
+        }
+        cmd.arg("--output")
+            .arg(format!("{}/dst", dst.url()))
+            .args(["--limit", "10", "--concurrency", "1"])
+            .args(["--refreshInterval", "3600"]);
+        let (code, err, _) = l647_interrupt_after(cmd, &dst, 4, &answered).await;
+        assert_eq!(code, Some(130), "{tag}: {err}");
+        let reqs = dst.requests();
+        let refreshes: Vec<usize> = reqs
+            .iter()
+            .enumerate()
+            .filter(|(_, r)| r.path == "/dst/_refresh")
+            .map(|(k, _)| k)
+            .collect();
+        assert_eq!(refreshes.len(), 1, "{tag}: {err}");
+        let last_bulk = reqs
+            .iter()
+            .rposition(|r| r.path == "/dst/_bulk")
+            .expect("a bulk request");
+        assert!(
+            refreshes[0] > last_bulk,
+            "{tag}: the refresh came before the last bulk"
+        );
+    }
 }
 
 /// L-648: a scroll source of `n` documents, `limit` per page, each page answered after

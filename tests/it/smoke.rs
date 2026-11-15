@@ -32,7 +32,15 @@ async fn pit_dump_returns_all_docs_unsliced_and_sliced() {
     let expected = c.count(&index).await;
     for extra in [
         vec!["--searchAfter", "--pit"],
-        vec!["--searchType", "pit", "--slices", "3", "--limit", "97"],
+        vec![
+            "--searchType",
+            "pit",
+            "--slices",
+            "3",
+            "--sliceCap=false",
+            "--limit",
+            "97",
+        ],
     ] {
         let out = tmp_path("pit", "json");
         let mut args = s(&[

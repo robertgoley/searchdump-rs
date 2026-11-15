@@ -180,7 +180,7 @@ fn fuzz_sink() -> crate::pipeline::BulkSink {
         handle_version: true,
         version_type: None,
         meta_fields: vec!["routing".into(), "parent".into()],
-        refresh: false,
+        refresh: crate::pipeline::RefreshPolicy::Off,
         ignore_es_write_errors: true,
         ignore_errors: false,
         max_bulk_bytes: 1 << 20,

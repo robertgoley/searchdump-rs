@@ -503,7 +503,7 @@ async fn build_sink(
                 handle_version: cli.handle_version(),
                 version_type: cli.version_type.clone(),
                 meta_fields,
-                refresh: !cli.no_refresh(),
+                refresh: cli.refresh_policy(),
                 ignore_es_write_errors: cli.ignore_es_write_errors(),
                 ignore_errors: cli.ignore_errors(),
                 max_bulk_bytes: max_bulk_bytes.max(1) as usize,
@@ -530,6 +530,149 @@ async fn build_sink(
 
 /// `--searchWithTemplate`: render `--searchBody` (`{"id"|"source", "params"}`)
 /// with `POST /_render/template` and search with the rendered body.
+/// GET a small JSON document from the input cluster (idempotent, retried).
+async fn get_json(
+    client: &crate::http::EsClient,
+    retry: crate::http::RetryPolicy,
+    segments: &[&str],
+    query: &[(&str, &str)],
+    what: &str,
+) -> Result<serde_json::Value> {
+    let cancel = tokio_util::sync::CancellationToken::new();
+    let resp = crate::http::send_with_retry(
+        retry,
+        &cancel,
+        crate::http::RetryMode::Idempotent,
+        what,
+        move || {
+            client.send(
+                reqwest::Method::GET,
+                segments,
+                query,
+                false,
+                crate::http::Body::Empty,
+            )
+        },
+    )
+    .await?;
+    Ok(serde_json::from_slice(&resp)?)
+}
+
+/// 1.1-4: the slice count to use. `--sliceField` is checked against the mapping and keeps
+/// `--slices` as given; otherwise a **scroll** dump (unless `--sliceCap=false`) has `--slices`
+/// lowered to the primary-shard count of the input indices, with a warning. `--sliceCap=auto`
+/// (default) caps only on Elasticsearch 7.10 (1.1-4a, [`retrieval::slices::auto_applies`]);
+/// other engines and an undetectable version keep `--slices` as given. `min`/`total` force the
+/// cap on any engine. PIT is not
+/// capped: it was measured faster with more slices than shards (README "Tuning"). A metadata
+/// request the user may not be allowed to make only produces a warning.
+async fn plan_slices(
+    cli: &Cli,
+    client: &crate::http::EsClient,
+    retry: crate::http::RetryPolicy,
+    index: Option<&str>,
+    search_type: SearchType,
+) -> Result<usize> {
+    let requested = cli.slices;
+    if requested <= 1 {
+        if cli.slice_field.is_some() {
+            log::warn!("--sliceField has no effect without --slices 2 or more");
+        }
+        return Ok(requested);
+    }
+    let Some(index) = index else {
+        log::debug!("--slices: no input index, so no primary-shard cap or field check");
+        return Ok(requested);
+    };
+    if let Some(field) = cli.slice_field.as_deref() {
+        match get_json(
+            client,
+            retry,
+            &[index, "_mapping", "field", field],
+            &[],
+            "read the --sliceField mapping",
+        )
+        .await
+        {
+            Ok(mapping) => retrieval::slices::check_slice_field(&mapping, field)?,
+            Err(e) => log::warn!(
+                "could not read the mapping of {field} to check --sliceField ({e:#}); using it unchecked"
+            ),
+        }
+        return Ok(requested);
+    }
+    let mode = cli.slice_cap();
+    if mode == retrieval::slices::SliceCap::Off || search_type != SearchType::Scroll {
+        return Ok(requested);
+    }
+    // 1.1-4a: the default (auto) caps only on Elasticsearch 7.10, where the cap was measured to
+    // help; on ES 8.19 and OpenSearch 3 it made sliced scrolls 45-101% slower
+    // (scripts/perf/results/pit-1.1.md), so every other engine, and an undetectable version,
+    // keeps --slices as given (the pre-1.1-4 behaviour). --sliceCap=min/total still force it.
+    let mut auto_info = None;
+    if mode == retrieval::slices::SliceCap::Auto {
+        match client
+            .info(retry, &tokio_util::sync::CancellationToken::new())
+            .await
+        {
+            Ok(info) if retrieval::slices::auto_applies(Some(info)) => {
+                auto_info = Some(info.clone());
+            }
+            Ok(info) => {
+                log::debug!(
+                    "--sliceCap=auto: {} {} is not Elasticsearch 7.10, so --slices {requested} is used as given",
+                    info.flavor_name(),
+                    info.version
+                );
+                return Ok(requested);
+            }
+            Err(e) => {
+                log::debug!(
+                    "--sliceCap=auto: could not detect the cluster version ({e:#}); using --slices {requested} as given"
+                );
+                return Ok(requested);
+            }
+        }
+    }
+    match get_json(
+        client,
+        retry,
+        &[index, "_settings", "index.number_of_shards"],
+        &[("flat_settings", "true")],
+        "read the primary-shard count for --slices",
+    )
+    .await
+    {
+        Ok(settings) => match retrieval::slices::primary_shard_counts(&settings) {
+            Some(counts) => {
+                let info = auto_info;
+                let basis = retrieval::slices::select_basis(mode, info.as_ref(), false);
+                log::debug!(
+                    "--sliceCap={}: {:?} primary-shard count of {:?}{}",
+                    mode.name(),
+                    basis,
+                    counts,
+                    info.as_ref()
+                        .map(|i| format!(" on {} {}", i.flavor_name(), i.version))
+                        .unwrap_or_default()
+                );
+                let (n, warning) = retrieval::slices::cap_slices_by(requested, counts, basis);
+                if let Some(w) = warning {
+                    log::warn!("{w}");
+                }
+                Ok(n)
+            }
+            None => Ok(requested),
+        },
+        Err(e) => {
+            log::warn!(
+                "could not read the primary-shard count of {index} ({e:#}); using --slices {requested} as given"
+            );
+            Ok(requested)
+        }
+    }
+}
+
 async fn render_search_template(
     client: &crate::http::EsClient,
     retry: crate::http::RetryPolicy,
@@ -655,6 +798,30 @@ async fn es_source_options(
             "--searchAfter without --pit is not snapshot-consistent; concurrent writes may be missed or duplicated"
         );
     }
+    // 1.1-3: opt-in `_doc` sort for scroll dumps (Node never sends one; see NODE-DIFFERENCES).
+    let mut search_body = search_body;
+    let mut doc_sort = false;
+    if cli.scroll_doc_sort() {
+        let blocker = if search_type != SearchType::Scroll {
+            Some("it applies to scroll only (PIT and --searchAfter page by their own sort)")
+        } else if cli.scroll_id.is_some() {
+            Some("--scrollId continues a scroll that is already open")
+        } else if cli.search_with_template() {
+            Some("a --searchWithTemplate body is sent as rendered")
+        } else {
+            retrieval::search_body::doc_sort_blocker(&search_body)
+        };
+        match blocker {
+            None => {
+                retrieval::search_body::add_scroll_doc_sort(&mut search_body);
+                doc_sort = true;
+                log::debug!("--scrollDocSort: scroll sorted by _doc");
+            }
+            Some(why) => log::info!("--scrollDocSort not applied: {why}"),
+        }
+    }
+    retrieval::set_strip_hit_sort(doc_sort);
+    let slices = plan_slices(cli, &client, retry, ep.index.as_deref(), search_type).await?;
     Ok(retrieval::EsSourceOptions {
         client,
         index: ep.index.clone(),
@@ -664,7 +831,8 @@ async fn es_source_options(
         pit_sort,
         scroll_ttl: cli.scroll.clone(),
         pit_keep_alive: cli.pit_keep_alive.clone(),
-        slices: cli.slices,
+        slices,
+        slice_field: cli.slice_field.clone(),
         workers: cli.workers,
         buffer_size: cli.buffer_size,
         quiet: cli.quiet(),
@@ -1118,6 +1286,29 @@ async fn until_interrupted<T>(
     }
 }
 
+/// 1.1-7: `--statsFile` (hidden, for searchdump-multi): the counts of a run that finished, as
+/// one JSON object. Written under a temporary name and renamed, so a reader never sees half a
+/// file. searchdump-multi uses `written` instead of re-reading (and decompressing) the data file.
+fn write_stats_file(path: &std::path::Path, report: &pipeline::WriteReport) -> Result<()> {
+    let body = serde_json::json!({
+        "version": 1,
+        "complete": true,
+        "written": report.written,
+        "failed": report.failed,
+        "overwritten": report.overwritten,
+        "rejected": report.rejected,
+    });
+    let name = path
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "stats".into());
+    let tmp = path.with_file_name(format!(".{name}.tmp-{}", std::process::id()));
+    std::fs::write(&tmp, serde_json::to_vec(&body)?)
+        .with_context(|| format!("write {}", tmp.display()))?;
+    std::fs::rename(&tmp, path).with_context(|| format!("rename to {}", path.display()))?;
+    Ok(())
+}
+
 /// Smallest accepted `--fileSize` (TST-BRK-RES-006).
 const MIN_FILE_SIZE: u64 = 256;
 
@@ -1234,6 +1425,11 @@ pub async fn run() -> Result<()> {
         }
     };
 
+    if let Some(path) = &cli.stats_file
+        && let Err(e) = write_stats_file(path, &report)
+    {
+        log::warn!("could not write --statsFile {}: {e:#}", path.display());
+    }
     if !cli.quiet() {
         let mut err = std::io::stderr().lock();
         let _ = writeln!(err, "Total Writes: {}", report.written);
@@ -1270,6 +1466,37 @@ pub async fn run() -> Result<()> {
         )));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod stats_file_tests {
+    #[test]
+    fn stats_file_round_trip() {
+        let d = std::env::temp_dir().join(format!("edrs-stats-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(&d).unwrap();
+        let p = d.join("idx.data.stats.json");
+        let report = crate::pipeline::WriteReport {
+            written: 12345,
+            failed: 2,
+            rejected: 1,
+            overwritten: 3,
+            ..Default::default()
+        };
+        super::write_stats_file(&p, &report).unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&std::fs::read(&p).unwrap()).unwrap();
+        assert_eq!(v["written"], 12345);
+        assert_eq!(v["failed"], 2);
+        assert_eq!(v["rejected"], 1);
+        assert_eq!(v["overwritten"], 3);
+        assert_eq!(v["complete"], true);
+        // replaced, not appended; no temporary file left behind
+        super::write_stats_file(&p, &crate::pipeline::WriteReport::default()).unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&std::fs::read(&p).unwrap()).unwrap();
+        assert_eq!(v["written"], 0);
+        assert_eq!(std::fs::read_dir(&d).unwrap().count(), 1);
+        std::fs::remove_dir_all(&d).unwrap();
+    }
 }
 
 #[cfg(test)]

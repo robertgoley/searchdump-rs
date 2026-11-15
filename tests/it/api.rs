@@ -101,7 +101,15 @@ async fn scroll_unsliced_and_sliced_digest_and_no_open_contexts() {
         let (f, o) = dump(
             &c,
             &src,
-            &["--slices", slices, "--limit", "250", "--scrollTime", "1m"],
+            &[
+                "--slices",
+                slices,
+                "--sliceCap=false",
+                "--limit",
+                "250",
+                "--scrollTime",
+                "1m",
+            ],
         )
         .await;
         assert_success(&o);
@@ -110,7 +118,7 @@ async fn scroll_unsliced_and_sliced_digest_and_no_open_contexts() {
         assert_no_open_contexts(&c, &src, &format!("slices={slices}")).await;
     }
     // over the per-index limit (default 1024): a clear failure carrying the server's reason
-    let (f, o) = dump(&c, &src, &["--slices", "1100"]).await;
+    let (f, o) = dump(&c, &src, &["--slices", "1100", "--sliceCap=false"]).await;
     let err = String::from_utf8_lossy(&o.stderr);
     assert_eq!(o.status.code(), Some(1), "{err}");
     assert!(err.contains("max_slices_per_scroll"), "{err}");
@@ -133,7 +141,15 @@ async fn pit_unsliced_and_sliced_digest_and_no_open_pits() {
         let (f, o) = dump_loud(
             &c,
             &src,
-            &["--searchType", "pit", "--slices", slices, "--limit", "200"],
+            &[
+                "--searchType",
+                "pit",
+                "--slices",
+                slices,
+                "--sliceCap=false",
+                "--limit",
+                "200",
+            ],
         )
         .await;
         assert_success(&o);

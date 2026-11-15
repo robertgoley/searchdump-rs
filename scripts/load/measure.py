@@ -4,7 +4,9 @@
   scripts/load/measure.sh [--run-id ID] [--out FILE] [--cluster URL] [--docs N]
         [--input PATH]... [--output PATH]... [--uncompressed-bytes N] [--label k=v]... -- CMD...
 
-Runs CMD, samples /proc/<pid> every 100 ms (RSS, FDs, threads, I/O), takes
+Runs CMD, samples /proc/<pid> every 100 ms on a side thread (RSS, FDs,
+threads, I/O), blocks in wait4 so wall time has sub-millisecond resolution
+(result field "timer": "blocking-wait4"; older results lack it), takes
 rusage at exit, parses the tool's stderr (retries by kind, Total/Failed
 Writes), samples the cluster's _nodes/stats before and after, and writes
 results/<run-id>.json (schema: scripts/load/metrics.schema.json). The
@@ -100,6 +102,32 @@ def proc_sample(pid, st):
     st["thr"] = max(st["thr"], thr)
 
 
+SAMPLE_INTERVAL_S = 0.1
+TIMER = "blocking-wait4"
+
+
+def sample_loop(pid, st, done, interval=SAMPLE_INTERVAL_S):
+    """Sample /proc/<pid> until `done` is set; tolerates the process vanishing."""
+    while not done.is_set():
+        try:
+            proc_sample(pid, st)
+        except Exception:  # noqa: BLE001 - a racing exit must never kill the sampler
+            pass
+        done.wait(interval)
+
+
+def wait_child(pid):
+    """Block until `pid` exits; returns (status, rusage). Retries on EINTR (PEP 475 covers
+    most cases, but a ChildProcessError must not be swallowed)."""
+    while True:
+        try:
+            wpid, status, ru = os.wait4(pid, 0)
+        except InterruptedError:
+            continue
+        if wpid == pid:
+            return status, ru
+
+
 def sizes(paths):
     tot = 0
     for p in paths:
@@ -175,14 +203,16 @@ def main():
 
     th = threading.Thread(target=pump, daemon=True)
     th.start()
-    while True:
-        proc_sample(p.pid, st)
-        # wait4 with WNOHANG keeps the zombie's rusage for us
-        pid, status, ru = os.wait4(p.pid, os.WNOHANG)
-        if pid:
-            break
-        time.sleep(0.1)
+    # 1.1-5: the main thread blocks in wait4 so wall time is taken the moment the
+    # child exits (the old WNOHANG + sleep(0.1) poll rounded every wall time up
+    # to the next ~0.1 s tick). /proc sampling moves to a daemon thread.
+    done = threading.Event()
+    sampler = threading.Thread(target=sample_loop, args=(p.pid, st, done), daemon=True)
+    sampler.start()
+    status, ru = wait_child(p.pid)
     wall = time.monotonic() - t0
+    done.set()
+    sampler.join(timeout=1)
     th.join(timeout=5)
     errlog.close()
     code = os.waitstatus_to_exitcode(status)
@@ -209,6 +239,7 @@ def main():
         "command": redact(cmd),
         "exit_code": code,
         "wall_s": round(wall, 3),
+        "timer": TIMER,
         "user_s": round(ru.ru_utime, 3),
         "sys_s": round(ru.ru_stime, 3),
         "cpu_s": round(ru.ru_utime + ru.ru_stime, 3),

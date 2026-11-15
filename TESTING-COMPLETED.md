@@ -6,7 +6,7 @@ A one-screen engine coverage matrix (dump, restore, PIT, slices, storage, TLS) i
 
 Every test task with a commit on `main`, oldest first within each group. The commit message is the short result; full results, numbers and findings for each task are in [`project/plan/PROGRESS.md`](project/plan/PROGRESS.md), and the requirement IDs are in [`project/plan/TEST-REQUIREMENTS.md`](project/plan/TEST-REQUIREMENTS.md).
 
-Total: 225 task commits (including follow-up fixes with a letter suffix). Last updated from commit L-818 (`git log -1 --grep '^L-818'`; the next commit fills in its sha).
+Total: 227 task commits (including follow-up fixes with a letter suffix). Last updated from commit L-820 (`git log -1 --grep '^L-820'`; the next commit fills in its sha).
 
 ## Setup and planning (L-0xx)
 
@@ -277,7 +277,9 @@ Total: 225 task commits (including follow-up fixes with a letter suffix). Last u
 | L-804c | 20e3832 | 2026-11-14 | CI it jobs fixed: l618 expects exit 4 for a lost context; scroll context-lost error names the PIT way out; real per-profile IT results (results/local/L-804c.md) |
 | L-810j | e3bb8ca | 2026-11-14 | Image hardening: no user-admin/init-script tools in the Debian images; executable allowlist unchanged; fixes the security image job (results/local/L-810j.md) |
 | L-810k | 33a7689 | 2026-11-14 | examples/ updated for the changes on main after 1.0.0; k8s env values quoted (results/local/L-810k.md) |
-| L-818 | this commit | 2026-11-14 | low-memory engine test set lowheap.py; release/1.1 PASS 16/16 (results/local/L-818.md) |
+| L-818 | 95ad327 | 2026-11-14 | low-memory engine test set lowheap.py; release/1.1 PASS 16/16 (results/local/L-818.md) |
+| L-819 | a76635b | 2026-11-14 | 1.1 open items closed, version 1.1.0, not tagged (results/local/L-819.md) |
+| L-820 | this commit | 2026-11-14 | release/1.1 merged into main; lowheap PASS on main (results/local/L-820.md) |
 
 ## Supply-chain scans (Grok Bot)
 

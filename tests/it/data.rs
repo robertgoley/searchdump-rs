@@ -105,6 +105,7 @@ async fn host_only_input_with_output_index_and_pit_slices() {
         "pit",
         "--slices",
         "2",
+        "--sliceCap=false",
         "--noRefresh",
     ]));
     let o = run(a).await;
@@ -121,7 +122,15 @@ async fn exact_size_with_scroll_and_sliced_pit() {
     seed_index(&c, &src, 1500).await;
     for extra in [
         vec!["--limit", "500"],
-        vec!["--searchType", "pit", "--slices", "3", "--limit", "200"],
+        vec![
+            "--searchType",
+            "pit",
+            "--slices",
+            "3",
+            "--sliceCap=false",
+            "--limit",
+            "200",
+        ],
     ] {
         let mut e = extra.clone();
         e.extend(["--size", "1234"]);

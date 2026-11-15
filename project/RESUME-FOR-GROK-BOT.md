@@ -105,3 +105,5 @@ The user runs Grok 4.7 locally through the OpenCode CLI. The handoff/ folder (op
 - L-810j (2026-11-14): Image hardening: no user-admin/init-script tools in the Debian images; executable allowlist unchanged; fixes the security image job (results/local/L-810j.md)
 - L-810k (2026-11-14): examples/ updated for the changes on main after 1.0.0; k8s env values quoted (results/local/L-810k.md)
 - L-818 (2026-11-14): low-memory engine test set lowheap.py; release/1.1 PASS 16/16 (results/local/L-818.md)
+- L-819 (2026-11-14): 1.1 open items closed, version 1.1.0, not tagged (results/local/L-819.md)
+- L-820 (2026-11-14): release/1.1 merged into main; lowheap PASS on main (results/local/L-820.md)

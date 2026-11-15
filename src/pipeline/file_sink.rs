@@ -2,6 +2,11 @@
 //! and splitting into parts (`--fileSize`, `--maxRows`) with elasticdump's
 //! part naming. Every part is staged and only committed once the whole dump
 //! succeeded, so a failed run leaves no partial split set behind.
+//!
+//! 1.1-9: a compressed part runs its encoder on a dedicated thread
+//! ([`EncoderThread`]), so gzip/zstd no longer stalls the writer task between
+//! batches. The thread sees the same input in the same order as the inline
+//! encoder did, so the compressed bytes are identical.
 
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -14,6 +19,12 @@ use crate::output::{OutputTarget, SealedOutput, create_output_target, create_rem
 
 /// Pending compressed bytes are handed to the file in chunks of this size.
 const GZ_DRAIN: usize = 256 * 1024;
+
+/// 1.1-9: input batches queued for the compression thread before `write` waits.
+const ENC_QUEUE: usize = 2;
+
+/// 1.1-9: recycled input buffers kept per part (the queue plus the one being compressed).
+const ENC_SPARE_INPUTS: usize = ENC_QUEUE + 1;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SplitBy {
@@ -52,6 +63,9 @@ impl Codec {
 enum Encoder {
     Gzip(GzEncoder<Vec<u8>>),
     Zstd(zstd::stream::write::Encoder<'static, Vec<u8>>),
+    /// Test hook: every write fails, to check that encoder errors surface.
+    #[cfg(test)]
+    Failing(Vec<u8>),
 }
 
 impl Encoder {
@@ -73,6 +87,8 @@ impl Encoder {
         match self {
             Encoder::Gzip(e) => e.write_all(bytes),
             Encoder::Zstd(e) => e.write_all(bytes),
+            #[cfg(test)]
+            Encoder::Failing(_) => Err(std::io::Error::other("injected encoder failure")),
         }
     }
 
@@ -80,6 +96,8 @@ impl Encoder {
         match self {
             Encoder::Gzip(e) => e.get_mut(),
             Encoder::Zstd(e) => e.get_mut(),
+            #[cfg(test)]
+            Encoder::Failing(v) => v,
         }
     }
 
@@ -87,6 +105,227 @@ impl Encoder {
         match self {
             Encoder::Gzip(e) => e.finish(),
             Encoder::Zstd(e) => e.finish(),
+            #[cfg(test)]
+            Encoder::Failing(_) => Err(std::io::Error::other("injected encoder failure")),
+        }
+    }
+}
+
+/// Work for the compression thread.
+enum EncMsg {
+    /// Uncompressed bytes (complete lines); the buffer comes back as [`EncOut::Spare`].
+    Data(Vec<u8>),
+    /// Hand over everything compressed so far, then answer [`EncOut::Flushed`].
+    Flush,
+    /// Finish the stream, answer [`EncOut::Finished`] with the tail, and exit.
+    Finish,
+}
+
+/// Results from the compression thread, in stream order.
+enum EncOut {
+    /// Compressed bytes to append to the part; the buffer goes back to the thread.
+    Chunk(Vec<u8>),
+    /// An emptied input buffer for the next `write`.
+    Spare(Vec<u8>),
+    Flushed,
+    Finished(Vec<u8>),
+    /// The encoder failed; the thread has exited.
+    Failed(std::io::Error),
+}
+
+/// 1.1-9: a part's encoder on its own thread.
+///
+/// Input goes through a bounded queue ([`ENC_QUEUE`]), so a slow encoder
+/// slows the writer instead of buffering without limit. Output comes back on
+/// an unbounded channel, so the thread never blocks on the writer (no
+/// deadlock while `write` waits for queue room); it stays small because the
+/// writer drains it after every send. Input and output buffers circulate
+/// between the two sides, so steady-state writing allocates nothing.
+/// Dropping it (cancel, abort, error) closes the queue and the thread exits
+/// after the chunk it is on; `finish` joins it.
+struct EncoderThread {
+    tx: Option<tokio::sync::mpsc::Sender<EncMsg>>,
+    rx: tokio::sync::mpsc::UnboundedReceiver<EncOut>,
+    /// Written output buffers going back to the thread for reuse.
+    spare_out: std::sync::mpsc::Sender<Vec<u8>>,
+    /// Emptied input buffers for the next `write`.
+    spare_in: Vec<Vec<u8>>,
+    handle: Option<std::thread::JoinHandle<()>>,
+}
+
+impl EncoderThread {
+    fn spawn(codec: Codec) -> Result<Self> {
+        Self::with_encoder(Encoder::new(codec)?)
+    }
+
+    fn with_encoder(enc: Encoder) -> Result<Self> {
+        let (tx, in_rx) = tokio::sync::mpsc::channel::<EncMsg>(ENC_QUEUE);
+        let (out_tx, rx) = tokio::sync::mpsc::unbounded_channel::<EncOut>();
+        let (spare_out, spare_rx) = std::sync::mpsc::channel::<Vec<u8>>();
+        let handle = std::thread::Builder::new()
+            .name("searchdump-compress".into())
+            .spawn(move || encoder_loop(enc, in_rx, out_tx, spare_rx))
+            .context("start the compression thread")?;
+        Ok(Self {
+            tx: Some(tx),
+            rx,
+            spare_out,
+            spare_in: Vec::with_capacity(ENC_SPARE_INPUTS),
+            handle: Some(handle),
+        })
+    }
+
+    /// Queue `bytes`, then write whatever compressed output is ready.
+    async fn write(&mut self, bytes: &[u8], target: &mut OutputTarget) -> Result<()> {
+        let mut buf = self.spare_in.pop().unwrap_or_default();
+        buf.clear();
+        buf.extend_from_slice(bytes);
+        self.send(EncMsg::Data(buf)).await?;
+        self.drain_ready(target).await
+    }
+
+    /// Write everything compressed so far (not a codec flush: the bytes stay
+    /// identical to an unflushed stream).
+    async fn flush(&mut self, target: &mut OutputTarget) -> Result<()> {
+        self.send(EncMsg::Flush).await?;
+        match self.wait(target).await? {
+            None => Ok(()),
+            Some(_) => bail!("the compression thread finished early"),
+        }
+    }
+
+    /// Finish the stream, write its tail and join the thread.
+    async fn finish(mut self, target: &mut OutputTarget) -> Result<()> {
+        self.send(EncMsg::Finish).await?;
+        let tail = match self.wait(target).await? {
+            Some(tail) => tail,
+            None => bail!("the compression thread did not finish the stream"),
+        };
+        target.write_all(&tail).await?;
+        self.tx = None;
+        if let Some(h) = self.handle.take() {
+            // The thread returns right after sending `Finished`.
+            h.join()
+                .map_err(|_| anyhow!("the compression thread panicked"))?;
+        }
+        Ok(())
+    }
+
+    async fn send(&mut self, msg: EncMsg) -> Result<()> {
+        let Some(tx) = &self.tx else {
+            bail!("the compression thread has already stopped");
+        };
+        if tx.send(msg).await.is_ok() {
+            return Ok(());
+        }
+        // The thread is gone: report why.
+        self.tx = None;
+        while let Some(out) = self.rx.recv().await {
+            if let EncOut::Failed(e) = out {
+                return Err(anyhow::Error::new(e).context("compress"));
+            }
+        }
+        bail!("the compression thread stopped unexpectedly")
+    }
+
+    /// Write the output that is ready now, without waiting.
+    async fn drain_ready(&mut self, target: &mut OutputTarget) -> Result<()> {
+        while let Ok(out) = self.rx.try_recv() {
+            // Markers only follow Flush/Finish, which wait for them.
+            let _ = self.handle_out(out, target).await?;
+        }
+        Ok(())
+    }
+
+    /// Write output until the marker for the last Flush (`None`) or Finish (`Some(tail)`).
+    async fn wait(&mut self, target: &mut OutputTarget) -> Result<Option<Vec<u8>>> {
+        loop {
+            let Some(out) = self.rx.recv().await else {
+                self.tx = None;
+                bail!("the compression thread stopped unexpectedly");
+            };
+            if let Some(done) = self.handle_out(out, target).await? {
+                return Ok(done);
+            }
+        }
+    }
+
+    /// `Some(None)` = Flushed, `Some(Some(tail))` = Finished, `None` = keep going.
+    async fn handle_out(
+        &mut self,
+        out: EncOut,
+        target: &mut OutputTarget,
+    ) -> Result<Option<Option<Vec<u8>>>> {
+        match out {
+            EncOut::Chunk(chunk) => {
+                target.write_all(&chunk).await?;
+                // The thread may have exited (Finish); the buffer is then just dropped.
+                let _ = self.spare_out.send(chunk);
+                Ok(None)
+            }
+            EncOut::Spare(buf) => {
+                if self.spare_in.len() < ENC_SPARE_INPUTS {
+                    self.spare_in.push(buf);
+                }
+                Ok(None)
+            }
+            EncOut::Flushed => Ok(Some(None)),
+            EncOut::Finished(tail) => Ok(Some(Some(tail))),
+            EncOut::Failed(e) => {
+                self.tx = None;
+                Err(anyhow::Error::new(e).context("compress"))
+            }
+        }
+    }
+}
+
+/// The compression thread: runs until Finish, an encoder error, or the
+/// writer side being dropped (cancel/abort).
+fn encoder_loop(
+    mut enc: Encoder,
+    mut in_rx: tokio::sync::mpsc::Receiver<EncMsg>,
+    out: tokio::sync::mpsc::UnboundedSender<EncOut>,
+    spare: std::sync::mpsc::Receiver<Vec<u8>>,
+) {
+    // Swap the pending output for a recycled (or new) buffer.
+    let take_pending = |enc: &mut Encoder| -> Vec<u8> {
+        let fresh = match spare.try_recv() {
+            Ok(mut v) => {
+                v.clear();
+                v
+            }
+            Err(_) => Vec::with_capacity(GZ_DRAIN * 2),
+        };
+        std::mem::replace(enc.pending(), fresh)
+    };
+    while let Some(msg) = in_rx.blocking_recv() {
+        match msg {
+            EncMsg::Data(mut buf) => {
+                if let Err(e) = enc.write_all(&buf) {
+                    let _ = out.send(EncOut::Failed(e));
+                    return;
+                }
+                buf.clear();
+                let _ = out.send(EncOut::Spare(buf));
+                if enc.pending().len() >= GZ_DRAIN {
+                    let chunk = take_pending(&mut enc);
+                    let _ = out.send(EncOut::Chunk(chunk));
+                }
+            }
+            EncMsg::Flush => {
+                if !enc.pending().is_empty() {
+                    let chunk = take_pending(&mut enc);
+                    let _ = out.send(EncOut::Chunk(chunk));
+                }
+                let _ = out.send(EncOut::Flushed);
+            }
+            EncMsg::Finish => {
+                let _ = match enc.finish() {
+                    Ok(tail) => out.send(EncOut::Finished(tail)),
+                    Err(e) => out.send(EncOut::Failed(e)),
+                };
+                return;
+            }
         }
     }
 }
@@ -321,39 +560,28 @@ fn humanize(buf: &[u8]) -> Vec<u8> {
 
 struct Part {
     target: OutputTarget,
-    enc: Option<Encoder>,
+    enc: Option<EncoderThread>,
     count: u64,
 }
 
 impl Part {
     async fn write(&mut self, bytes: &[u8]) -> Result<()> {
         match &mut self.enc {
-            Some(enc) => {
-                enc.write_all(bytes).context("compress")?;
-                if enc.pending().len() >= GZ_DRAIN {
-                    let out = std::mem::take(enc.pending());
-                    self.target.write_all(&out).await?;
-                }
-                Ok(())
-            }
+            Some(enc) => enc.write(bytes, &mut self.target).await,
             None => self.target.write_all(bytes).await,
         }
     }
 
     async fn flush(&mut self) -> Result<()> {
         if let Some(enc) = &mut self.enc {
-            let out = std::mem::take(enc.pending());
-            if !out.is_empty() {
-                self.target.write_all(&out).await?;
-            }
+            enc.flush(&mut self.target).await?;
         }
         self.target.flush().await
     }
 
     async fn seal(mut self) -> Result<Option<SealedOutput>> {
         if let Some(enc) = self.enc.take() {
-            let out = enc.finish().context("compress")?;
-            self.target.write_all(&out).await?;
+            enc.finish(&mut self.target).await?;
         }
         self.target.seal().await
     }
@@ -393,6 +621,10 @@ impl FileSink {
                 root.display()
             )));
         }
+        if sink.opts.path.is_some() && sink.opts.codec.is_some() {
+            // 1.1-9: batches queued for, or recycled by, the compression thread
+            crate::memplan::add_batches(ENC_SPARE_INPUTS as u64);
+        }
         match (&sink.opts.path, sink.opts.split) {
             (Some(_), Some(_)) if sink.opts.remote.is_some() => {}
             (Some(root), Some(_)) => {
@@ -421,7 +653,7 @@ impl FileSink {
 
     async fn open(&self, path: Option<PathBuf>) -> Result<Part> {
         let enc = match (&path, self.opts.codec) {
-            (Some(_), Some(codec)) => Some(Encoder::new(codec)?),
+            (Some(_), Some(codec)) => Some(EncoderThread::spawn(codec)?),
             _ => None,
         };
         let target = match (&self.opts.remote, &path) {
@@ -1053,6 +1285,171 @@ mod tests {
         for n in ours.iter().chain(others.iter()) {
             assert!(d.join(n).exists(), "{n} must never be deleted");
         }
+        std::fs::remove_dir_all(&d).unwrap();
+    }
+
+    /// What the inline (pre-1.1-9) encoder produces for the same writes.
+    fn inline_compress(codec: Codec, chunks: &[&[u8]]) -> Vec<u8> {
+        let mut enc = Encoder::new(codec).unwrap();
+        for c in chunks {
+            enc.write_all(c).unwrap();
+        }
+        enc.finish().unwrap()
+    }
+
+    /// About 1.5 MiB of lines that compress poorly enough to cross GZ_DRAIN several times.
+    fn noisy_lines() -> Vec<u8> {
+        let mut x: u64 = 0x9e37_79b9_7f4a_7c15;
+        let mut out = Vec::new();
+        for i in 0..30_000u64 {
+            x ^= x << 13;
+            x ^= x >> 7;
+            x ^= x << 17;
+            out.extend_from_slice(
+                format!(
+                    "{{\"i\":{i},\"r\":\"{x:016x}{:016x}\"}}\n",
+                    x.rotate_left(29)
+                )
+                .as_bytes(),
+            );
+        }
+        out
+    }
+
+    async fn thread_compress(
+        label: &str,
+        codec: Codec,
+        chunks: &[&[u8]],
+        flush_every: usize,
+    ) -> Vec<u8> {
+        let d = tmpdir(label);
+        let root = d.join("out.json");
+        let mut sink = FileSink::create(FileOptions {
+            path: Some(root.clone()),
+            codec: Some(codec),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+        for (n, c) in chunks.iter().enumerate() {
+            sink.write_lines(c).await.unwrap();
+            if flush_every > 0 && n % flush_every == 0 {
+                sink.flush().await.unwrap();
+            }
+        }
+        sink.finalize().await.unwrap();
+        let raw = std::fs::read(&root).unwrap();
+        std::fs::remove_dir_all(&d).unwrap();
+        raw
+    }
+
+    #[tokio::test]
+    async fn compression_thread_output_is_byte_identical_to_inline() {
+        let data = noisy_lines();
+        for codec in [Codec::Gzip(6), Codec::Zstd(3)] {
+            for (k, size) in [1usize, 4093, 65_536, 300_000, data.len()]
+                .into_iter()
+                .enumerate()
+            {
+                let chunks: Vec<&[u8]> = data
+                    .chunks(size.min(data.len()).max(1))
+                    .take(2_000)
+                    .collect();
+                let want = inline_compress(codec, &chunks);
+                let got = thread_compress(
+                    &format!("enc-same-{k}-{}", codec.suffix().trim_start_matches('.')),
+                    codec,
+                    &chunks,
+                    3,
+                )
+                .await;
+                assert!(
+                    got == want,
+                    "{codec:?} chunk {size}: {} vs {} bytes",
+                    got.len(),
+                    want.len()
+                );
+            }
+        }
+    }
+
+    proptest::proptest! {
+        #![proptest_config(proptest::prelude::ProptestConfig::with_cases(12))]
+        #[test]
+        fn compression_thread_is_byte_identical_for_any_chunking(
+            sizes in proptest::collection::vec(1usize..200_000, 1..12),
+            zstd in proptest::bool::ANY,
+            flush_every in 0usize..4,
+        ) {
+            // ~600 KB: still several GZ_DRAIN chunks of output, but cheap per case.
+            let all = noisy_lines();
+            let data = &all[..600_000];
+            let mut chunks: Vec<&[u8]> = Vec::new();
+            let mut at = 0;
+            for s in sizes.iter().cycle() {
+                if at >= data.len() {
+                    break;
+                }
+                let end = (at + s).min(data.len());
+                chunks.push(&data[at..end]);
+                at = end;
+            }
+            let codec = if zstd { Codec::Zstd(3) } else { Codec::Gzip(6) };
+            let want = inline_compress(codec, &chunks);
+            let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+            let got = rt.block_on(thread_compress("enc-prop", codec, &chunks, flush_every));
+            proptest::prop_assert!(got == want, "{} vs {} bytes", got.len(), want.len());
+        }
+    }
+
+    #[tokio::test]
+    async fn an_encoder_error_surfaces_on_a_later_write_or_flush() {
+        let d = tmpdir("enc-fail");
+        let path = d.join("out.json.gz");
+        let mut target = create_output_target(Some(path.as_path()), true)
+            .await
+            .unwrap();
+        let mut enc = EncoderThread::with_encoder(Encoder::Failing(Vec::new())).unwrap();
+        let mut err = None;
+        for _ in 0..4 {
+            if let Err(e) = enc.write(b"{\"a\":1}\n", &mut target).await {
+                err = Some(e);
+                break;
+            }
+        }
+        let err = match err {
+            Some(e) => e,
+            None => enc.flush(&mut target).await.unwrap_err(),
+        };
+        assert!(
+            format!("{err:#}").contains("injected encoder failure"),
+            "{err:#}"
+        );
+        target.abort().await;
+        std::fs::remove_dir_all(&d).unwrap();
+    }
+
+    #[tokio::test]
+    async fn dropping_a_part_stops_its_compression_thread() {
+        let d = tmpdir("enc-drop");
+        let path = d.join("out.json.gz");
+        let mut target = create_output_target(Some(path.as_path()), true)
+            .await
+            .unwrap();
+        let mut enc = EncoderThread::spawn(Codec::Gzip(6)).unwrap();
+        let data = noisy_lines();
+        enc.write(&data, &mut target).await.unwrap();
+        let handle = enc.handle.take().expect("thread handle");
+        drop(enc); // what a cancel or abort does
+        let (done_tx, done_rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let _ = done_tx.send(handle.join().is_ok());
+        });
+        let joined = done_rx
+            .recv_timeout(std::time::Duration::from_secs(10))
+            .expect("the compression thread exits once its part is dropped");
+        assert!(joined, "the compression thread did not panic");
+        target.abort().await;
         std::fs::remove_dir_all(&d).unwrap();
     }
 }

@@ -17,8 +17,8 @@ scripts/load/compare.py BASE.json NEW.json [--threshold 10]   # exit 1 on a regr
 
 It records:
 
-- wall time, user and system CPU;
-- max RSS from rusage, and peak RSS, FDs and threads sampled from `/proc` every 100 ms;
+- wall time, user and system CPU. Since 1.1 (roadmap 1.1-5) the wrapper blocks in `wait4`, so wall time has sub-millisecond resolution and the result carries `"timer": "blocking-wait4"`. Older results have no `timer` field: their wall times were rounded up to the next ~0.1 s poll tick, so do not compare short cases across the two harnesses;
+- max RSS from rusage, and peak RSS, FDs and threads sampled from `/proc` every 100 ms on a side thread;
 - voluntary and involuntary context switches;
 - bytes read and written;
 - docs/s, and MB/s in and out;

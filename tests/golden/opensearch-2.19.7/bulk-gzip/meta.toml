@@ -3,6 +3,6 @@ case = "bulk-gzip"
 engine = "opensearch"
 version = "2.19.7"
 image = "docker.io/opensearchproject/opensearch:2@sha256:3bfa1ec74d56928c2e018033d45c460ce2c0ea65a5cedd577de3102326c31b89"
-args = ["--input","{{DIR}}/input.ndjson","--output","{{URL}}/golden_dst","--esCompress","--limit","2"]
+args = ["--input","{{DIR}}/input.ndjson","--output","{{URL}}/golden_dst","--esCompress","--limit","2","--refreshInterval=0"]
 exit_code = 0
 has_output = false

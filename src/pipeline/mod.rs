@@ -10,7 +10,9 @@ pub mod window;
 use anyhow::Result;
 use tokio_util::sync::CancellationToken;
 
-pub use bulk::{BulkAction, BulkOptions, BulkSink, WriteReport};
+pub use bulk::{
+    BulkAction, BulkOptions, BulkSink, DEFAULT_REFRESH_INTERVAL, RefreshPolicy, WriteReport,
+};
 pub use sink::{FileSink, Sink};
 pub use window::DocWindow;
 

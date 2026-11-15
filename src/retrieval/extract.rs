@@ -333,6 +333,28 @@ fn empty_source_error(hit: &LazyValue<'_>, body: super::BodySource) -> anyhow::E
 }
 
 /// A response body that is not a search response (TST-BRK-NET-011): say what it looks like.
+/// `obj` (one JSON object) without its top-level member `drop`. Every other member keeps its
+/// raw value bytes (so `_source` stays byte for byte); keys are re-encoded, which is
+/// byte-identical for the plain ASCII metadata keys of a hit (1.1-3).
+fn without_member(obj: &[u8], drop: &str) -> Result<Vec<u8>> {
+    let mut out = Vec::with_capacity(obj.len());
+    out.push(b'{');
+    for m in sonic_rs::to_object_iter(obj) {
+        let (k, v) = m.map_err(|e| anyhow!("malformed hit: {e}"))?;
+        if k == drop {
+            continue;
+        }
+        if out.len() > 1 {
+            out.push(b',');
+        }
+        sonic_rs::to_writer(&mut out, &*k)?;
+        out.push(b':');
+        out.extend_from_slice(v.as_raw_str().as_bytes());
+    }
+    out.push(b'}');
+    Ok(out)
+}
+
 fn malformed(body: &Bytes, e: anyhow::Error) -> anyhow::Error {
     if body.starts_with(&[0x1f, 0x8b]) {
         return anyhow!(
@@ -352,6 +374,18 @@ fn malformed(body: &Bytes, e: anyhow::Error) -> anyhow::Error {
 pub(crate) fn extract_batch(
     response_bytes: &Bytes,
     search_type: &SearchType,
+) -> Result<ExtractedBatch> {
+    // PIT/search_after need `sort` to page; only the injected scroll `_doc` sort is dropped.
+    let strip_sort = super::strip_hit_sort() && !search_type.uses_sort();
+    extract_batch_with(response_bytes, search_type, strip_sort)
+}
+
+/// [`extract_batch`] with the `--scrollDocSort` strip decision passed in (testable without the
+/// process-wide flag).
+fn extract_batch_with(
+    response_bytes: &Bytes,
+    search_type: &SearchType,
+    strip_sort: bool,
 ) -> Result<ExtractedBatch> {
     // sonic-rs does not validate escapes inside the values it hands out raw, so a
     // malformed response would become an invalid dump line (L-512 fuzz finding).
@@ -387,7 +421,13 @@ pub(crate) fn extract_batch(
         // The cluster returns `_source` byte for byte as indexed, so a
         // pretty-printed document carries raw line breaks between tokens.
         // Every hit must be exactly one NDJSON line (INJ-F1).
-        buffer.extend_from_slice(&single_line_slice(hit.as_raw_str().as_bytes()));
+        if strip_sort && hit.get("sort").is_some() {
+            let trimmed = without_member(hit.as_raw_str().as_bytes(), "sort")
+                .map_err(|e| malformed(response_bytes, e))?;
+            buffer.extend_from_slice(&single_line_slice(&trimmed));
+        } else {
+            buffer.extend_from_slice(&single_line_slice(hit.as_raw_str().as_bytes()));
+        }
         buffer.push(b'\n');
 
         if search_type.uses_sort() {
@@ -421,7 +461,8 @@ pub(crate) fn extract_batch(
 mod tests {
     use super::{
         count_hits_and_last_sort_raw, empty_source_error, extract_batch, extract_batch_metadata,
-        is_empty_object, missing_source_error, require_hits_array,
+        extract_batch_with, is_empty_object, missing_source_error, require_hits_array,
+        without_member,
     };
     use crate::cli::SearchType;
     use bytes::Bytes;
@@ -706,6 +747,39 @@ mod tests {
                 "{\"_id\":\"2\",\"_source\":{\"name\":\"b\"}}\n"
             )
         );
+    }
+
+    // 1.1-3: with --scrollDocSort the injected `sort` member is dropped from scroll hits;
+    // `_source` stays byte for byte and `_score: null` is kept (documented difference).
+    #[test]
+    fn scroll_doc_sort_member_is_stripped_from_hits() {
+        let response = Bytes::from_static(
+            br#"{"_scroll_id":"s","hits":{"total":{"value":2,"relation":"eq"},"hits":[{"_index":"i","_id":"1","_score":null,"_source":{"n":1.0e2,"t":"\u00e9"},"sort":[0]},{"_index":"i","_id":"2","_score":null,"sort":[1],"_source":{"pretty":
+ true}}]}}"#,
+        );
+        let out = extract_batch_with(&response, &SearchType::Scroll, true).unwrap();
+        assert_eq!(out.output.doc_count, 2);
+        assert_eq!(
+            String::from_utf8(out.output.buffer).unwrap(),
+            concat!(
+                "{\"_index\":\"i\",\"_id\":\"1\",\"_score\":null,\"_source\":{\"n\":1.0e2,\"t\":\"\\u00e9\"}}\n",
+                "{\"_index\":\"i\",\"_id\":\"2\",\"_score\":null,\"_source\":{\"pretty\":true}}\n"
+            )
+        );
+        // off (the default): hits are written exactly as received
+        let out = extract_batch_with(&response, &SearchType::Scroll, false).unwrap();
+        assert!(
+            String::from_utf8(out.output.buffer)
+                .unwrap()
+                .contains("\"sort\":[0]")
+        );
+        // a hit without sort is unchanged
+        assert_eq!(
+            without_member(br#"{"_id":"1","_source":{}}"#, "sort").unwrap(),
+            br#"{"_id":"1","_source":{}}"#
+        );
+        assert_eq!(without_member(br#"{"sort":[1]}"#, "sort").unwrap(), b"{}");
+        assert!(without_member(br#"{"_id":"1""#, "sort").is_err());
     }
 
     #[test]

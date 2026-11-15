@@ -3,6 +3,6 @@ case = "data-restore"
 engine = "elasticsearch"
 version = "9.1.2"
 image = "docker.io/bitnamilegacy/elasticsearch:9.1.2-debian-12-r0@sha256:00176a47afa0c0cfc9d11bdbafda13cbad7c9098ff1e6092112df2c751de301a"
-args = ["--input","{{DIR}}/input.ndjson","--output","{{URL}}/golden_dst","--limit","3"]
+args = ["--input","{{DIR}}/input.ndjson","--output","{{URL}}/golden_dst","--limit","3","--refreshInterval=0"]
 exit_code = 0
 has_output = false

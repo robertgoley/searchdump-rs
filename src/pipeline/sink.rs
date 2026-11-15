@@ -111,7 +111,8 @@ impl Sink {
     pub async fn abort(self) {
         match self {
             Sink::File(f) => f.abort().await,
-            Sink::Bulk(mut b) => b.abort(),
+            // 1.1-6: finishes the one pipelined batch in flight at --concurrency 1
+            Sink::Bulk(mut b) => b.settle().await,
         }
     }
 }

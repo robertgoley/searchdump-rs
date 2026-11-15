@@ -193,8 +193,12 @@ cases, are in [`examples/`](examples/README.md).
   `--overwrite`, `--prefix`/`--suffix`, `--quiet`, `--debug`, `--format human`.
 * **Retrieval:** `--limit` (default 100), `--offset`, `--size`, `--searchBody` (JSON or `@file`),
   `--searchWithTemplate`, `--scrollTime`, `--scrollId`, `--searchAfter`, `--pit`, `--pitKeepAlive`,
-  `--sourceOnly`, `--esCompress`, `--headers`/`--params` (+ `--input-*`/`--output-*`).
+  `--sourceOnly`, `--esCompress`, `--headers`/`--params` (+ `--input-*`/`--output-*`), `--scrollDocSort` (opt-in,
+  default off; see below), `--slices` (with `--sliceCap=auto|min|total|false`, default `auto`: on Elasticsearch 7.10 a scroll dump
+  lowers `--slices` to the primary-shard count, other engines keep it as given; and `--sliceField`; see
+  [Performance](#performance) Tuning).
 * **Writing:** `--bulkAction index|create|update|delete`, `--handleVersion`, `--versionType`, `--noRefresh`,
+  `--refreshInterval` (seconds; default 5, `0` = after every batch as in Node; see below),
   `--ignore-errors`, `--ignore-es-write-errors` (default: continue past failed items), `--parseExtraFields`.
 * **Files:** `--fsCompress`, `--compressionType gzip|zstd`, `--compressionLevel`, `--fileSize`, `--maxRows`.
   `--compressionType` wins over `--fsCompress` when both are given. `--offset` cannot be combined with `--slices`
@@ -216,7 +220,8 @@ cases, are in [`examples/`](examples/README.md).
   (default true), `--closeIndex`, `--excludeTemplateFields`, `--convertIlmToIsm`, `--lenientPolicyConversion`,
   `--metaFormat string|object`, `--renamePrefix`, `--renameIndex`, `--renameAliases`, `--renamePatterns`.
 
-Rust-only extensions (all opt-in): `--compressionType zstd`, `--slices`, `--workers`, `--bufferSize`,
+Rust-only extensions (opt-in unless noted): `--compressionType zstd`, `--slices` (with `--sliceCap`, default `auto`,
+and `--sliceField`; see [Performance](#performance) Tuning), `--workers`, `--bufferSize`,
 `--searchType scroll|pit`, `--skip-existing`, `--force` (allow the same file/index as input and output; the output index is compared after `--prefix`/`--suffix`, so `--input …/idx --output …/idx --suffix=-copy` is not refused, `--input …/p-idx --output …/idx --prefix p-` is; a host-only `--output` writes each input index to its own name after `--renamePrefix`/`--renameIndex` and the affixes, so `--input …/idx --output …` is refused unless an affix or rename rule changes the name, and a wildcard input is refused only with neither), `--excludeSettings`, `--maxBulkBytes`, `--retryOn`,
 `--retryBackoff`, `--noImplicitRetry`, `--insecure`/`--input-insecure`/`--output-insecure`, `--username`/`--password`
 (aliases of `--input-username`/`--input-password`), `--caFile`, `--requestTimeout` (seconds; a deadline for the whole request, body included), `--idleTimeout` (seconds of server silence before a request fails or is retried; default 300, 0 = never; unlike Node, a stalled server cannot hang a run), `--maxResponseMb` (largest response body read into memory, default 256, 0 = unlimited; a bigger page fails with a hint to lower `--limit` instead of an OOM kill), `--allowMerge` (let `--renamePrefix`/`--renameIndex` rename several source indices to one target; refused by default, before anything is read for a cluster source, and before the batch is sent for a file source), `--maxDocMb` (largest single document read from a file or stdin, default 100 like `http.max_content_length`, 0 = unlimited; a bigger one stops the run naming its position instead of being buffered whole), `--allowMissingSource` (dump hits that carry no `_source`: indices whose mapping has `_source.enabled: false`, or a `--searchBody` that turns `_source` off. By default the first hit without `_source` stops the dump before anything of that page is written, and the error names the cause; a search body with `"_source": false` is refused before the first search, naming the search body and suggesting to remove it or pass this flag. **Behaviour change (L-455b):** `"_source": false` used to be allowed without the flag. `stored_fields` without `_source` is refused the same way (L-455a). `"_source": []` is not refused: on OpenSearch 1.3-3.x and Elasticsearch 7.17-9.1 it returns the whole `_source`. **Behaviour change (L-455c):** an empty `_source` (`{}`) is refused like a missing one. A filter that excludes every field (`{"excludes":["*"]}`, which returns `{}` for every hit) is refused before the first search. Otherwise the first hit whose `_source` is `{}` stops the dump, and the error names the document's `_index` and `_id` and the likely cause: the search body's `_source` filter, or a document that is really empty. **A document that is genuinely empty (`{}`) in the source index also needs `--allowMissingSource`.** These dumps used to write `{}`), `--noProxy` (ignore `HTTP(S)_PROXY`/`ALL_PROXY`; when an
@@ -241,6 +246,8 @@ and `script` (see [Types](#types)). Index renaming: `--renamePrefix`, `--renameI
 
 Out of scope (rejected or ignored with a warning, see `docs/PARITY.md` §3.7): CSV, S3/MinIO, AWS signing,
 transforms, `--delete`. `searchdump-multi` is a separate, smaller tool (see [Bulk dump and load](#bulk-dump-and-load-searchdump-multi)).
+Its flags include `--verifyCounts` (1.1: always re-read dumped or loaded data and fail the index when a child's
+reported record count differs).
 
 Where this tool differs from Node because Node is incomplete or buggy, see [NODE-DIFFERENCES.md](NODE-DIFFERENCES.md);
 for every place the tool changes what is loaded, and for the tested versions, see
@@ -265,6 +272,15 @@ for every place the tool changes what is loaded, and for the tested versions, se
 * **Retries also cover HTTP 429**, and bulk items rejected with 429/503 are retried individually.
 * **PIT is engine-aware**: Elasticsearch 7.10+ uses `POST /{index}/_pit` and the `_shard_doc` tiebreaker;
   OpenSearch uses `/_search/point_in_time` and `_doc` + `_id` (a `_doc`-only sort was verified to lose documents).
+* **`--scrollDocSort`** (1.1, opt-in, default off): adds `"sort":["_doc"]`, Elasticsearch's recommended and cheapest
+  scroll order, to a scroll dump whose search body has no `sort` and a `match_all`/`match_none` query (or none). It is
+  skipped, with an info log, for PIT and `--searchAfter` (they page by their own sort), `--scrollId`,
+  `--searchWithTemplate`, a user `sort`, any other query (relevance scores would be lost) and
+  `track_scores`/`min_score`/`rescore`. The cluster then returns a `sort` member and `"_score": null` on every hit;
+  the `sort` member is removed before writing, `"_score": null` is kept (Node's lines show `"_score": 1`). Restores
+  ignore both. Node sets `sort: ['_doc']` on its *request options* (`_data.js:115`), not the body, so it never
+  actually sends a sort; that is why this stays opt-in: without the flag the request and the dump lines are
+  unchanged.
 * **Scroll + `--offset`** skips client-side; Node sends `from=`, which ES 7+/OpenSearch reject.
 * **`--scrollId` ids are never printed** (Node's `--debug` shows them, which its resume recipe relies on); resume
   a stopped file dump by rerunning it with `--overwrite`, or pass the id of a scroll you opened yourself (L-650).
@@ -282,6 +298,23 @@ for every place the tool changes what is loaded, and for the tested versions, se
   wins in Node and the later line wins here (file order). Verified on 10,000 random documents by
   `scripts/node/bulk-diff.py` (L-506): every other byte difference is one of these.
 * **Bulk uses POST**; `/index/type` URLs are not parsed (use `--output-index idx/type` for ES < 7).
+* **Refresh cadence** (1.1, `--refreshInterval`): while writing, the target indices are refreshed at most every
+  5 seconds (the clock starts when the first batch is written), plus **once at the end of every run**, also with
+  `--concurrency 1`. Node refreshes after every bulk batch, which makes the cluster build a new segment per batch
+  and dominates restore time at the default batch size. `--refreshInterval=0` restores Node's per-batch refresh;
+  `--refreshInterval=N` (decimals allowed, up to 86400) sets another interval; `--noRefresh` sends no refresh at
+  all and wins over `--refreshInterval`. After the run the same documents are searchable as with Node; only a
+  reader watching the index *during* a restore sees new documents up to the interval later (the engine's own
+  `index.refresh_interval`, 1 s by default, still applies as well).
+* **Encode/send overlap at `--concurrency 1`** (1.1): while one bulk request is in flight, the next batch is read
+  and encoded, and sent once the first is done. Requests never overlap, so the cluster sees the same requests in the
+  same order as Node; a failed batch stops the run before the next one is sent, and a run that stops with an error
+  still finishes the one batch in flight first. `SEARCHDUMP_BULK_PIPELINE=0` turns the overlap off.
+* **Refresh targets only the indices written** (1.1): a restore with no output index (each document keeps its
+  `_index`) refreshes exactly the indices it wrote, after `--prefix`/`--suffix`/rename, as
+  `POST /a,b,…/_refresh?ignore_unavailable=true&allow_no_indices=true` (long lists split under ~3 KB per URL). Node
+  sends `POST /_refresh` there, which refreshes **every index in the cluster** after every batch. What a reader sees
+  after the run is the same; unrelated indices are no longer refreshed. With an output index nothing changes.
 * **Endpoints that look like mistyped URLs are refused** (exit 2, L-646); Node reads or writes them as files.
   Only `http://` and `https://` are clusters, in any case (`HTTP://` is a cluster here, a file in Node); everything else is a file path, but
   `http:/host`, `http:host`, `http//host`, an unsupported scheme such as `htp://`, and a URL with leading or trailing
@@ -491,7 +524,12 @@ searchdump-multi --direction=load --input=/data/logs --output=https://dst:9200 -
   settings + mapping, and one failed index never stops the others here). Node ignores analyzer and alias unless
   told otherwise, so pass `--ignoreAlias=false` to a Node load of our alias files.
 - Dump checks: the record count of each data file (or the parts together) against the source `_count` (an empty
-  file for a non-empty index fails it). `multielasticdump.json` records each index's directory, types, data file or
+  file for a non-empty index fails it). Since 1.1 the count is the one the data run reports (a hidden
+  `--statsFile` JSON that searchdump writes when it finishes, else its `Total Writes: N` log line, which Node
+  elasticdump prints too), so a large compressed dump is no longer read back and decompressed; when neither is there
+  the files are read as before. `--verifyCounts` always reads them back and fails the index if the reported count
+  differs. A load sums what each part's run read (written + failed) the same way and compares it with the target's
+  `_count`. `multielasticdump.json` records each index's directory, types, data file or
   parts, records and status, and each cluster-wide file; `--resume` skips indices already done.
 - Load (as `oslogs.py restore`): an index or data stream that already exists fails (or is skipped with
   `--skipExisting`, which also creates cluster-wide items only where missing); settings first, with `--lifecycle drop`
@@ -504,12 +542,19 @@ searchdump-multi --direction=load --input=/data/logs --output=https://dst:9200 -
   `--prefix`/`--suffix` rename targets (indices and streams, not cluster-wide items).
 - `--parallel` (default 2) indices at a time, started in name order (`--order desc` reverses it); `--interval=MS` (default 0) is the least time between starting one
   index and the next, as Node's `--interval`.
-- Data runs get `--limit=5000 --scrollTime=10m --retryAttempts=5 --retryDelay=2000 --timeout=300000 --maxResponseMb=0`
-  (`--noDefaultDataFlags` drops them); anything after `--` is passed to every data run, and a flag given there replaces the default of the same name (`-- --limit=200`). Credentials:
+- Data runs get `--limit=1000 --scrollTime=10m --retryAttempts=5 --retryDelay=2000 --timeout=300000 --maxBulkBytes=16mb`, and searchdump's
+  default 256 MB response cap (`--maxResponseMb`) applies (since 1.1, item 1.1-10; 1.0 used `--limit=5000 --maxResponseMb=0`,
+  which could take down a small-heap cluster). A dump of an index whose documents average more than 16 KB stored
+  (`_stats` primaries) uses fewer documents per page, about 16 MB stored per page, and prints a note
+  (`--noDefaultDataFlags` drops them); anything after `--` is passed to every data run, and a flag given there replaces the default of the same name (`-- --limit=200`; an explicit `--limit` also turns the per-index page size off). Credentials:
   `SEARCHDUMP_INPUT_USERNAME`/`_PASSWORD` and `SEARCHDUMP_OUTPUT_USERNAME`/`_PASSWORD`, or `--httpAuthFile`.
 - Per-run logs go to `--logDir` (default a temp dir; one log per data part); a failure prints the last lines.
   `--dryRun` lists what would run. Exit status: 0 all done, 1 any item failed or nothing matched, 2 usage error,
   130 interrupted.
+- Ctrl-C (SIGINT to `searchdump-multi`; since 1.1): no new step starts, and every running child `searchdump` gets
+  SIGTERM (a restore then finishes its in-flight bulk requests and prints where to resume in its log), then SIGKILL
+  if it is still running 5 seconds later. Each stopped child is named with its log file, and its index is recorded
+  as failed. Before 1.1 running children were left to finish, unless the terminal also sent them the SIGINT.
 - Not in this tool (Node `multielasticdump`): `--customMatcher` and `--transform` (JavaScript), `--delete`.
   Cluster-wide items are not filtered by `--match`.
 - Node compatibility (`--nodeCompat`, dump only): writes the layout Node's `multielasticdump` 6.x loads with its
@@ -611,7 +656,7 @@ Other behaviour:
 - Cargo features `opendal` (S3, B2, fs) and `opendal-sftp` are on by default; a build without them refuses storage
   URLs with a clear error.
 
-**`sftp://` in the container images (L-810i, unreleased; 1.0.0 images lack it).** OpenDAL's SFTP backend runs the
+**`sftp://` in the container images (L-810i, new in 1.1; 1.0.0 images lack it).** OpenDAL's SFTP backend runs the
 system OpenSSH `ssh` client (Dropbear's client is not compatible). Since L-810i every image built with a package
 manager installs it: Debian-based images (`dhi-debian` default, `public`) get `openssh-client` (no recommends,
 `ssh-keysign` without its setuid bit, and since L-810j without the user-admin and init-script tools its
@@ -710,7 +755,7 @@ and `multielasticdump` symlinks, runs as uid
 `/data` as its writable working directory, and carries OCI labels (version, revision, created,
 base name).
 
-**`sftp://` in the container images (L-810i, unreleased; 1.0.0 images lack it).** OpenDAL's SFTP backend runs the
+**`sftp://` in the container images (L-810i, new in 1.1; 1.0.0 images lack it).** OpenDAL's SFTP backend runs the
 system OpenSSH `ssh` client (Dropbear's client is not compatible). Since L-810i every image built with a package
 manager installs it: Debian-based images (`dhi-debian` default, `public`) get `openssh-client` (no recommends,
 `ssh-keysign` without its setuid bit, and since L-810j without the user-admin and init-script tools its
@@ -730,8 +775,8 @@ scripts/build-image.sh --type dhi-static            # shell-less dhi.io/static: 
 scripts/build-image.sh --type dhi-alpine            # Alpine/musl, musl allocator: searchdump-rs:<ver>-alpine
 scripts/build-image.sh --type public                # public Debian bases, no login (not default): <ver>-debian-public
 scripts/build-image.sh --platform both              # linux/amd64 + linux/arm64 manifest list (podman)
-scripts/build-image.sh --platform linux/arm64 --tag registry.example.com/team/searchdump-rs:1.0.0-arm64
-scripts/build-image.sh --tag registry.example.com/team/searchdump-rs:1.0.0 --push
+scripts/build-image.sh --platform linux/arm64 --tag registry.example.com/team/searchdump-rs:1.1.0-arm64
+scripts/build-image.sh --tag registry.example.com/team/searchdump-rs:1.1.0 --push
 scripts/build-image.sh --dry-run --type dhi-alpine  # print the podman commands only
 scripts/build-image.sh --help
 ```
@@ -757,13 +802,13 @@ make test-image            # --version, --help, non-root, compat symlinks (each 
 make test-image IMAGE_VARIANT=dhi-alpine   # the same for :<ver>-alpine (variants: dhi-debian, dhi-static,
                                            # dhi-alpine, public, alpine)
 make sbom scan             # syft SBOM (CycloneDX + SPDX), grype + trivy (fail on HIGH/CRITICAL) of IMAGE_VARIANT
-make image REGISTRY=registry.example.com/team IMAGE_NAME=searchdump IMAGE_TAG=1.0.0
+make image REGISTRY=registry.example.com/team IMAGE_NAME=searchdump IMAGE_TAG=1.1.0
 
 # podman
-podman run --rm -v "$PWD/dumps:/data:Z" localhost/searchdump-rs:1.0.0 \
+podman run --rm -v "$PWD/dumps:/data:Z" localhost/searchdump-rs:1.1.0 \
   --input=http://es:9200/my_index --output=/data/my_index.json --type=data
 # docker (same image, Node-style entrypoint name)
-docker run --rm -v "$PWD/dumps:/data" --entrypoint elasticdump localhost/searchdump-rs:1.0.0 \
+docker run --rm -v "$PWD/dumps:/data" --entrypoint elasticdump localhost/searchdump-rs:1.1.0 \
   --input=/data/my_index.json --output=http://es:9200/my_index --type=data
 ```
 
@@ -774,7 +819,8 @@ Mounted host directories must be writable by uid 65532 (or use `--user`).
 
 Releases are built by [`.github/workflows/release.yml`](.github/workflows/release.yml) when a version tag is pushed.
 Nothing is published automatically: the workflow creates a **draft** GitHub release, which a maintainer reviews and
-publishes by hand.
+publishes by hand. Draft notes for the next release (1.1, not yet tagged):
+[`project/release/RELEASE-NOTES-1.1.md`](project/release/RELEASE-NOTES-1.1.md).
 
 To cut a release:
 
@@ -797,7 +843,7 @@ anything is pushed or drafted. The draft contains:
   tags.
 
 Every archive, the SBOM and every pushed image have a GitHub build-provenance attestation:
-`gh attestation verify searchdump-rs-1.0.0-x86_64-unknown-linux-gnu.tar.gz --repo robertgoley/searchdump-rs`.
+`gh attestation verify searchdump-rs-1.1.0-x86_64-unknown-linux-gnu.tar.gz --repo robertgoley/searchdump-rs`.
 
 Container images: every image type is built, tested with `scripts/test-image.sh` and pushed to
 `ghcr.io/robertgoley/searchdump-rs:<version>-<type>` (`dhi-debian`, `dhi-static`, `dhi-alpine`, `public`, `alpine`;
@@ -899,6 +945,10 @@ passes `--httpAuthFile` on to every child run.
 * Encrypted client keys: PKCS#8 only (convert legacy keys with `openssl pkcs8 -topk8`).
 
 ## Memory
+
+Since 1.1 the start-of-run estimate also counts pipeline copies of a batch: +3 batches for a compressed file
+output (the compression thread's queue, 1.1-9) and +2 for a bulk restore at `--concurrency 1` (the batch in
+flight, its lines and encoded body, next to the one being encoded, 1.1-6).
 
 Peak RSS ≈ `(bufferSize + slices + concurrency) × limit × avg_doc_size × ~3 + ~15 MB` (**changed in L-802, from
 × 1.5 + 10 MB, pending lead review**: the old estimate was exceeded by up to 127% by concurrent restores and sliced
@@ -1017,8 +1067,27 @@ A 1M-doc dump (about 7 s, bound by the cluster) took no longer with gzip 1/6 or 
 6, so it isn't worth using; `--compressionLevel 9` with gzip and levels 19 and up with zstd print a warning.
 
 Tuning: sliced retrieval (`--slices`) is what uses more cores. With scroll, match `--slices` to the primary-shard
-count (more slices than shards adds a per-document slice filter); PIT (`--searchAfter --pit`) tolerates more slices
-than shards. Keep `--workers` ≥ `--slices`. Sliced output does not keep a global document order.
+count (more slices than shards adds a per-document slice filter). Since 1.1 a scroll dump on **Elasticsearch 7.10**
+does this itself: `--slices` above the smallest primary-shard count of the input indices is lowered to it with a
+warning (one shard: unsliced). On every other engine, and when the version cannot be detected, `--sliceCap=auto` (the
+default; `true` is an alias) keeps `--slices` as given (1.1-4a, owner decision 2026-11-14): the 1.1 point-in-time
+perf run measured the cap 63% faster for `dump-scroll-s2` on ES 7.10 but 45–59% slower sliced scrolls on ES 8.19
+and 62–101% slower on OpenSearch 3 ([scripts/perf/results/pit-1.1.md](scripts/perf/results/pit-1.1.md)).
+`auto` reads the version with `GET /`. If you force the cap on another engine, the count that matters depends on how
+it assigns slices:
+
+| Engine | Slices are assigned | `auto` | `--sliceCap=min` / `total` |
+|---|---|---|---|
+| Elasticsearch 7.10 | per index (every index gets all the slices) | caps at the smallest primary-shard count | smallest / total |
+| Elasticsearch 5.0–7.9, OpenSearch 1.x–3.x | per index | no cap | smallest / total |
+| Elasticsearch 7.11–9.4 | across all shards of the request ([elastic/elasticsearch#65706](https://github.com/elastic/elasticsearch/pull/65706)); `total` matches | no cap | smallest / total |
+| Elasticsearch 9.5+ | across shards for PIT only; scroll on 9.5+ indices filters per shard again ([elastic/elasticsearch#148664](https://github.com/elastic/elasticsearch/pull/148664)) | no cap | smallest / total |
+| version not detectable | — | no cap | smallest / total |
+
+`--sliceCap=min` and `--sliceCap=total` force one count on any engine without version detection; `--sliceCap=false` keeps the number as given, and `--sliceField=<field>` (a numeric or date field with doc values,
+checked against the mapping) slices on that field instead of `_id` and is not capped. When the shard count cannot be
+read (no `view_index_metadata` privilege) the slices are used as given, with a warning. PIT (`--searchAfter --pit`)
+tolerates more slices than shards and is never capped. Keep `--workers` ≥ `--slices`. Sliced output does not keep a global document order.
 `scripts/benchmark/compare-with-elasticdump.sh` (from upstream elasticdump-rs) compares both tools on your own cluster.
 
 ## Testing

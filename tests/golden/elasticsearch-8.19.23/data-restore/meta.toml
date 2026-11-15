@@ -3,6 +3,6 @@ case = "data-restore"
 engine = "elasticsearch"
 version = "8.19.23"
 image = "docker.elastic.co/elasticsearch/elasticsearch:8.19.23@sha256:4d0724bb8d78d7a2330693623e26ca4d621079d062ecc8a30b3e1fc180ec14c1"
-args = ["--input","{{DIR}}/input.ndjson","--output","{{URL}}/golden_dst","--limit","3"]
+args = ["--input","{{DIR}}/input.ndjson","--output","{{URL}}/golden_dst","--limit","3","--refreshInterval=0"]
 exit_code = 0
 has_output = false

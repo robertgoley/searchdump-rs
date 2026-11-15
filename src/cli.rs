@@ -78,6 +78,22 @@ pub fn parse_bool(value: &str) -> Result<bool, String> {
     }
 }
 
+/// `--refreshInterval`: non-negative seconds (decimals allowed, an optional trailing `s`), at
+/// most one day.
+pub fn parse_refresh_interval(value: &str) -> Result<std::time::Duration, String> {
+    let v = value.trim();
+    let num = v.strip_suffix('s').unwrap_or(v);
+    let secs: f64 = num
+        .parse()
+        .map_err(|_| format!("'{value}' is not a number of seconds"))?;
+    if !secs.is_finite() || !(0.0..=86_400.0).contains(&secs) {
+        return Err(format!(
+            "'{value}' must be between 0 and 86400 seconds (0 = refresh after every batch)"
+        ));
+    }
+    Ok(std::time::Duration::from_secs_f64(secs))
+}
+
 fn parse_non_zero_usize(value: &str) -> Result<usize, String> {
     let parsed = value
         .parse::<usize>()
@@ -143,6 +159,11 @@ pub struct Cli {
     #[arg(long, num_args = 0..=1, default_missing_value = "true", value_parser = parse_bool)]
     pub quiet: Option<bool>,
 
+    /// 1.1-7 (for searchdump-multi): when the run succeeds, write its counts to this file as
+    /// JSON (`{"written":N,"failed":N,"overwritten":N,"rejected":N,"complete":true}`)
+    #[arg(long = "statsFile", hide = true)]
+    pub stats_file: Option<std::path::PathBuf>,
+
     /// Verbose logging, including every HTTP request line
     #[arg(long, num_args = 0..=1, default_missing_value = "true", value_parser = parse_bool)]
     pub debug: Option<bool>,
@@ -187,6 +208,10 @@ pub struct Cli {
     /// Resume an existing scroll by id
     #[arg(long = "scrollId")]
     pub scroll_id: Option<String>,
+
+    /// Extension: sort scroll dumps by _doc, the cheapest scroll order, when the search body has no sort and a match_all/match_none query (off by default; hits then show "_score": null instead of Node's 1.0, the added sort values are removed)
+    #[arg(long = "scrollDocSort", num_args = 0..=1, default_missing_value = "true", value_parser = parse_bool)]
+    pub scroll_doc_sort: Option<bool>,
 
     /// Accepted for compatibility (requests are always POST)
     #[arg(long = "scroll-with-post", num_args = 0..=1, default_missing_value = "true", value_parser = parse_bool)]
@@ -237,9 +262,13 @@ pub struct Cli {
     #[arg(long = "versionType")]
     pub version_type: Option<String>,
 
-    /// Do not refresh the index after each bulk request
+    /// Do not refresh the written indices at all (wins over --refreshInterval)
     #[arg(long = "noRefresh", num_args = 0..=1, default_missing_value = "true", value_parser = parse_bool)]
     pub no_refresh: Option<bool>,
+
+    /// Extension: refresh the written indices at most every N seconds while writing, plus once at the end (default 5; decimals allowed; 0 = after every bulk batch, as Node elasticdump)
+    #[arg(long = "refreshInterval", value_name = "SECONDS", value_parser = parse_refresh_interval)]
+    pub refresh_interval: Option<std::time::Duration>,
 
     /// Keep going after a failed write batch
     #[arg(long = "ignore-errors", num_args = 0..=1, default_missing_value = "true", value_parser = parse_bool)]
@@ -549,9 +578,17 @@ pub struct Cli {
     pub output_insecure: Option<bool>,
 
     // ------------------------------------------------ rs extensions (perf)
-    /// Extension: parallel slices for sliced scroll / PIT (0 = unsliced)
+    /// Extension: parallel slices for sliced scroll / PIT (0 = unsliced); on Elasticsearch 7.10, scroll slices are capped to the input indices' primary-shard count (see --sliceCap) unless --sliceCap=false or --sliceField
     #[arg(long, default_value_t = 0)]
     pub slices: usize,
+
+    /// Extension: for scroll, lower --slices to the primary-shard count, with a warning: auto (default; true is an alias) caps only on Elasticsearch 7.10 (smallest count per index) and keeps --slices as given on every other engine and unknown versions (1.1-4a: the cap slowed sliced scrolls on ES 8.19 and OpenSearch 3); min / total force the smallest or total count on any engine; false never caps. PIT is never capped
+    #[arg(long = "sliceCap", num_args = 0..=1, default_missing_value = "auto", value_parser = crate::retrieval::slices::parse_slice_cap)]
+    pub slice_cap: Option<crate::retrieval::slices::SliceCap>,
+
+    /// Extension: numeric or date field with doc values to slice on (slice "field"); checked against the mapping, and --slices is then not capped
+    #[arg(long = "sliceField")]
+    pub slice_field: Option<String>,
 
     /// Extension: JSON extraction workers
     #[arg(long, default_value_t = 4, value_parser = parse_non_zero_usize)]
@@ -605,6 +642,10 @@ impl Cli {
     pub fn no_refresh(&self) -> bool {
         is(self.no_refresh)
     }
+    /// `--noRefresh` / `--refreshInterval` as the writer's policy (1.1-1).
+    pub fn refresh_policy(&self) -> crate::pipeline::RefreshPolicy {
+        crate::pipeline::RefreshPolicy::from_flags(self.no_refresh(), self.refresh_interval)
+    }
     pub fn ignore_errors(&self) -> bool {
         is(self.ignore_errors)
     }
@@ -632,6 +673,13 @@ impl Cli {
     }
     pub fn search_with_template(&self) -> bool {
         is(self.search_with_template)
+    }
+    pub fn scroll_doc_sort(&self) -> bool {
+        is(self.scroll_doc_sort)
+    }
+    pub fn slice_cap(&self) -> crate::retrieval::slices::SliceCap {
+        self.slice_cap
+            .unwrap_or(crate::retrieval::slices::SliceCap::Auto)
     }
 
     /// Effective retrieval mode: `--searchType` (extension) or Node's
@@ -871,6 +919,84 @@ mod tests {
         assert!(!c.ignore_errors());
         assert_eq!(c.r#type, DumpType::Data);
         assert_eq!(c.effective_search(), EffectiveSearch::Scroll);
+    }
+
+    // 1.1-1: --refreshInterval (seconds, 0 = every batch) and --noRefresh precedence.
+    #[test]
+    fn refresh_interval_flag_and_policy() {
+        use crate::pipeline::RefreshPolicy;
+        use std::time::Duration;
+        assert_eq!(
+            parse(&[]).unwrap().refresh_policy(),
+            RefreshPolicy::Interval(Duration::from_secs(5))
+        );
+        assert_eq!(
+            parse(&["--refreshInterval", "0"]).unwrap().refresh_policy(),
+            RefreshPolicy::EveryBatch
+        );
+        assert_eq!(
+            parse(&["--refreshInterval=2.5"]).unwrap().refresh_policy(),
+            RefreshPolicy::Interval(Duration::from_millis(2500))
+        );
+        assert_eq!(
+            parse(&["--refreshInterval=30s"]).unwrap().refresh_policy(),
+            RefreshPolicy::Interval(Duration::from_secs(30))
+        );
+        assert_eq!(
+            parse(&["--refreshInterval=0", "--noRefresh"])
+                .unwrap()
+                .refresh_policy(),
+            RefreshPolicy::Off
+        );
+        assert_eq!(
+            parse(&["--noRefresh"]).unwrap().refresh_policy(),
+            RefreshPolicy::Off
+        );
+        for bad in ["-1", "abc", "NaN", "inf", "86401", "5m"] {
+            let arg = format!("--refreshInterval={bad}");
+            assert!(parse(&[arg.as_str()]).is_err(), "{bad}");
+        }
+    }
+
+    #[test]
+    fn slice_cap_default_on_and_slice_field() {
+        use crate::retrieval::slices::SliceCap;
+        let c = parse(&[]).unwrap();
+        assert_eq!(c.slice_cap(), SliceCap::Auto, "auto is the default");
+        assert_eq!(c.slice_field, None);
+        for (arg, want) in [
+            ("--sliceCap", SliceCap::Auto),
+            ("--sliceCap=auto", SliceCap::Auto),
+            ("--sliceCap=true", SliceCap::Auto),
+            ("--sliceCap=min", SliceCap::Min),
+            ("--sliceCap=total", SliceCap::Total),
+            ("--sliceCap=TOTAL", SliceCap::Total),
+            ("--sliceCap=false", SliceCap::Off),
+            ("--sliceCap=no", SliceCap::Off),
+        ] {
+            assert_eq!(parse(&[arg]).unwrap().slice_cap(), want, "{arg}");
+        }
+        assert_eq!(
+            parse(&["--sliceCap", "total"]).unwrap().slice_cap(),
+            SliceCap::Total
+        );
+        for bad in ["--sliceCap=max", "--sliceCap=2", "--sliceCap="] {
+            assert!(parse(&[bad]).is_err(), "{bad}");
+        }
+        assert_eq!(
+            parse(&["--sliceField", "ts"])
+                .unwrap()
+                .slice_field
+                .as_deref(),
+            Some("ts")
+        );
+    }
+
+    #[test]
+    fn scroll_doc_sort_is_opt_in() {
+        assert!(!parse(&[]).unwrap().scroll_doc_sort());
+        assert!(parse(&["--scrollDocSort"]).unwrap().scroll_doc_sort());
+        assert!(!parse(&["--scrollDocSort=false"]).unwrap().scroll_doc_sort());
     }
 
     #[test]

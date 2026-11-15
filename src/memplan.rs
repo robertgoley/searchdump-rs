@@ -2,9 +2,13 @@
 //! peak RSS ≈ (bufferSize + slices + concurrency) × limit × avg_doc_size × 1.5 + 10 MB.
 //! The average document size is only known once the first batch arrives, so the check runs
 //! then, once, against the smaller of the cgroup limit and `MemAvailable`.
+//!
+//! 1.1: pipeline stages that hold extra copies of a batch (the compression
+//! thread's queue, 1.1-9; the bulk batch encoded while one is in flight,
+//! 1.1-6) add them with [`add_batches`]; they count like `--bufferSize`.
 
 use std::sync::OnceLock;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 struct Plan {
     batches: u64,
@@ -13,6 +17,17 @@ struct Plan {
 
 static PLAN: OnceLock<Plan> = OnceLock::new();
 static CHECKED: AtomicBool = AtomicBool::new(false);
+static EXTRA: AtomicU64 = AtomicU64::new(0);
+
+/// Count `n` more batches held by a pipeline stage (call before the first batch is written).
+pub fn add_batches(n: u64) {
+    EXTRA.fetch_add(n, Ordering::Relaxed);
+}
+
+/// Batches the estimate counts: the planned ones plus pipeline extras.
+fn batches(plan: &Plan) -> u64 {
+    plan.batches.saturating_add(EXTRA.load(Ordering::Relaxed))
+}
 
 pub fn set(buffer_size: usize, slices: usize, concurrency: usize, limit: usize) {
     let _ = PLAN.set(Plan {
@@ -36,14 +51,15 @@ pub fn observe(buf: &[u8]) {
     let Some(plan) = PLAN.get() else { return };
     let docs = memchr::memchr_iter(b'\n', buf).count().max(1) as u64;
     let avg = buf.len() as u64 / docs;
-    let need = estimate(plan.batches, plan.limit, avg);
+    let batches = batches(plan);
+    let need = estimate(batches, plan.limit, avg);
     if let Some((avail, what)) = available()
         && need > avail
     {
         log::warn!(
-            "memory: this run may need ~{} MB ((bufferSize + slices + concurrency) {} x --limit {} x ~{} B per document x 1.5 + 10 MB) but only {} MB are available ({what}); lower --limit, --bufferSize, --concurrency or --slices to avoid an out-of-memory kill",
+            "memory: this run may need ~{} MB ((bufferSize + slices + concurrency + pipeline) {} x --limit {} x ~{} B per document x 1.5 + 10 MB) but only {} MB are available ({what}); lower --limit, --bufferSize, --concurrency or --slices to avoid an out-of-memory kill",
             need >> 20,
-            plan.batches,
+            batches,
             plan.limit,
             avg,
             avail >> 20
@@ -95,5 +111,18 @@ mod tests {
             17 * 100 * 1024 * 3 / 2 + (10 << 20)
         );
         assert_eq!(super::estimate(u64::MAX, 2, 2), u64::MAX / 2 + (10 << 20));
+    }
+
+    #[test]
+    fn pipeline_extras_are_counted() {
+        let plan = super::Plan {
+            batches: 17,
+            limit: 100,
+        };
+        let before = super::batches(&plan);
+        super::add_batches(3);
+        // other tests in this binary may add too; ours is included
+        assert!(super::batches(&plan) >= before + 3);
+        assert!(super::batches(&plan) >= 20);
     }
 }

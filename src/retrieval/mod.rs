@@ -9,6 +9,7 @@ mod scroll;
 mod search_after;
 pub mod search_body;
 mod slice_state;
+pub mod slices;
 mod worker;
 
 use anyhow::Result;
@@ -106,6 +107,19 @@ pub fn fuzz_extract_batch(data: &[u8]) {
     }
 }
 
+/// `--scrollDocSort` added `"sort":["_doc"]` to the scroll body: drop the resulting `sort`
+/// member from every written hit, so dump lines keep their Node shape apart from
+/// `"_score": null` (1.1-3).
+static STRIP_HIT_SORT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+pub fn set_strip_hit_sort(on: bool) {
+    STRIP_HIT_SORT.store(on, std::sync::atomic::Ordering::Relaxed);
+}
+
+pub(crate) fn strip_hit_sort() -> bool {
+    STRIP_HIT_SORT.load(std::sync::atomic::Ordering::Relaxed)
+}
+
 pub fn set_require_source(on: bool) {
     REQUIRE_SOURCE.store(on, std::sync::atomic::Ordering::Relaxed);
 }
@@ -160,6 +174,8 @@ pub struct EsSourceOptions {
     pub scroll_ttl: String,
     pub pit_keep_alive: String,
     pub slices: usize,
+    /// `--sliceField`: the slice object's `field` (validated against the mapping).
+    pub slice_field: Option<String>,
     pub workers: usize,
     pub buffer_size: usize,
     pub quiet: bool,
@@ -523,13 +539,20 @@ pub async fn dump_data(
     for slice_id in 0..num_slices {
         let mut slice_search_body = search_body.clone();
         if use_sliced_scroll {
-            slice_search_body.as_object_mut().unwrap().insert(
-                &"slice",
-                json!({
-                    "id": slice_id,
-                    "max": num_slices
-                }),
-            );
+            let mut slice = json!({
+                "id": slice_id,
+                "max": num_slices
+            });
+            if let Some(field) = &opts.slice_field {
+                slice
+                    .as_object_mut()
+                    .unwrap()
+                    .insert(&"field", json!(field.as_str()));
+            }
+            slice_search_body
+                .as_object_mut()
+                .unwrap()
+                .insert(&"slice", slice);
             info!("Starting slice {}/{}", slice_id + 1, num_slices);
         }
 
