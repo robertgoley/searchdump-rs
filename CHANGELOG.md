@@ -39,6 +39,18 @@ restore yourself (restore it, compare document counts) before you rely on it. Se
 - **`searchdump-multi --verifyCounts`**. Always re-read dumped or loaded data and fail the
   index when the child's reported record count differs.
 
+- **`--restartOnContextLoss N`** (from the 1.0 line, L-804b). A scroll data dump from a cluster
+  into a file restarts from the start, rewriting the file, up to N times when the scroll context
+  is lost (default 0 = off). Refused with a usage error for PIT/search_after dumps, `--scrollId`,
+  and outputs other than a file. The scroll-context-lost error suggests a point-in-time dump and
+  this flag; when most failed writes are `cluster_block_exception`s, the exit-3 summary names the
+  block (for a disk flood-stage block it suggests freeing disk and a higher `--retryAttempts`).
+- **`sftp://` inside the container images** (from the 1.0 line, L-810i). Images built with a
+  package manager install the OpenSSH client OpenDAL's SFTP backend runs (`openssh-client` on
+  Debian-based images, `ssh-keysign` setuid bit removed; `openssh-client-default` on Alpine). The
+  COPY-only `dhi-static` image is unchanged. The added Debian OpenSSH/Kerberos CVEs are accepted
+  in SECURITY-CVE.md (owner, 2026-11-14).
+
 ### Changed
 
 - **Refresh cadence (1.1-1).** The writer used to refresh the target after every bulk batch, as
@@ -122,6 +134,21 @@ restore yourself (restore it, compare document counts) before you rely on it. Se
   numbers measured with the old harness are re-measured before any 1.1 comparison. Binaries
   are unchanged.
 
+- **Exit status 4 for transient, rerun-safe failures** (from the 1.0 line, L-804b; behaviour
+  change). A run that still fails after its retries because of the network, HTTP 429 or 5xx, or
+  a lost scroll context now exits 4 instead of 1 when nothing was committed that a rerun would
+  duplicate. A restore that already sent documents without `_id`, and every permanent failure,
+  still exit 1; 0, 2, 3, 130 and 143 are unchanged. `searchdump-multi` keeps its own codes.
+- **`--httpAuthFile` wins over every other credential source** (from the 1.0 line, L-645b;
+  behaviour change). Its `user=`/`password=` pair is used for both directions even when the URL,
+  `--input-*`/`--output-*`/`--username`/`--password` flags or `SEARCHDUMP_*` variables also give
+  credentials; a warning names the sources it replaced, never their values.
+- **Restore CPU and memory** (from the 1.0 line, L-808n to L-808r). memchr line splitting, one
+  checked parse per document, the encoded batch moved (not copied) into the bulk request,
+  pre-sized file batch buffers, and batches shared as `Bytes` through the sink. On 1.0 these cut
+  100k-doc restore CPU by about half and peak RSS by about 17%; on 1.1 they were merged into the
+  1.1-6 encode/send pipeline (not re-measured with the PIT batch).
+
 ### Fixed
 
 - **No whole-cluster refresh (1.1-2).** A restore with no output index (documents keep their
@@ -133,8 +160,25 @@ restore yourself (restore it, compare document counts) before you rely on it. Se
   this case (`_data.js` `reindex()` posts `${base.url}/_refresh`); this is a deliberate
   difference. The data visible after the run is the same. NODE-DIFFERENCES.md #25.
 
+- **Scroll dumps that pass the open scroll limit** (from the 1.0 line, L-809). "Too many scroll
+  contexts" (`search.max_open_scroll_context`) is no longer retried: exit 1 at once, naming the
+  setting, `--slices` and the point-in-time dump.
+- **HTTP 413 names the limit** (from the 1.0 line, L-810). The empty-bodied 413 now says the
+  request is larger than `http.max_content_length` and suggests a lower `--maxBulkBytes`.
+- **Routed documents into a data stream are explained once** (from the 1.0 line, L-812). A data
+  stream without `data_stream.allow_custom_routing: true` refuses documents that carry a routing
+  value; the restore warns once per run (shared across `--concurrency` workers) instead of only
+  listing item errors. Still exit 3.
+- **The final HTTP 429 names the retry and load knobs** (from the 1.0 line, L-804a).
+- **A lost scroll context names the point-in-time way out** (from the 1.0 line, L-804c): the
+  context-lost error suggests `--searchAfter --pit` and `--restartOnContextLoss N`; exit 4.
+
 ### Upgrade notes
 
+- **Exit status 4.** Scripts that test for exactly 1 should also accept 4 (transient, safe to
+  rerun). Scripts that treat any non-zero status as failure are unaffected.
+- **`--httpAuthFile`.** If you pass an auth file together with URL or flag credentials, the file
+  now wins.
 - **Refresh default.** Scripts that need documents to become searchable after every batch
   should pass `--refreshInterval=0`. `--noRefresh` is unchanged and wins over
   `--refreshInterval`.

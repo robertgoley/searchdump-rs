@@ -1,5 +1,25 @@
 # Cold-start handoff: release/1.1 and the beta1 perf suite
 
+**Today's 1.0-line fixes merged into 1.1 (2026-11-14, owner decision t91u).** Cherry-picked from `main`
+(`-x` trailers) on top of `b849877`: L-645b `8798ac5`, L-804a `8bcc92c`, L-808n `b158898`, L-810i `15f049f`,
+L-808o `b1af6c0`, L-808p `7c5391f`, L-808q `f875663`, L-808r `1f528d7`, L-804b `7e6b7e6`, L-809 `7b89522`,
+L-810 `311097c`, L-812 `3552a8b`, L-804c `20e3832`. The main-only tracking docs (TESTING-*, PROGRESS, RESUME,
+handoff SHA256SUMS) were left as they are on this branch, and main's CHANGELOG entries were rewritten into the
+1.1 section. Code conflicts, all in `src/pipeline/bulk.rs` against the 1.1-6 encode/send pipeline: L-808n (1.1-6
+already split lines with memchr; `nonempty_lines` and the depth shortcut added), L-808o (`check_and_parse` /
+`encode_top` wired into `encode_batch`, 1.1-4 `batch_indices` kept), L-808p (move-not-copy in `send_batch`),
+L-808r (`write_batch(Bytes)` feeds `encode_batch` / `process_batch` without `copy_from_slice`), L-804b
+(`rerun_safety` on the `send_batch` error path that keeps the written-index bookkeeping; the 1.1-7 stats-file
+test gets `..Default::default()`), L-812 (the routing hint uses 1.1-6's shared `Arc<AtomicBool>`, so it is
+printed once across all `--concurrency` workers; on `main` each worker has its own flag). README: the L-810i SFTP
+text replaces the 1.0.0-beta1 known-issue paragraphs. Not re-measured with the PIT batch.
+Tests on the merged tree: fmt, strict clippy, unit/contract/chaos 537 passed 0 failed; `scripts/it/run.sh` with
+the isolated podman store: es819-plain (8.19.23), elasticsearch-plain (9.1.2), opensearch-plain (2.19.7) and
+es710-plain (7.10.2) 90 passed, 0 failed, 1 ignored each (es710 run alone with a fresh cross-engine directory).
+Still open for 1.1: the five item checks below, 1.1-10 (FEATURES-TODO `13c0725`), the examples update, the
+16-engine RC run (planned on kvmsvr1), and the owner's call on the `security` image job ("undocumented
+executables" pulled in by openssh-client since L-810i).
+
 **kvmsvr1 confirmation (2026-11-14 16:04 America/New_York).** A second full PIT
 batch on harness `c4b1b34` (before 1.1-4a) passed 27/27, including beta1 on
 es710, es819 and os3, with Node 6.125.1 on the beta1 step. Report:
@@ -99,7 +119,7 @@ beta1-suite notes live in `/workspace/fix-wt/project/HANDOFF-perf-20261111.md`
    Do not start cargo, PIT, or the ES 9 reruns while it holds port 19232.
 5. On `/workspace/rel-1.1`, run `git status` and `git log --oneline --grep='^fixup!'`.
    Fold any `fixup!` commits (section 2) *before* `pit.sh list|check|build`.
-6. When the 16-engine suite is idle, do the ES 9 targeted reruns
+6. (Done 2026-11-13 in `bcc655c` on `main`.) When the 16-engine suite is idle, do the ES 9 targeted reruns
    (section 5), aggregate the beta1 report, tell Robert, then start PIT
    (section 3). 1.0.0 stays stable: no backports.
 
@@ -384,44 +404,15 @@ and push to `main` only after a fetch and rebase. Then summarize for Robert.
 
 ---
 
-## 5. Pending ES 9 edge reruns
+## 5. ES 9 edge reruns (done)
 
-Source of truth: `/workspace/fix-wt/project/HANDOFF-perf-20261111.md`
-(updated in `841f374` on local `fixwork`, ahead of `origin/main` by 1 at
-snapshot; not on `release/1.1`). These are harness stalls, not searchdump
-bugs. Do **not** rerun while `run-all.sh` is running. Use the same env
-(isolated podman, port 19232). The seed-retry harness (`0847643`,
-`PERF_HTTP_TIMEOUT`, one retry after dropping a partial index) is in
-`fix-wt` and should be live for these reruns. Check `--dry-run` for exact
-case IDs / profile names before running.
-
-1. elasticsearch-plain (ES 9.1.2), dir `20261111T183358-2515936`: 35 PASS,
-   2 FAIL (`dump-edge`, `restore-edge`: `dataset edge: timed out`). The
-   Python seeder's `urlopen(timeout=300)` stalled; no searchdump command
-   ran for the edge dataset. The later `many` dataset seeded and passed.
-   Same edge cases passed on ES 7.10 / 7.17 / 8 / 8.19.
-
-   ```bash
-   . /workspace/perf-b1/env.sh
-   cd /workspace/fix-wt
-   python3 scripts/perf/suite.py --host-tools --tier L0 --place box --reps 3 \
-     --engines elasticsearch-plain --cases dump-edge,restore-edge
-   ```
-
-2. elasticsearch-secure (ES 9.1.2 TLS), dir `20261111T192136-2562801`:
-   `dump-zstd` / searchdump / rep 0 failed `edverify` exit **2** (error,
-   not a document-set diff); no `verify-dump-zstd-rs-0.json` was written.
-   The searchdump run itself was clean (exit 0, 100000 docs, 0.70 s).
-   Timing shows a ~6.5 min gap = one 300 s edverify scroll/HTTP timeout
-   against the ES 9 secure node. The output file was overwritten by
-   `dump-split-zstd`, so it cannot be re-diffed after the fact.
-
-   ```bash
-   . /workspace/perf-b1/env.sh
-   cd /workspace/fix-wt
-   python3 scripts/perf/suite.py --host-tools --tier L0 --place box --reps 3 \
-     --engines elasticsearch-secure --cases dump-zstd,restore-zstd
-   ```
+**Done on `main` in `bcc655c` (2026-11-13 00:13 America/New_York).** The isolated reruns of the
+three ES 9.1.2 failures all passed: elasticsearch-plain `dump-edge` / `restore-edge` (the seeder
+stalls) and elasticsearch-secure `dump-zstd` (the edverify scroll timeout). The re-aggregated
+`scripts/perf/results/v1.0.0-beta1-L0.md` on `main` has 576 PASS, 0 FAIL and the same 2.01x
+median versus Node, so the beta1 baseline is complete for every engine. Listing these reruns as
+pending or deferred on 2026-11-14 was a tracking error; nothing is left to run here. The
+commands that were used are in `project/HANDOFF-20261112.md` on `main`.
 
 ---
 

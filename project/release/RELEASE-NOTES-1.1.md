@@ -43,6 +43,12 @@ See [Disclaimer](../../README.md#disclaimer).
   longer read back just to fill the manifest. Ctrl-C now stops running children. `--verifyCounts`
   keeps the old full re-read when you want it.
 
+- **Today's 1.0-line fixes are included** (merged 2026-11-14): exit status 4 for transient
+  failures that are safe to rerun, `--httpAuthFile` winning over every other credential source,
+  `--restartOnContextLoss`, the OpenSSH client for `sftp://` in the container images, about half
+  the restore CPU, and clearer errors for the open scroll limit, HTTP 413 and routed documents
+  sent to a data stream.
+
 ## New flags and defaults
 
 | Flag | Default | Tool | Meaning |
@@ -53,6 +59,7 @@ See [Disclaimer](../../README.md#disclaimer).
 | `--sliceCap=auto\|min\|total\|false` | `auto` | `searchdump` | A scroll dump lowers `--slices` to the primary-shard count of the input indices (one shard: unsliced) and prints a warning. `auto` (`true` is an alias) picks the count from the cluster version: the total on Elasticsearch 7.11–9.4, the smallest on Elasticsearch 5.0–7.10, 9.5+, OpenSearch and undetectable versions. `min` / `total` force one; `false` keeps the number you passed. |
 | `--sliceField=<field>` | unset | `searchdump` | Slice on this numeric or date field with doc values, instead of `_id`. The mapping is checked first; a missing, non-numeric, or `doc_values:false` field is an error before the first search. Using this flag turns the shard-count cap off. |
 | `--verifyCounts` | off | `searchdump-multi` | Always re-read dumped or loaded data and fail the index when the child's reported record count differs. |
+| `--restartOnContextLoss N` | `0` (off) | `searchdump` | Restart a scroll data dump into a file from the start, up to N times, when the scroll context is lost. Not for PIT/search_after, `--scrollId`, or outputs other than a file. |
 
 Related switches that are not CLI flags:
 
@@ -67,6 +74,20 @@ Related switches that are not CLI flags:
 These compare 1.1 with the 1.0 line, including 1.0.0-beta1. Dump files, the
 `multielasticdump.json` manifest, environment variable names, and the compatibility symlinks are
 unchanged.
+
+**From the 1.0 line (merged into 1.1 on 2026-11-14).** These also land on `main` after 1.0.0:
+
+- **Exit status 4** means a transient failure (network, HTTP 429/5xx, lost scroll context) that is
+  safe to rerun once retries are spent. A restore that already sent documents without `_id`
+  still exits 1, because a rerun would index them again.
+- **`--httpAuthFile` wins** over URL credentials, `--input-*`/`--output-*`/`--username`/`--password`
+  and `SEARCHDUMP_*` variables, with a warning that names (never shows) what it replaced.
+- **`sftp://` works in the container images** that have a package manager (OpenSSH client added);
+  `dhi-static` still has no `ssh`.
+- **Clearer errors:** the open scroll limit fails at once with exit 1 and names
+  `search.max_open_scroll_context`; HTTP 413 names `http.max_content_length` and `--maxBulkBytes`;
+  routed documents into a data stream get one warning naming `data_stream.allow_custom_routing`;
+  the final HTTP 429 names the retry and load flags; a mostly-blocked restore names the block.
 
 - **Refresh after every batch is no longer the default.** 1.0 refreshed the target after every
   successful bulk batch. 1.1 refreshes at most every 5 seconds (the clock starts at the first
@@ -148,6 +169,10 @@ No Node compatibility difference (searchdump-only behaviour, or the same request
 ## Upgrade guide
 
 1.1 is the next stable line. These changes are not backported to 1.0.
+
+- **If a script checks for exit status 1 exactly**, also accept 4: it marks a transient failure
+  that is safe to rerun.
+- **If you pass `--httpAuthFile` together with other credentials**, the file now wins.
 
 - **Existing dumps keep working.** NDJSON data files, metadata files, split parts, and
   `multielasticdump.json` are unchanged. `SEARCHDUMP_*` names, the deprecated `ELASTICDUMP_*`
