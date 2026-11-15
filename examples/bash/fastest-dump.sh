@@ -25,6 +25,7 @@ DUMP_ARGS=(
   --output="$(data_file json.zst)"
   --type=data
   --overwrite
+  --serverLimits=auto
   --compressionType=zstd
   --compressionLevel=1
   --esCompress

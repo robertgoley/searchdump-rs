@@ -3,15 +3,10 @@
 # (including a small-heap bitnamilegacy Elasticsearch node) stays under its
 # memory guard.
 #
-# searchdump itself defaults to --limit=100 and --concurrency=1. This script
-# also pins --workers=1 and a 64 MB response cap.
-#
-# If you switch this to searchdump-multi, do not rely on its defaults: on
-# 1.0.0 every data child gets --limit=5000 and --maxResponseMb=0, which
-# can 429 or OOM a small heap even with one thread and one shard. Pass
-# -- --limit=500 --maxResponseMb=64 or --noDefaultDataFlags (1.1.0's defaults
-# are safe). See
-# examples/README.md and FEATURES-TODO.md item 1.1-10.
+# 1.2: --serverLimits=min reads the node's heap and breakers and keeps every page within half of
+# what auto would use (a fragile or shared cluster). searchdump defaults to --limit=100 and
+# --concurrency=1; this script also pins --workers=1 and a 64 MB response cap (the 1.1 manual
+# recipe, kept because it is already small; min only lowers the page further when needed).
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=./_common.sh
@@ -31,5 +26,6 @@ rerun_on_4 "${SEARCHDUMP_BIN}" \
   --workers=1 \
   --concurrency=1 \
   --maxResponseMb=64 \
+  --serverLimits=min \
   "${INPUT_CLUSTER_FLAGS[@]}"
 echo "wrote $(settings_file), $(mapping_file) and $(data_file json.gz)"

@@ -21,7 +21,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: searchdump
-          image: ghcr.io/robertgoley/searchdump-rs:1.1.0-dhi-debian
+          image: ghcr.io/robertgoley/searchdump-rs:1.2.0-dhi-debian
           imagePullPolicy: IfNotPresent
           command:
             - /bin/sh
@@ -31,7 +31,7 @@ spec:
               searchdump --input="/data/${INDEX}.settings.json" --output="${DEST_ES_URL}/${DEST_INDEX}" --type=settings
               searchdump --input="/data/${INDEX}.mapping.json" --output="${DEST_ES_URL}/${DEST_INDEX}" --type=mapping
               searchdump --input="/data/${INDEX}.data.json.zst" --output="${DEST_ES_URL}/${DEST_INDEX}" --type=data \
-                --limit="${LIMIT}" --concurrency="${CONCURRENCY}" --workers="${WORKERS}" --bufferSize=32 --noRefresh --esCompress
+                --limit="${LIMIT}" --concurrency="${CONCURRENCY}" --workers="${WORKERS}" --bufferSize=32 --noRefresh --esCompress --serverLimits=auto
           env:
             - name: LIMIT
               value: "2000"

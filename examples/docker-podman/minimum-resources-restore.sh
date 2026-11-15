@@ -19,5 +19,5 @@ run_searchdump output \
   --input="/data/${INDEX}.data.json.gz" \
   --output="${DEST_ES_URL}/${DEST_INDEX}" \
   --type=data \
-  --limit=100 --concurrency=1 --workers=1 --maxBulkBytes=5mb
+  --limit=100 --concurrency=1 --workers=1 --maxBulkBytes=5mb --serverLimits=min
 echo "restored ${INDEX} -> ${DEST_ES_URL}/${DEST_INDEX}"

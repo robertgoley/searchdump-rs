@@ -1,0 +1,122 @@
+# Safe simple searchdump-multi dump (1.2): NO page, bulk or worker flags. --serverLimits (default
+# auto) probes once, reads every index's document size in one call and chooses pages and how many
+# indices run at once. searchdump-multi has no --ca: for a private CA mount the bundle and set
+# SSL_CERT_FILE. Credentials only from Secret searchdump-es (keys username, password).
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: searchdump-safe-simple-multi-dump
+spec:
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 86400
+  activeDeadlineSeconds: 86400
+  template:
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        # preflight: prints the cluster's limits and the sizes it will use; exit 2 (a value you set
+        # is above them) fails the Job before any data moves. A fallback (no monitor privilege,
+        # serverless) still exits 0.
+        - name: preflight
+          image: ghcr.io/robertgoley/searchdump-rs:1.2.0-dhi-debian
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+            - -ceu
+          args:
+            - |
+              searchdump-multi --direction=dump --input="${ES_URL}" --output=/data --match="${MATCH}" --serverLimits=check
+          env:
+            - name: ES_URL
+              value: http://elasticsearch.default.svc:9200
+            - name: MATCH
+              value: "^logs-"
+            - name: SERVER_LIMITS
+              value: auto
+            - name: SEARCHDUMP_INPUT_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: searchdump-es
+                  key: username
+            - name: SEARCHDUMP_INPUT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: searchdump-es
+                  key: password
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: "2"
+              memory: 1Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: dump
+              mountPath: /data
+            - name: tmp
+              mountPath: /tmp
+      containers:
+        - name: searchdump
+          image: ghcr.io/robertgoley/searchdump-rs:1.2.0-dhi-debian
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+            - -ceu
+          args:
+            - |
+              searchdump-multi --direction=dump --input="${ES_URL}" --output=/data \
+                --match="${MATCH}" --serverLimits="${SERVER_LIMITS}"
+          env:
+            - name: ES_URL
+              value: http://elasticsearch.default.svc:9200
+            - name: MATCH
+              value: "^logs-"
+            - name: SERVER_LIMITS
+              value: auto
+            - name: SEARCHDUMP_INPUT_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: searchdump-es
+                  key: username
+            - name: SEARCHDUMP_INPUT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: searchdump-es
+                  key: password
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: "2"
+              memory: 1Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: dump
+              mountPath: /data
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: dump
+          persistentVolumeClaim:
+            claimName: searchdump-dumps
+        - name: tmp
+          emptyDir: {}

@@ -1,21 +1,32 @@
 #!/usr/bin/env bash
 # Load a searchdump-multi dump directory from the mounted volume, including
-# split parts. --skipExisting: set SKIP_EXISTING=1. Bulks are capped at
-# MAX_BULK_BYTES (default 16mb) so a small-heap target does not answer 429.
+# split parts. --skipExisting: set SKIP_EXISTING=1. 1.2: bulk sizes come from the target
+# (--serverLimits=${SERVER_LIMITS:-auto}); manual override (warns above the target's limits):
+# LIMIT, CONCURRENCY, MAX_BULK_BYTES, PARALLEL (the 1.1 small-heap recipe: LIMIT=500
+# MAX_BULK_BYTES=16mb PARALLEL=1). SERVER_LIMITS=off restores the 1.1.0 sizes.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=./_common.sh
 source "${ROOT}/_common.sh"
 
-: "${PARALLEL:=2}"
-: "${LIMIT:=500}"
+: "${SERVER_LIMITS:=auto}"
+: "${PARALLEL:=}"
 
 MULTI=(
   --direction=load
   --input=/data
   --output="${DEST_ES_URL}"
-  --parallel="${PARALLEL}"
+  --serverLimits="${SERVER_LIMITS}"
 )
+if [[ -n "${PARALLEL}" ]]; then
+  MULTI+=(--parallel="${PARALLEL}")
+fi
+CHILD=()
+for kv in "limit=${LIMIT:-}" "concurrency=${CONCURRENCY:-}" "maxBulkBytes=${MAX_BULK_BYTES:-}"; do
+  if [[ -n "${kv#*=}" ]]; then
+    CHILD+=(--"${kv}")
+  fi
+done
 if [[ -n "${SKIP_EXISTING:-}" ]]; then
   MULTI+=(--skipExisting)
 fi
@@ -25,9 +36,5 @@ fi
 if [[ -n "${SUFFIX:-}" ]]; then
   MULTI+=(--suffix="${SUFFIX}")
 fi
-run_searchdump_multi multi "${MULTI[@]}" -- \
-  --limit="${LIMIT}" \
-  --concurrency="${CONCURRENCY:-2}" \
-  --maxBulkBytes="${MAX_BULK_BYTES:-16mb}" \
-  --maxResponseMb="${MAX_RESPONSE_MB:-64}"
+run_searchdump_multi multi "${MULTI[@]}" ${CHILD[@]+-- "${CHILD[@]}"}
 echo "loaded ${DUMP_DIR} -> ${DEST_ES_URL}"

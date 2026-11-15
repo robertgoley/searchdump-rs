@@ -116,6 +116,21 @@ The `searchdump-multi` manifest keeps its file name `multielasticdump.json`, so 
 
 ## Quick usage
 
+### Safe simple (recommended, 1.2)
+
+No sizing flags: `--serverLimits=auto` (the default) reads the cluster's heap, breakers and body
+limit once and sizes pages, bulks and `searchdump-multi`'s parallelism from them. Check first; exit
+2 means a value you set is above the cluster's limits:
+
+```bash
+searchdump-multi --direction=dump --input=https://es:9200 --output=/backup --match='^logs-' --serverLimits=check
+searchdump-multi --direction=dump --input=https://es:9200 --output=/backup --match='^logs-'
+searchdump-multi --direction=load --input=/backup --output=https://es2:9200
+```
+
+`--serverLimits=min` for a fragile or shared cluster, `--serverLimits=off` for the 1.1.0 sizes.
+Ready-made scripts and Jobs: [examples/README.md#safe-simple-recommended](examples/README.md#safe-simple-recommended).
+
 ### searchdump
 
 Replace `elasticdump` with `searchdump`; the flags are spelled the same (`--input-index`, `--fsCompress`,
@@ -542,11 +557,19 @@ searchdump-multi --direction=load --input=/data/logs --output=https://dst:9200 -
   `--prefix`/`--suffix` rename targets (indices and streams, not cluster-wide items).
 - `--parallel` (default 2) indices at a time, started in name order (`--order desc` reverses it); `--interval=MS` (default 0) is the least time between starting one
   index and the next, as Node's `--interval`.
-- Data runs get `--limit=1000 --scrollTime=10m --retryAttempts=5 --retryDelay=2000 --timeout=300000 --maxBulkBytes=16mb`, and searchdump's
-  default 256 MB response cap (`--maxResponseMb`) applies (since 1.1, item 1.1-10; 1.0 used `--limit=5000 --maxResponseMb=0`,
-  which could take down a small-heap cluster). A dump of an index whose documents average more than 16 KB stored
-  (`_stats` primaries) uses fewer documents per page, about 16 MB stored per page, and prints a note
-  (`--noDefaultDataFlags` drops them); anything after `--` is passed to every data run, and a flag given there replaces the default of the same name (`-- --limit=200`; an explicit `--limit` also turns the per-index page size off). Credentials:
+- Data runs are sized from the cluster (1.2, `--serverLimits`, default `auto`; see [Server limits](#server-limits-serverlimits)):
+  the parent probes the cluster once (node heap, breakers, indexing pressure, `http.max_content_length`, thread
+  pools) and reads every selected index's primary docs and stored bytes in **one** `_stats` call, then gives each
+  data run `--limit=N --maxBulkBytes=M --serverLimits=off` (up to 5000 small documents per page when the heap has
+  room, fewer for large documents or a small heap; fewer indices at once before smaller pages). A note names any
+  index that gets fewer than 1000 per page. Data runs also get `--scrollTime=10m --retryAttempts=5 --retryDelay=2000
+  --timeout=300000`. `--serverLimits=off` gives exactly the 1.1 defaults (`--limit=1000`, fewer for documents above
+  16 KB stored, `--maxBulkBytes=16mb`, searchdump's 256 MB response cap); when the probe is refused (no `monitor`
+  privilege), missing (serverless, a proxy) or slow (5 s), the run says why on one line and uses those 1.1 defaults.
+  `--noDefaultDataFlags` drops all of them (and implies `off`); anything after `--` is passed to every data run, and a
+  flag given there replaces the computed one of the same name (`-- --limit=200`), with a warning when it is above
+  what the cluster's limits allow. The manifest records the limits (`server_limits`) and each index's sizes
+  (`sizing`). Credentials:
   `SEARCHDUMP_INPUT_USERNAME`/`_PASSWORD` and `SEARCHDUMP_OUTPUT_USERNAME`/`_PASSWORD`, or `--httpAuthFile`.
 - Per-run logs go to `--logDir` (default a temp dir; one log per data part); a failure prints the last lines.
   `--dryRun` lists what would run. Exit status: 0 all done, 1 any item failed or nothing matched, 2 usage error,
@@ -1089,6 +1112,36 @@ checked against the mapping) slices on that field instead of `_id` and is not ca
 read (no `view_index_metadata` privilege) the slices are used as given, with a warning. PIT (`--searchAfter --pit`)
 tolerates more slices than shards and is never capped. Keep `--workers` ≥ `--slices`. Sliced output does not keep a global document order.
 `scripts/benchmark/compare-with-elasticdump.sh` (from upstream elasticdump-rs) compares both tools on your own cluster.
+
+### Server limits (`--serverLimits`)
+
+New in 1.2 for `searchdump` and `searchdump-multi`. `--serverLimits=auto` (the default) reads the cluster's limits
+once at the start (read-only: `_nodes/stats/jvm,breaker,indexing_pressure`, `_nodes/settings` for
+`http.max_content_length` when loading, `_cat/thread_pool` for multi; each answer filtered to a few fields, all at
+once, at most 5 s) and sizes requests from the smallest data node:
+
+| Size | From | `auto` | `min` |
+|---|---|---|---|
+| page response (dump) | parent-breaker headroom (limit − in use), request breaker | ¼ of the headroom per page, ½ in flight | half of `auto` |
+| documents per page | page bytes ÷ (average stored document × 3) | up to 5000 (multi) or your `--limit` (searchdump never raises it) | half |
+| bulk request (load) | indexing pressure, `http.max_content_length` − 1 MB, 10 MiB on AWS OpenSearch Service | ½ of indexing pressure over the workers, ≤ 100 MB | half |
+| multi workers | the largest index's page against the in-flight budget | `--parallel` is the upper bound; fewer large-document indices at once | — |
+
+- `--serverLimits=off` keeps the 1.1 sizes exactly (no probe).
+- `--serverLimits=check` prints the limits and the sizes it would use and exits 0 without moving data; it exits 2
+  when a value you gave (`--limit`, `--maxBulkBytes`, `--maxResponseMb`, or `-- --limit` for multi) is above them.
+  Run it once against a new cluster.
+- A value you set yourself is never changed; `auto` only warns when it is above the limits.
+- The limits are a snapshot: a node that becomes busy later is handled by the 429 handling of 1.2 (a search refused
+  by a circuit breaker halves the page for the rest of the run; a bulk refused as too large is split in half and
+  later bulks are kept at that size; a full queue is retried as before).
+- Users without the `monitor` cluster privilege, OpenSearch Serverless, and proxies that hide `_nodes` get a one-line
+  fallback note and the 1.1 sizes; on AWS OpenSearch Service bulks stay at or below 10 MiB unless you give
+  `--maxBulkBytes`.
+
+`auto` is the default and `min`'s margin is half of `auto` provisionally, pending the owner's answers to
+ROADMAP-1.2 section 9; an opt-in `automax` that also grows sizes is designed but not implemented
+(ROADMAP-1.2 section 13).
 
 ## Testing
 

@@ -28,7 +28,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: searchdump
-          image: ghcr.io/robertgoley/searchdump-rs:1.1.0-dhi-debian
+          image: ghcr.io/robertgoley/searchdump-rs:1.2.0-dhi-debian
           imagePullPolicy: IfNotPresent
           command:
             - /bin/sh
@@ -37,7 +37,7 @@ spec:
             - |
               searchdump --input="${ES_URL}/${INDEX}" --output="/data/${INDEX}.settings.json" --type=settings --overwrite --limit=100 --workers=1 --concurrency=1 --maxResponseMb=64
               searchdump --input="${ES_URL}/${INDEX}" --output="/data/${INDEX}.mapping.json" --type=mapping --overwrite --limit=100 --workers=1 --concurrency=1 --maxResponseMb=64
-              searchdump --input="${ES_URL}/${INDEX}" --output="/data/${INDEX}.data.json.gz" --type=data --overwrite --fsCompress --limit=100 --workers=1 --concurrency=1 --maxResponseMb=64
+              searchdump --input="${ES_URL}/${INDEX}" --output="/data/${INDEX}.data.json.gz" --type=data --overwrite --fsCompress --limit=100 --workers=1 --concurrency=1 --maxResponseMb=64 --serverLimits=min
           env:
             - name: ES_URL
               value: "http://elasticsearch.default.svc:9200"
