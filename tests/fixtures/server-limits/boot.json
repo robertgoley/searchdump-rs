@@ -1,0 +1,107 @@
+{
+ "es710-1024m": {
+  "booted": true,
+  "seconds": 8.4,
+  "version": "elasticsearch 7.10.2"
+ },
+ "es710-256m": {
+  "booted": true,
+  "seconds": 8.4,
+  "version": "elasticsearch 7.10.2"
+ },
+ "es710-384m": {
+  "booted": true,
+  "seconds": 8.4,
+  "version": "elasticsearch 7.10.2"
+ },
+ "es819-1024m": {
+  "booted": true,
+  "seconds": 16.6,
+  "version": "elasticsearch 8.19.23"
+ },
+ "es819-256m": {
+  "booted": true,
+  "seconds": 16.6,
+  "version": "elasticsearch 8.19.23"
+ },
+ "es819-384m": {
+  "booted": true,
+  "seconds": 16.5,
+  "version": "elasticsearch 8.19.23"
+ },
+ "es861-1024m": {
+  "booted": true,
+  "seconds": 10.5,
+  "version": "elasticsearch 8.6.1"
+ },
+ "es861-256m": {
+  "booted": true,
+  "seconds": 8.4,
+  "version": "elasticsearch 8.6.1"
+ },
+ "es861-384m": {
+  "booted": true,
+  "seconds": 10.5,
+  "version": "elasticsearch 8.6.1"
+ },
+ "es912-1024m": {
+  "booted": true,
+  "seconds": 18.6,
+  "version": "elasticsearch 9.1.2"
+ },
+ "es912-256m": {
+  "booted": true,
+  "seconds": 18.6,
+  "version": "elasticsearch 9.1.2"
+ },
+ "es912-384m": {
+  "booted": true,
+  "seconds": 18.6,
+  "version": "elasticsearch 9.1.2"
+ },
+ "os13-1024m": {
+  "booted": true,
+  "seconds": 6.4,
+  "version": "opensearch 1.3.20"
+ },
+ "os13-256m": {
+  "booted": true,
+  "seconds": 8.4,
+  "version": "opensearch 1.3.20"
+ },
+ "os13-384m": {
+  "booted": true,
+  "seconds": 6.4,
+  "version": "opensearch 1.3.20"
+ },
+ "os2-1024m": {
+  "booted": true,
+  "seconds": 8.4,
+  "version": "opensearch 2.19.7"
+ },
+ "os2-256m": {
+  "booted": true,
+  "seconds": 8.4,
+  "version": "opensearch 2.19.7"
+ },
+ "os2-384m": {
+  "booted": true,
+  "seconds": 8.4,
+  "version": "opensearch 2.19.7"
+ },
+ "os3-1024m": {
+  "booted": true,
+  "seconds": 16.9,
+  "version": "opensearch 3.9.0"
+ },
+ "os3-256m": {
+  "booted": true,
+  "seconds": 14.6,
+  "version": "opensearch 3.9.0"
+ },
+ "os3-384m": {
+  "booted": true,
+  "seconds": 14.7,
+  "version": "opensearch 3.9.0"
+ }
+}

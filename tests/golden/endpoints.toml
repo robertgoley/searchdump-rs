@@ -145,6 +145,13 @@ path = "/_cluster/health(/[^/]+)?$"
 reads = []
 
 [[endpoint]]
+id = "E22"
+title = "1.2 --serverLimits probe (node stats, node settings, thread pools, index docs/store stats)"
+method = ["GET"]
+path = "(/_nodes/(stats|settings)(/[^/]+)*|/_cat/thread_pool(/[^/]+)?|/_stats/docs,store)$"
+reads = ["nodes?:object"]
+
+[[endpoint]]
 id = "E12"
 title = "index get/create/delete (--type index, target creation)"
 method = ["GET", "PUT", "DELETE"]
