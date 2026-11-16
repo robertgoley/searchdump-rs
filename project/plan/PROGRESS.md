@@ -259,6 +259,7 @@ Start: 2026-10-29 13:05 EDT at `511a6f5`.
 | L-825 | done | bc1338c | 1.2 plan: safe-simple examples with --serverLimits as the only sizing option (1.2-1h, section 12) |
 | L-826 | done | 47a73cc | 1.2 handoff (project/HANDOFF-1.2.md) for the other setup; release/1.2 cut from this commit |
 | L-827 | done | 3fc73e5 | 1.3 review item: ES 8.6 multi-restore-p8 re-created-index failure (REVIEW-1.3.md, FEATURES-TODO 1.3-R1); docs only |
+| L-823 | done | this commit (`git log --grep '^L-823'`) | 1.1.0 RC 16-engine L0 perf run on grokbox: 575 PASS, 1 FAIL (ES 8.6 plain multi-restore-p8, 1.3-R1); median 0.89 vs beta1; results added after the v1.1.0 tag (docs/results only) |
 | L2-001 | done | 73d38f5 | 1.2-1a: RC multi slowdown not reproducible: the suite runs --noDefaultDataFlags so the 1.1-10 probe and 1000-doc pages never run; 1.1.0 = beta1 (es710-secure multi-dump-p8 0.345 s vs 0.421 s); section 9 PROVISIONAL choices; automax design only (section 13, FEATURES-TODO 1.2-2) (results/local/L2-001.md) |
 | L2-002 | done | 67d8ee6 | 1.2-1b: worker/page matrix on es710/es819 256m/384m with 1.1.0 (12/24 cells pass; fewer workers with full pages most reliable; es710 256m dies, es819 429s) (results/local/L2-002.md) |
 | L2-003 | done | c07e00f | 1.2-1c: 429 page halving (search) and bulk splitting (breaker/indexing-pressure), never grows back; gates + 5 IT profiles pass (results/local/L2-003.md) |

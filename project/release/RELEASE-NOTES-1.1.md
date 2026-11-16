@@ -1,8 +1,8 @@
 # searchdump-rs 1.1.0 release notes
 
-Status: version `1.1.0` (`Cargo.toml`), release candidate verified on 2026-11-15 (the 16-engine L0
-suite, the integration profiles and the low-memory set; `results/local/1.1-rc.md`). Not tagged and not
-published yet: the release date is the day `v1.1.0` is tagged.
+Status: version `1.1.0` (`Cargo.toml`), tagged `v1.1.0`. The 16-engine L0 RC perf results (575 PASS, 1 known
+FAIL: ES 8.6 plain multi-restore-p8, see `project/plan/REVIEW-1.3.md` 1.3-R1) were added after the `v1.1.0` tag, on
+`release/1.1` (`results/local/1.1-rc.md`); no code changed.
 
 The same material is summarised in [`CHANGELOG.md`](../../CHANGELOG.md) under **1.1.0**.
 Known, deliberate differences from Node elasticdump are also in

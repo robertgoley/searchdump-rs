@@ -6,7 +6,7 @@ A one-screen engine coverage matrix (dump, restore, PIT, slices, storage, TLS) i
 
 Every test task with a commit on `main`, oldest first within each group. The commit message is the short result; full results, numbers and findings for each task are in [`project/plan/PROGRESS.md`](project/plan/PROGRESS.md), and the requirement IDs are in [`project/plan/TEST-REQUIREMENTS.md`](project/plan/TEST-REQUIREMENTS.md).
 
-Total: 240 task commits (including follow-up fixes with a letter suffix). Last updated at the release/1.2 merge for 1.2.0 (L-827 on main merged with L2-001..L2-008 from release/1.2).
+Total: 241 task commits (including follow-up fixes with a letter suffix). Last updated at the release/1.2 merge for 1.2.0 (L-827 on main merged with L2-001..L2-008 from release/1.2).
 
 ## Setup and planning (L-0xx)
 
@@ -286,6 +286,7 @@ Total: 240 task commits (including follow-up fixes with a letter suffix). Last u
 | L-825 | bc1338c | 2026-11-15 | 1.2 examples plan (server limits as main sizing option) added (owner t109u) |
 | L-826 | 47a73cc | 2026-11-15 | 1.2 handoff written and release/1.2 cut (owner t112u) |
 | L-827 | 3fc73e5 | 2026-11-16 | Wrote 1.3-R1 review notes for the RC multi-restore-p8 failure on ES 8.6 plain (docs only) |
+| L-823 | this commit | 2026-11-16 | 1.1.0 RC perf results added to release/1.1 after the v1.1.0 tag (results/local/1.1-rc.md); 575 PASS, 1 known FAIL; docs only |
 
 ## Supply-chain scans (Grok Bot)
 
