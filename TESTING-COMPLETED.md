@@ -6,7 +6,7 @@ A one-screen engine coverage matrix (dump, restore, PIT, slices, storage, TLS) i
 
 Every test task with a commit on `main`, oldest first within each group. The commit message is the short result; full results, numbers and findings for each task are in [`project/plan/PROGRESS.md`](project/plan/PROGRESS.md), and the requirement IDs are in [`project/plan/TEST-REQUIREMENTS.md`](project/plan/TEST-REQUIREMENTS.md).
 
-Total: 232 task commits (including follow-up fixes with a letter suffix). Last updated from commit L-826 (`git log -1 --grep '^L-826'`; the next commit fills in its sha).
+Total: 233 task commits (including follow-up fixes with a letter suffix). Last updated from commit L-827 (`git log -1 --grep '^L-827'`; the next commit fills in its sha).
 
 ## Setup and planning (L-0xx)
 
@@ -284,7 +284,8 @@ Total: 232 task commits (including follow-up fixes with a letter suffix). Last u
 | L-822 | 8952185 | 2026-11-15 | 1.1 handoff refreshed and kvmsvr1 perf-run handoff written (owner t103u) |
 | L-824 | 9632a38 | 2026-11-15 | 1.2 server-aware sizing plan written (owner t108u); replaces 1.1-10 defaults in 1.2 |
 | L-825 | bc1338c | 2026-11-15 | 1.2 examples plan (server limits as main sizing option) added (owner t109u) |
-| L-826 | this commit | 2026-11-15 | 1.2 handoff written and release/1.2 cut (owner t112u) |
+| L-826 | 47a73cc | 2026-11-15 | 1.2 handoff written and release/1.2 cut (owner t112u) |
+| L-827 | this commit | 2026-11-16 | Wrote 1.3-R1 review notes for the RC multi-restore-p8 failure on ES 8.6 plain (docs only) |
 
 ## Supply-chain scans (Grok Bot)
 

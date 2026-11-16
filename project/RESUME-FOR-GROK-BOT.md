@@ -112,3 +112,4 @@ The user runs Grok 4.7 locally through the OpenCode CLI. The handoff/ folder (op
 - L-824 (2026-11-15): 1.2 server-aware sizing plan written (owner t108u); replaces 1.1-10 defaults in 1.2
 - L-825 (2026-11-15): 1.2 examples plan (server limits as main sizing option) added (owner t109u)
 - L-826 (2026-11-15): 1.2 handoff written and release/1.2 cut (owner t112u)
+- L-827 (2026-11-16): Wrote 1.3-R1 review notes for the RC multi-restore-p8 failure on ES 8.6 plain (docs only)
