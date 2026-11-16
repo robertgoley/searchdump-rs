@@ -1,7 +1,7 @@
 # searchdump-rs 1.2.0 release notes (DRAFT)
 
 Status: **draft on branch `release/1.2`**, not tagged, not published, `Cargo.toml` still says `1.1.0`.
-ROADMAP-1.2 section 9: 1, 3, 4, 5, 6 and 7 are decided; the `min` margin is still **provisional pending the owner** (marked "provisional" below).
+All ROADMAP-1.2 section 9 questions are decided; the `min` margin will be evaluated again in 1.3.
 The same material is summarised in [`CHANGELOG.md`](../../CHANGELOG.md) under **1.2.0**.
 
 ## Disclaimer
@@ -46,7 +46,7 @@ cluster first and verify every backup independently (restore it, compare counts)
 
 | Flag | Default | Tool | Meaning |
 |---|---|---|---|
-| `--serverLimits=off\|auto\|min\|check` | `auto` | both | See above. `min` uses half of `auto`'s budget (provisional). |
+| `--serverLimits=off\|auto\|min\|check` | `auto` | both | See above. `min` uses half of `auto`'s budget. |
 | data-run `--limit` / `--maxBulkBytes` | from the probe (`auto`); 1000 / 16 MB under `off` | `searchdump-multi` | 1.1-10 fixed defaults are now the `off` profile. |
 
 ## Not in 1.2

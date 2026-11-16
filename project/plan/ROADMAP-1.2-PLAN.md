@@ -267,7 +267,7 @@ that changes in one place.
    **DECIDED (Robert t206u, 2026-11-16): `auto` is the default in 1.2**, trivially switchable (`limits::DEFAULT_MODE`, one line;
    `--serverLimits=off` restores 1.1.0 exactly).
 2. `min` margin: half of `auto` (proposal), or a fixed fraction of the heap?
-   **PROVISIONAL: half of `auto`** (`limits::fractions`). Still open: Robert asked (t206u) what `auto`'s budget is and how it differs from the heap; answered in chat, awaiting his choice.
+   **PROVISIONAL: half of `auto`** (`limits::fractions`). **DECIDED (t211u): 1.2 ships half of `auto`**; the margin is evaluated again in 1.3 (FEATURES-TODO 1.3-E).
 3. Should `check` also be a separate subcommand (`searchdump-multi check-limits`) for discoverability?
    **DECIDED (t206u): no subcommand in 1.2**; `--serverLimits=check` only. Possible 1.3 change (FEATURES-TODO 1.3-A).
 4. User-facing `--pageBytes`, or keep byte paging internal?
