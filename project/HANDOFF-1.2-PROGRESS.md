@@ -1,6 +1,6 @@
 # 1.2 progress note (wip/1.2-sizing; for whoever resumes after an interruption)
 
-Updated: 2026-11-15 08:42 EST (box local time).
+Updated: 2026-11-15 19:40 EST (box local time).
 
 ## Where things are
 - `origin/release/1.2`: L2-001 (73d38f5, 1.2-1a), L2-002 (67d8ee6, 1.2-1b), L2-003 (c07e00f, 1.2-1c),
@@ -65,3 +65,32 @@ containers or /workspace/perf-pit-1.1). Nothing else removed.
 - [ ] 1g L2-008: perf plan: 1.1.0 RC raw data is not on the box (L-823 never landed); compare the 1.2 16-engine
   L0 (--skip-node, reps 3) to the beta1 raw dirs in /workspace/fix-wt/results/perf/20261111T* (1.1.0 = beta1 for
   the suite's multi cases, L2-001) plus a 1.1.0-vs-1.2 back-to-back on es710-secure and es819-plain.
+
+## L2-009 candidate (wip only; NOT on release/1.2; goes into L2-008 or a new L2-NNN after review)
+- chain-1g safe-simple live (14:09-14:10 EST, es710/es819/os2 256m) all FAILED at single-dump-pmc:
+  exit 2, "preflight: explicit flags exceed what the cluster can take", probed=false, then the restore
+  step found no dump file.
+- Root cause: NOT the auto/min explicit-value policy (auto keeps an explicit value with a WARNING; only
+  check exits 2, as ROADMAP-1.2 section 2 says; contract test l2_004 already covers it). The safe-simple
+  preflight runs `searchdump --input=URL/INDEX --output=/dev/null --type=data --serverLimits=check`, and
+  validate() (L-644, TST-BRK-CLI-005) refused /dev/null as "a character device" with the usage exit 2
+  before the probe ran (hence no "server limits" line, probed=false). `_preflight.sh` maps every exit 2
+  to "explicit flags exceed". Affected: bash + docker-podman safe-simple-dump.sh and
+  kubernetes/safe-simple-dump.yaml (restore and multi preflights name a cluster/dir and were fine).
+- Fix (wip): src/lib.rs validate() skips check_output_path when --serverLimits=check (check never opens
+  the output); _preflight.sh (bash, docker-podman) and examples/README.md say exit 2 may also be a usage
+  error. Tests: cli_contract l2_009_check_preflight_accepts_dev_null_output (check + /dev/null -> 0;
+  check + --limit 5000 -> 2; auto + /dev/null still refused) and l2_009_safe_simple_dump_example_runs_end_to_end
+  (runs examples/bash/safe-simple-dump.sh against a router mock; both fail without the lib.rs change with
+  the exact live message).
+- Harness /workspace/perf-1.2/live/safe_simple.py (box only): keeps step logs in live/logs-ENGINE-HEAP/
+  (the work dir rm lost the real error) and skips digest/restore after a failed dump. Backup safe_simple.py.bak-*.
+- Rerun after perf (needs a binary with the fix; bin-1.2rc does not have it):
+  build release in the wip tree, then `TREE=/workspace/rel-1.2 BIN=/workspace/rel-1.2/target/release
+  python3 /workspace/perf-1.2/live/safe_simple.py es710 256m 19258` (and es819, os2).
+- es819-plain 3h11m (15:48-19:00): not a 1.2 regression. 148 measured runs total 244 s wall, all exit 0,
+  37 PASS, no 429/retry warnings. Two wall-clock gaps with no tool output: 16:04:24-17:57:36 (inside the
+  restore-split-none warmup, whose own wall_s is 15.9 s) and 18:00:56-18:58:16 (between two harness verify
+  files). wall_s comes from a monotonic timer, so the hours were the VM being paused (dmesg: 20 "crng reseeded
+  due to virtual machine fork"; monotonic uptime 4h18m vs ~13h of wall time since the 05:55 restore).
+  elasticsearch8-secure (50 min) likely the same. Timings stay valid; durations from summary timestamps do not.

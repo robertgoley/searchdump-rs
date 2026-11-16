@@ -257,8 +257,12 @@ fn validate(cli: &Cli, input: &Endpoint, output: &Endpoint) -> Result<()> {
         return Err(usage("--fileSize and --maxRows cannot be combined"));
     }
     // TST-BRK-CLI-005: directories, symlinks, FIFOs/devices and missing
-    // parents are refused before anything is read or sent
-    if let Endpoint::File(p) = output {
+    // parents are refused before anything is read or sent. 1.2 (L2-009):
+    // `--serverLimits=check` stops before the output is opened, so a preflight
+    // may name any output (`/dev/null` included) without a usage error that its
+    // exit 2 would be mistaken for "explicit values exceed the limits".
+    let check_only = cli.server_limits == Some(limits::Mode::Check);
+    if let (Endpoint::File(p), false) = (output, check_only) {
         output::check_output_path(p).map_err(|e| usage(format!("{e:#}")))?;
     }
     if (cli.file_size.is_some() || cli.max_rows.is_some())
