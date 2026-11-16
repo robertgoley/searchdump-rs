@@ -3,7 +3,6 @@ use log::{debug, info};
 use sonic_rs::{JsonValueMutTrait, JsonValueTrait, Value, json};
 
 use crate::cli::SearchType;
-use crate::http::Body;
 
 use super::{
     context::RetrievalContext,
@@ -11,7 +10,7 @@ use super::{
     pit::{PitAbortGuard, SharedPitCoordinator},
     retrieval_task::{
         DumpCancelled, RetryMode, TotalHitsEstimate, abort_shared_pit, ensure_pit_sort,
-        process_response_batch, record_total_hits, send_checked_with_retry,
+        process_response_batch, record_total_hits, send_page_halving,
     },
     slice_state::SliceState,
 };
@@ -73,6 +72,20 @@ fn pit_batch_size(search_body: &Value) -> u64 {
     search_body["size"].as_u64().unwrap_or(0)
 }
 
+/// 1.2-1c: after a page that may have been halved, keep the slice's search body and the
+/// early-finish size in step with the request that was answered.
+fn sync_page_size(state: &mut SliceState, request_body: &Value, batch_size: u64) -> u64 {
+    match request_body.get("size").as_u64() {
+        Some(n) if batch_size != 0 && n != batch_size => {
+            if let Some(obj) = state.search_body.as_object_mut() {
+                obj.insert(&"size", sonic_rs::json!(n));
+            }
+            n
+        }
+        _ => batch_size,
+    }
+}
+
 /// Under `search_after` pagination a page shorter than the requested size
 /// proves the slice is exhausted, so the guaranteed trailing empty round can
 /// be skipped.
@@ -92,7 +105,7 @@ pub(crate) async fn run_pit_slice(
     // are released instead of waiting forever.
     let abort_guard = PitAbortGuard::new(shared_pit.clone());
     ensure_pit_sort(&mut state.search_body, &ctx.pit_sort);
-    let batch_size = pit_batch_size(&state.search_body);
+    let mut batch_size = pit_batch_size(&state.search_body);
 
     if ctx.cancel.is_cancelled() {
         return Err(anyhow::Error::new(DumpCancelled));
@@ -112,19 +125,21 @@ pub(crate) async fn run_pit_slice(
 
     // PIT search_after requests are idempotent (the cursor lives in the
     // request, not on the server), so full retries are safe.
-    let body = Body::sonic(&request_body);
-    let body = &body;
-    let response_bytes = match send_checked_with_retry(
-        ctx.retry,
-        &ctx.cancel,
-        RetryMode::Idempotent,
+    // 1.2-1c: a circuit-breaker 429 halves the page for the rest of the slice
+    let response_bytes = match send_page_halving(
+        ctx,
         state.slice_id,
         "initial search",
-        move || ctx.pit_search(body.clone()),
+        RetryMode::Idempotent,
+        &mut request_body,
+        |body| ctx.pit_search(body),
     )
     .await
     {
-        Ok(bytes) => bytes,
+        Ok(bytes) => {
+            batch_size = sync_page_size(state, &request_body, batch_size);
+            bytes
+        }
         Err(error) => {
             let error = super::retrieval_task::pit_page_failure(error, state.slice_id);
             abort_shared_pit(&Some(shared_pit.clone()), &error);
@@ -228,19 +243,20 @@ pub(crate) async fn run_pit_slice(
                 )
         );
 
-        let body = Body::sonic(&request_body);
-        let body = &body;
-        let next_response_bytes = match send_checked_with_retry(
-            ctx.retry,
-            &ctx.cancel,
-            RetryMode::Idempotent,
+        let next_response_bytes = match send_page_halving(
+            ctx,
             state.slice_id,
             "continuation search",
-            move || ctx.pit_search(body.clone()),
+            RetryMode::Idempotent,
+            &mut request_body,
+            |body| ctx.pit_search(body),
         )
         .await
         {
-            Ok(bytes) => bytes,
+            Ok(bytes) => {
+                batch_size = sync_page_size(state, &request_body, batch_size);
+                bytes
+            }
             Err(error) => {
                 let error = super::retrieval_task::pit_page_failure(error, state.slice_id);
                 abort_shared_pit(&Some(shared_pit.clone()), &error);

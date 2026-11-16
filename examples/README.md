@@ -1,8 +1,10 @@
 # Examples
 
-Worked dump and restore commands for [searchdump-rs](../README.md) 1.1.0. They use only flags
-that also exist in 1.0.0, so they keep working with 1.0.0 binaries and images; the 1.1.0
-behaviours they rely on or mention are marked (see [New in 1.1.0](#new-in-110)).
+Worked dump and restore commands for [searchdump-rs](../README.md) 1.2.0. Start with the
+[safe simple](#safe-simple-recommended) cases: they need no sizing flags. The other cases use
+`--serverLimits` (new in 1.2.0; drop it, and set the sizes by hand, to run them with a 1.1.0 or
+1.0.0 binary or image); the 1.1.0 behaviours they rely on or mention are marked (see
+[New in 1.1.0](#new-in-110)).
 
 These are starting points, not a production runbook. Adjust URLs, index names, resource
 limits and page sizes for your cluster, and test outside production first.
@@ -23,10 +25,9 @@ private file (`chmod 600`), and do not commit the filled copy.
 The default container image in the Kubernetes and Docker/Podman examples is the project's
 dhi.io Debian image with a shell:
 
-- published: `ghcr.io/robertgoley/searchdump-rs:1.1.0-dhi-debian` (published when `v1.1.0` is
-  released; until then use a `:1.0.0-*` tag or a local image, and leave the 1.1.0-only options
-  below off)
-- local `make image` / `scripts/build-image.sh`: `localhost/searchdump-rs:1.1.0` (and
+- published: `ghcr.io/robertgoley/searchdump-rs:1.2.0-dhi-debian` (published when `v1.2.0` is
+  released; until then use a local image, or a `:1.1.0-*` tag without `--serverLimits`)
+- local `make image` / `scripts/build-image.sh`: `localhost/searchdump-rs:1.2.0` (and
   `:latest`)
 
 The image entrypoint is `searchdump`; `searchdump-multi` is next to it. It runs as uid 65532,
@@ -57,7 +58,7 @@ Each case has a dump and a restore (cluster-to-cluster copy is a single run). Sh
 |---|---|---|
 | 0 | done | |
 | 1 | permanent failure (bad URL or credentials, TLS, mapping errors, ...) | fix the cause first |
-| 2 | usage error | fix the command line |
+| 2 | usage error; **since 1.2** also `--serverLimits=check` when a value you set is above the cluster's limits | fix the command line, or lower the value |
 | 3 | finished, but some documents failed to write | read the item errors; rerun only after fixing them |
 | 4 | **since 1.1.0:** a transient failure after all retries (network, HTTP 429/5xx, lost scroll context) where nothing was written that a rerun would duplicate | **safe to rerun** as is, after a pause |
 | 130 / 143 | interrupted (SIGINT / SIGTERM) | rerun |
@@ -67,6 +68,45 @@ wrap each `searchdump` run in `rerun_on_4` (`_common.sh`): on exit 4 they run th
 after `RERUN_DELAY` seconds (default 30). `very-large-index-dump.yaml` does the same with a
 Kubernetes `podFailurePolicy` (retry only exit 4). `searchdump-multi` keeps its own codes (0 all
 done, 1 an item failed or nothing matched, 2 usage, 130 interrupted); rerun it with `--resume`.
+
+## Safe simple (recommended)
+
+Since 1.2, `searchdump` and `searchdump-multi` read the cluster's limits once at the start (heap,
+circuit breakers, indexing pressure, `http.max_content_length`, thread pools) and size every page,
+bulk and, for `searchdump-multi`, how many indices run at once from them (`--serverLimits=auto`,
+the default). The `safe-simple-*` cases pass **no sizing flags at all** and work on a 256 MB-heap
+node and on a large cluster alike:
+
+| Case | bash | Docker/Podman | Kubernetes |
+|---|---|---|---|
+| dump one index | [`safe-simple-dump.sh`](bash/safe-simple-dump.sh) | [`safe-simple-dump.sh`](docker-podman/safe-simple-dump.sh) | [`safe-simple-dump.yaml`](kubernetes/safe-simple-dump.yaml) |
+| restore one index | [`safe-simple-restore.sh`](bash/safe-simple-restore.sh) | [`safe-simple-restore.sh`](docker-podman/safe-simple-restore.sh) | [`safe-simple-restore.yaml`](kubernetes/safe-simple-restore.yaml) |
+| dump many (`searchdump-multi`) | [`safe-simple-multi-dump.sh`](bash/safe-simple-multi-dump.sh) | [`safe-simple-multi-dump.sh`](docker-podman/safe-simple-multi-dump.sh) | [`safe-simple-multi-dump.yaml`](kubernetes/safe-simple-multi-dump.yaml) |
+| restore many | [`safe-simple-multi-restore.sh`](bash/safe-simple-multi-restore.sh) | [`safe-simple-multi-restore.sh`](docker-podman/safe-simple-multi-restore.sh) | [`safe-simple-multi-restore.yaml`](kubernetes/safe-simple-multi-restore.yaml) |
+
+Each one first runs a preflight (`_preflight.sh`, or an init container in Kubernetes):
+`--serverLimits=check` prints the limits it read and the sizes it will use, then exits **0** (go)
+or **2** (a value you set is above what the cluster can take, or a usage error such as a bad
+flag; the message above says which); the script stops on 2 before any data moves. `check` never
+opens the output, so the preflight can name `--output=/dev/null`. `SERVER_LIMITS=min` keeps every page within half of what `auto` would use (a fragile
+or shared cluster); `SERVER_LIMITS=off` reproduces the 1.1.0 sizes exactly and sends no probe.
+
+When the limits cannot be read, the run never fails because of it; it falls back and says why in
+one log line:
+
+| Situation | What it uses |
+|---|---|
+| no `monitor` privilege (HTTP 401/403 on `_nodes/stats`) | the 1.1.0 sizes (`fallback-403`) |
+| OpenSearch Serverless (`*.aoss.amazonaws.com`) or no node stats API (404/410/400/501) | the 1.1.0 sizes (`fallback-serverless`) |
+| node stats slower than 5 s | the 1.1.0 sizes (`fallback-timeout`) |
+| fields hidden by a filter or proxy | the 1.1.0 sizes (`fallback-hidden`) |
+| AWS OpenSearch Service (`*.es.amazonaws.com`, `*.aos.*.on.aws`) | the probe as usual, and bulks never above 10 MiB, even on a fallback |
+
+**When to override.** Set a size yourself only when you know the cluster better than its stats do
+(a dedicated, idle cluster where you want bigger pages, or a proxy in front with a lower body
+limit). A flag you pass always wins; with `auto`/`min` a value above the cluster's limits prints a
+warning (and `check` exits 2). The `minimum-resources-*`, `multi-index-*` and `fastest-*` cases
+below keep a commented manual-override block for that.
 
 ## Cases and tradeoffs
 
@@ -94,6 +134,10 @@ a Bitnami / constrained Elasticsearch or OpenSearch node.
   the index's documents average over 16 KB stored, about 16 MB per page), keep the 256 MB response
   cap, and split loads into 16 MB bulks. `scripts/load/lowheap.py` checks dump and load with these
   defaults on 256 MB and 384 MB heaps (ES 7.10.2, 8.6.1, 8.19.23, 9.1.2).
+- **1.2.0 (`--serverLimits`, default `auto`)** sizes pages and bulks from the node itself, so none of
+  the overrides above are needed: `lowheap.py` passes every 256 MB and 384 MB cell with `auto` on
+  ES 7.10.2, 8.6.1, 8.19.23, 9.1.2 and OpenSearch 1.3, 2 and 3 (results/local/L2-006.md). Use
+  `--serverLimits=min` for a node that is also busy with other work.
 
 Gzip (or zstd at `--compressionLevel=1`) is fine here; the point is the small page size, not the codec.
 
@@ -224,7 +268,7 @@ able to write it (the scripts create the directory and explain the permission op
 
 ```bash
 export ES_URL=http://127.0.0.1:9200 INDEX=logs
-# SEARCHDUMP_IMAGE=localhost/searchdump-rs:1.1.0
+# SEARCHDUMP_IMAGE=localhost/searchdump-rs:1.2.0
 examples/docker-podman/minimum-resources-dump.sh
 ```
 

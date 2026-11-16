@@ -100,6 +100,12 @@ def leak_check(cl, work=None, before=None, expected=(), wait_s=15, contexts=True
     return leak, fails
 
 def tool_path(name):
+    # L2-002: LOAD_BIN_DIR runs another build (e.g. frozen 1.1.0 binaries) against the same harness
+    if os.environ.get("LOAD_BIN_DIR"):
+        p = os.path.join(os.environ["LOAD_BIN_DIR"], name)
+        if os.path.exists(p):
+            return p
+        sys.exit(f"load: {name} not in LOAD_BIN_DIR={os.environ['LOAD_BIN_DIR']}")
     for d in ("release", "it", "debug"):
         p = os.path.join(ROOT, "target", d, name)
         if os.path.exists(p):

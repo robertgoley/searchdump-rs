@@ -11,7 +11,7 @@ use super::{
     extract::BatchMetadata,
     retrieval_task::{
         DumpCancelled, RetryMode, TotalHitsEstimate, cleanup_search_context,
-        process_response_batch, record_total_hits, send_checked_with_retry,
+        process_response_batch, record_total_hits, send_checked_with_retry, send_page_halving,
     },
     slice_state::SliceState,
 };
@@ -84,8 +84,6 @@ pub(crate) async fn run_scroll_slice(
     // context instead of advancing an existing cursor, so full retries are
     // safe. A retry after a lost response can strand the previous attempt's
     // scroll context until its TTL expires; the closure logs that case.
-    let body = Body::sonic(&state.search_body);
-    let body = &body;
     let initial_attempted = &AtomicBool::new(false);
     let slice_id = state.slice_id;
     let response_bytes = if let Some(resume_id) = ctx.resume_scroll_id.as_deref() {
@@ -110,20 +108,22 @@ pub(crate) async fn run_scroll_slice(
         .await
         .map_err(resume_failure)?
     } else {
-        send_checked_with_retry(
-            ctx.retry,
-            &ctx.cancel,
-            RetryMode::Idempotent,
-            state.slice_id,
+        // 1.2-1c: a circuit-breaker 429 halves the page (the scroll's size is fixed by this
+        // request, so every continuation page is the smaller size too).
+        send_page_halving(
+            ctx,
+            slice_id,
             "initial search",
-            move || {
+            RetryMode::Idempotent,
+            &mut state.search_body,
+            move |body| {
                 if initial_attempted.swap(true, Ordering::Relaxed) {
                     debug!(
                         "Slice {}: retrying initial search; a previous attempt whose response was lost may strand a scroll context until its TTL expires",
                         slice_id
                     );
                 }
-                ctx.scroll_search(scroll_ttl, body.clone())
+                ctx.scroll_search(scroll_ttl, body)
             },
         )
         .await?

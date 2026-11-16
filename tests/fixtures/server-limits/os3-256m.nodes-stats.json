@@ -1,0 +1,42 @@
+{
+ "nodes": {
+  "node-id-0": {
+   "breakers": {
+    "parent": {
+     "estimated_size": "145.3mb",
+     "estimated_size_in_bytes": 152378896,
+     "limit_size": "243.1mb",
+     "limit_size_in_bytes": 255013683,
+     "overhead": 1.0,
+     "tripped": 0
+    },
+    "request": {
+     "estimated_size": "16kb",
+     "estimated_size_in_bytes": 16440,
+     "limit_size": "153.5mb",
+     "limit_size_in_bytes": 161061273,
+     "overhead": 1.0,
+     "tripped": 0
+    }
+   },
+   "indexing_pressure": {
+    "memory": {
+     "limit_in_bytes": 26843545
+    }
+   },
+   "jvm": {
+    "mem": {
+     "heap_max_in_bytes": 268435456,
+     "heap_used_percent": 56
+    }
+   },
+   "name": "node-0",
+   "roles": [
+    "cluster_manager",
+    "data",
+    "ingest",
+    "remote_cluster_client"
+   ]
+  }
+ }
+}

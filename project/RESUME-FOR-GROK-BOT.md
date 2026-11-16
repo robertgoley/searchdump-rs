@@ -113,3 +113,10 @@ The user runs Grok 4.7 locally through the OpenCode CLI. The handoff/ folder (op
 - L-825 (2026-11-15): 1.2 examples plan (server limits as main sizing option) added (owner t109u)
 - L-826 (2026-11-15): 1.2 handoff written and release/1.2 cut (owner t112u)
 - L-827 (2026-11-16): Wrote 1.3-R1 review notes for the RC multi-restore-p8 failure on ES 8.6 plain (docs only)
+- L2-001 (2026-11-15): 1.2-1a: RC multi slowdown not reproducible: the suite runs --noDefaultDataFlags so the 1.1-10 probe and 1000-doc pages never run; 1.1.0 = beta1 (es710-secure multi-dump-p8 0.345 s vs 0.421 s); section 9 PROVISIONAL choices; automax design only (section 13, FEATURES-TODO 1.2-2)
+- L2-002 (2026-11-15): 1.2-1b: worker/page matrix on es710/es819 256m/384m with 1.1.0 (12/24 cells pass; fewer workers with full pages most reliable; es710 256m dies, es819 429s)
+- L2-003 (2026-11-15): 1.2-1c: 429 page halving (search) and bulk splitting (breaker/indexing-pressure), never grows back; gates + 5 IT profiles pass
+- L2-004 (2026-11-15): 1.2-1d: --serverLimits=off|auto|min|check probe + budget in searchdump (auto default PROVISIONAL), fallbacks never fail, 63 probe fixtures (all 7 engines boot at 256m); gates + 5 IT profiles pass
+- L2-005 (2026-11-15): 1.2-1e: searchdump-multi: one probe + one _stats call in the parent, worker-first byte budget, 1.1-10 pieces now the off profile, manifest server_limits/sizing; gates (1 known test-helper flake) + 5 IT profiles + live 256m es710/es819 pass
+- L2-007 (2026-11-15): 1.2-1h: safe-simple examples (bash, docker-podman, kubernetes) with a --serverLimits=check preflight, existing cases use --serverLimits=min/auto, README quick usage and Server limits section; shellcheck clean, kubeconform 18/18 valid; live safe-simple cells pending (chain-1g)
+- L2-008 (2026-11-15): 1.2-1g: perf 1.2 vs beta1 (median 0.78x, per-step timers), safe-simple live es710/es819/os2 256m PASS, example fixes (check /dev/null, --fsCompress), gates 0 failed, IT 5/5 profiles, release notes draft

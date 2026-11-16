@@ -164,6 +164,13 @@ pub struct Cli {
     #[arg(long = "statsFile", hide = true)]
     pub stats_file: Option<std::path::PathBuf>,
 
+    /// Extension (1.2): size pages and bulks from the cluster's own limits: off (1.1 fixed
+    /// sizes), auto (default: probe at start and only tighten), min (half of auto's budget, for
+    /// fragile or shared clusters), check (print the limits and sizes, exit 0; exit 2 when an
+    /// explicit --limit/--maxBulkBytes/--maxResponseMb exceeds them)
+    #[arg(long = "serverLimits", value_parser = crate::limits::parse_mode)]
+    pub server_limits: Option<crate::limits::Mode>,
+
     /// Verbose logging, including every HTTP request line
     #[arg(long, num_args = 0..=1, default_missing_value = "true", value_parser = parse_bool)]
     pub debug: Option<bool>,
@@ -293,6 +300,10 @@ pub struct Cli {
     /// Extension: split bulk requests above this many bytes (e.g. 50mb)
     #[arg(long = "maxBulkBytes")]
     pub max_bulk_bytes: Option<String>,
+
+    /// 1.2 `--serverLimits`: bulk bytes chosen from the cluster's limits (not a flag).
+    #[arg(skip)]
+    pub server_bulk_bytes: Option<u64>,
 
     /// Extension: comma-separated settings to drop when restoring settings
     #[arg(long = "excludeSettings")]

@@ -23,7 +23,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: searchdump
-          image: ghcr.io/robertgoley/searchdump-rs:1.1.0-dhi-debian
+          image: ghcr.io/robertgoley/searchdump-rs:1.2.0-dhi-debian
           imagePullPolicy: IfNotPresent
           command:
             - /bin/sh
@@ -37,7 +37,7 @@ spec:
                 extra="--searchAfter --pit --slices=${SLICES}"
               fi
               # shellcheck disable=SC2086
-              searchdump --input="${ES_URL}/${INDEX}" --output="/data/${INDEX}.data.json.zst" --type=data --overwrite \
+              searchdump --input="${ES_URL}/${INDEX}" --output="/data/${INDEX}.data.json.zst" --type=data --overwrite --serverLimits=auto \
                 --compressionType=zstd --compressionLevel=1 --esCompress \
                 --limit="${LIMIT}" --workers="${WORKERS}" --bufferSize=32 --maxResponseMb=256 ${extra}
           env:

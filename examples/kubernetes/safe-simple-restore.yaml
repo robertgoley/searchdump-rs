@@ -1,0 +1,129 @@
+# Safe simple restore of one index (1.2): settings, mapping, then data with NO sizing flags; the
+# bulk size comes from the target's limits (--serverLimits, default auto).
+# Credentials only from Secret searchdump-es (keys username, password).
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: searchdump-safe-simple-restore
+spec:
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 86400
+  activeDeadlineSeconds: 86400
+  template:
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        # preflight: prints the cluster's limits and the sizes it will use; exit 2 (a value you set
+        # is above them) fails the Job before any data moves. A fallback (no monitor privilege,
+        # serverless) still exits 0.
+        - name: preflight
+          image: ghcr.io/robertgoley/searchdump-rs:1.2.0-dhi-debian
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+            - -ceu
+          args:
+            - |
+              searchdump --input="/data/${INDEX}.data.json.gz" --output="${DEST_ES_URL}/${DEST_INDEX}" --type=data --serverLimits=check
+          env:
+            - name: DEST_ES_URL
+              value: http://elasticsearch.default.svc:9200
+            - name: INDEX
+              value: logs
+            - name: DEST_INDEX
+              value: logs
+            - name: SERVER_LIMITS
+              value: auto
+            - name: SEARCHDUMP_OUTPUT_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: searchdump-es
+                  key: username
+            - name: SEARCHDUMP_OUTPUT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: searchdump-es
+                  key: password
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: "2"
+              memory: 1Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: dump
+              mountPath: /data
+            - name: tmp
+              mountPath: /tmp
+      containers:
+        - name: searchdump
+          image: ghcr.io/robertgoley/searchdump-rs:1.2.0-dhi-debian
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+            - -ceu
+          args:
+            - |
+              for t in settings mapping; do
+                searchdump --input="/data/${INDEX}.${t}.json" --output="${DEST_ES_URL}/${DEST_INDEX}" \
+                  --type="${t}" --serverLimits="${SERVER_LIMITS}"
+              done
+              searchdump --input="/data/${INDEX}.data.json.gz" --output="${DEST_ES_URL}/${DEST_INDEX}" \
+                --type=data --serverLimits="${SERVER_LIMITS}"
+          env:
+            - name: DEST_ES_URL
+              value: http://elasticsearch.default.svc:9200
+            - name: INDEX
+              value: logs
+            - name: DEST_INDEX
+              value: logs
+            - name: SERVER_LIMITS
+              value: auto
+            - name: SEARCHDUMP_OUTPUT_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: searchdump-es
+                  key: username
+            - name: SEARCHDUMP_OUTPUT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: searchdump-es
+                  key: password
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: "2"
+              memory: 1Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: dump
+              mountPath: /data
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: dump
+          persistentVolumeClaim:
+            claimName: searchdump-dumps
+        - name: tmp
+          emptyDir: {}

@@ -6,7 +6,7 @@ A one-screen engine coverage matrix (dump, restore, PIT, slices, storage, TLS) i
 
 Every test task with a commit on `main`, oldest first within each group. The commit message is the short result; full results, numbers and findings for each task are in [`project/plan/PROGRESS.md`](project/plan/PROGRESS.md), and the requirement IDs are in [`project/plan/TEST-REQUIREMENTS.md`](project/plan/TEST-REQUIREMENTS.md).
 
-Total: 233 task commits (including follow-up fixes with a letter suffix). Last updated from commit L-827 (`git log -1 --grep '^L-827'`; the next commit fills in its sha).
+Total: 240 task commits (including follow-up fixes with a letter suffix). Last updated at the release/1.2 merge for 1.2.0 (L-827 on main merged with L2-001..L2-008 from release/1.2).
 
 ## Setup and planning (L-0xx)
 
@@ -285,7 +285,7 @@ Total: 233 task commits (including follow-up fixes with a letter suffix). Last u
 | L-824 | 9632a38 | 2026-11-15 | 1.2 server-aware sizing plan written (owner t108u); replaces 1.1-10 defaults in 1.2 |
 | L-825 | bc1338c | 2026-11-15 | 1.2 examples plan (server limits as main sizing option) added (owner t109u) |
 | L-826 | 47a73cc | 2026-11-15 | 1.2 handoff written and release/1.2 cut (owner t112u) |
-| L-827 | this commit | 2026-11-16 | Wrote 1.3-R1 review notes for the RC multi-restore-p8 failure on ES 8.6 plain (docs only) |
+| L-827 | 3fc73e5 | 2026-11-16 | Wrote 1.3-R1 review notes for the RC multi-restore-p8 failure on ES 8.6 plain (docs only) |
 
 ## Supply-chain scans (Grok Bot)
 
@@ -339,3 +339,15 @@ Rootless podman 5.4.2 with `--network=host`, debug build, Rust 1.85.1 (L-809a) a
 | L-810e dhi-debian base refresh and accepted CVEs | New pin `dhi.io/debian-base:trixie-debian13-dev@sha256:94571f3d…` (Docker Hub DHI catalog, pushed 2026-11-08, apt 3.0.4+dhi0) could not be pulled here (no dhi.io login). Isolated podman store (`--root ~/.local/share/edrs-odt-podman`, graphroot verified): dhi-debian rebuilt on the cached previous base (tag override, not committed); `scripts/test-image.sh` all PASS except the base-digest check (expected: the stand-in uses a tag without digest). grype `--fail-on high` with `docker/grype-ignore.dhi-debian.yaml` and trivy with `docker/trivyignore.dhi-debian.yaml`: only CVE-2026-109518 (apt 3.0.3, fixed in the new base) left. check-pins, hygiene and workflow lints pass. Confirming scan on the new digest: CI (`security.yml`, base dhi-debian) | `make scan IMAGE_VARIANT=dhi-debian` |
 | L-810f offline-build toolchain, publishers refresh, SFTP known issue | `scripts/sup/offline-build.sh` (isolated podman store, `docker.io/library/rust:1.99-trixie`, `--network none`): probe network unreachable, `toolchain: 1.99.1-x86_64-unknown-linux-gnu (image default)`, `cargo build --offline --locked --release` finished, `offline-build: OK` (it failed in CI run 42994732897 when rustup tried to download the 1.91.1 pin). `scripts/sup/repro.sh` gets the same guard (no-op in the default dhi.io builder, which has no rustup); the Dockerfile never copies `rust-toolchain.toml`. `supply-chain/publishers.json` regenerated with `publishers.py snapshot` from the CI `sc.json` (331 crates / 189 publishers); `publishers.py diff` reports no changes. shellcheck, check-pins, hygiene and workflow lints pass | `scripts/sup/offline-build.sh`; `scripts/sup/publishers.py diff supply-chain/publishers.json sc.json` |
 | Backblaze B2 | not run: no usable mock (OpenDAL's B2 service authorizes against the fixed `https://api.backblazeb2.com`); real account pending, see TESTING-TODO | `scripts/opendal-tests/b2-real.sh` |
+
+## Release 1.2 (L2-NNN, branch release/1.2)
+
+| Task | Commit | Date | Result |
+|---|---|---|---|
+| L2-001 | 73d38f5 | 2026-11-15 | 1.2-1a: RC multi slowdown not reproducible: the suite runs --noDefaultDataFlags so the 1.1-10 probe and 1000-doc pages never run; 1.1.0 = beta1 (es710-secure multi-dump-p8 0.345 s vs 0.421 s); section 9 PROVISIONAL choices; automax design only (section 13, FEATURES-TODO 1.2-2) |
+| L2-002 | 67d8ee6 | 2026-11-15 | 1.2-1b: worker/page matrix on es710/es819 256m/384m with 1.1.0 (12/24 cells pass; fewer workers with full pages most reliable; es710 256m dies, es819 429s) |
+| L2-003 | c07e00f | 2026-11-15 | 1.2-1c: 429 page halving (search) and bulk splitting (breaker/indexing-pressure), never grows back; gates + 5 IT profiles pass |
+| L2-004 | 6acedfa | 2026-11-15 | 1.2-1d: --serverLimits=off|auto|min|check probe + budget in searchdump (auto default PROVISIONAL), fallbacks never fail, 63 probe fixtures (all 7 engines boot at 256m); gates + 5 IT profiles pass |
+| L2-005 | 9114b8c | 2026-11-15 | 1.2-1e: searchdump-multi: one probe + one _stats call in the parent, worker-first byte budget, 1.1-10 pieces now the off profile, manifest server_limits/sizing; gates (1 known test-helper flake) + 5 IT profiles + live 256m es710/es819 pass |
+| L2-007 | bcacb97 | 2026-11-15 | 1.2-1h: safe-simple examples (bash, docker-podman, kubernetes) with a --serverLimits=check preflight, existing cases use --serverLimits=min/auto, README quick usage and Server limits section; shellcheck clean, kubeconform 18/18 valid; live safe-simple cells pending (chain-1g) |
+| L2-008 | 1f0901e | 2026-11-15 | 1.2-1g: perf 1.2 vs beta1 (median 0.78x, per-step timers), safe-simple live es710/es819/os2 256m PASS, example fixes (check /dev/null, --fsCompress), gates 0 failed, IT 5/5 profiles, release notes draft |
