@@ -25,8 +25,8 @@ private file (`chmod 600`), and do not commit the filled copy.
 The default container image in the Kubernetes and Docker/Podman examples is the project's
 dhi.io Debian image with a shell:
 
-- published: `ghcr.io/robertgoley/searchdump-rs:1.2.0-dhi-debian` (published when `v1.2.0` is
-  released; until then use a local image, or a `:1.1.0-*` tag without `--serverLimits`)
+- published: `ghcr.io/robertgoley/searchdump-rs:1.2.0-dhi-debian` (published with `v1.2.0`;
+  a `:1.1.0-*` tag works only without `--serverLimits`)
 - local `make image` / `scripts/build-image.sh`: `localhost/searchdump-rs:1.2.0` (and
   `:latest`)
 

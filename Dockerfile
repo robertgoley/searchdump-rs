@@ -78,7 +78,7 @@ RUN install -D -m 0755 /out/searchdump /out/root/usr/local/bin/searchdump \
 
 # ----------------------------------------------------------------- base (labels, env)
 FROM ${BASE_IMAGE}:${BASE_TAG} AS base
-ARG VERSION=1.1.0
+ARG VERSION=1.2.0
 ARG VCS_REF=unknown
 ARG BUILD_DATE=unknown
 ARG BASE_IMAGE

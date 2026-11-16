@@ -1,8 +1,8 @@
 # Kubernetes examples
 
 Job manifests that run the [dhi.io Debian image](../../README.md#container-image)
-(`ghcr.io/robertgoley/searchdump-rs:1.1.0-dhi-debian`, published with `v1.1.0`; or a
-locally loaded `localhost/searchdump-rs:1.1.0`). The image entrypoint is `searchdump`;
+(`ghcr.io/robertgoley/searchdump-rs:1.2.0-dhi-debian`, published with `v1.2.0`; or a
+locally loaded `localhost/searchdump-rs:1.2.0`). The image entrypoint is `searchdump`;
 Jobs that need `searchdump-multi` or a short shell loop set `command` accordingly.
 The image runs as uid 65532; every Job sets that user and mounts
 [`pvc.yaml`](pvc.yaml) at `/data`.

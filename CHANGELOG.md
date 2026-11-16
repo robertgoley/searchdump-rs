@@ -5,10 +5,22 @@ a version with a hyphen (`1.0.0-beta1`) is a pre-release. The release workflow
 (`.github/workflows/release.yml`) uses the section for a version as the release notes of its draft
 GitHub release.
 
-## 1.2.0 (draft, unreleased)
+## 1.2.0
 
-Release candidate on branch `release/1.2`; not tagged. User-facing notes:
-[`project/release/RELEASE-NOTES-1.2.md`](project/release/RELEASE-NOTES-1.2.md). Same disclaimer as 1.1.0 below applies.
+Release date: 2026-11-16 (tag `v1.2.0`). User-facing notes, including what `--serverLimits` does and the
+possible 1.3 changes: [`project/release/RELEASE-NOTES-1.2.md`](project/release/RELEASE-NOTES-1.2.md).
+
+### Disclaimer
+
+searchdump-rs is provided "as is", without warranty of any kind, as stated in the MIT license
+(the same warranty disclaimer as the elasticdump-rs code it derives from; Node elasticdump,
+whose behaviour it follows, has the equivalent disclaimer in Apache-2.0, sections 7 and 8).
+The authors are not liable for any damage from its use, including data loss, corruption,
+downtime or service disruption, in production or elsewhere. It has been stable and fast in
+our testing, but no test suite covers every cluster version, configuration, plugin and
+storage backend. Test in a non-production environment first, and verify every backup and
+restore yourself (restore it, compare document counts) before you rely on it. See
+[Disclaimer](README.md#disclaimer).
 
 ### Added
 
@@ -26,8 +38,7 @@ Release candidate on branch `release/1.2`; not tagged. User-facing notes:
 
 ## 1.1.0
 
-Release date: the day `v1.1.0` is tagged (release candidate verified on 2026-11-15; not tagged
-yet). Roadmap: `FEATURES-TODO.md`, "Roadmap: 1.1 release"; order and checks:
+Release date: 2026-11-16 (tag `v1.1.0`; release candidate verified on 2026-11-15). Roadmap: `FEATURES-TODO.md`, "Roadmap: 1.1 release"; order and checks:
 `project/plan/ROADMAP-1.1-PLAN.md`. The user-facing notes, including the upgrade guide, are in
 [`project/release/RELEASE-NOTES-1.1.md`](project/release/RELEASE-NOTES-1.1.md).
 

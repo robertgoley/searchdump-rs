@@ -1,13 +1,15 @@
-# searchdump-rs 1.2.0 release notes (DRAFT)
+# searchdump-rs 1.2.0 release notes
 
-Status: **draft on branch `release/1.2`**, not tagged, not published, `Cargo.toml` still says `1.1.0`.
+Status: **released 2026-11-16** as tag `v1.2.0` (`release/1.2` merged into `main`).
 All ROADMAP-1.2 section 9 questions are decided; the `min` margin will be evaluated again in 1.3.
 The same material is summarised in [`CHANGELOG.md`](../../CHANGELOG.md) under **1.2.0**.
 
 ## Disclaimer
 
 searchdump-rs is provided **as is, without warranty of any kind**, as set out in its
-[MIT license](../../LICENSE). See [Disclaimer](../../README.md#disclaimer). Try it on a non-production
+[MIT license](../../LICENSE) (the same warranty disclaimer as the elasticdump-rs code it derives from; Node
+elasticdump, whose behaviour it follows, has the equivalent disclaimer in Apache-2.0, sections 7 and 8). The authors
+accept no liability for any damage from its use, including data loss. See [Disclaimer](../../README.md#disclaimer). Try it on a non-production
 cluster first and verify every backup independently (restore it, compare counts) before relying on it.
 
 ## Highlights
@@ -55,7 +57,7 @@ cluster first and verify every backup independently (restore it, compare counts)
   (ROADMAP-1.2 section 13, FEATURES-TODO 1.2-2).
 - `check` is not a separate subcommand; byte paging is internal (no `--pageBytes`); both may change in 1.3.
 
-## Verification (release/1.2 candidate)
+## Verification (release/1.2 candidate, tagged as 1.2.0)
 
 Evidence is in [`results/local/L2-008.md`](../../results/local/L2-008.md) and the earlier `results/local/L2-00N.md` files.
 
