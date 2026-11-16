@@ -276,7 +276,7 @@ that changes in one place.
    **DECIDED (t206u): the 10 MiB floor** (`limits::AWS_PAYLOAD_FLOOR`) unless the user gives
    `--maxBulkBytes`.
 6. Should the 429 page-halving (section 5) ship alone first (1.1.1 or 1.2-early), since it is independent?
-   **PROVISIONAL: ships within 1.2** (phase 1.2-1c, commit L2-003); no 1.1.1. Still open: Robert asked (t206u) how the 429 handling differs from `auto`; answered in chat.
+   **PROVISIONAL: ships within 1.2** (phase 1.2-1c, commit L2-003); no 1.1.1. **DECIDED (t210u): the 429 handling stays as shipped in 1.2**; the remaining testing (live ES 429s, halving-vs-splitting breakdown, AWS/serverless) is a possible 1.3 item (FEATURES-TODO 1.3-D).
 7. OpenSearch small-heap floor for the acceptance set: 256m like ES, or the smallest heap OS 2/3 boot with?
    **DECIDED (t206u): deferred to 1.3 as a possible change** (FEATURES-TODO 1.3-C). 1.2 keeps the tested set: OpenSearch 2/3 at 256m and 384m, as in L2-006 (14/14 under auto).
 

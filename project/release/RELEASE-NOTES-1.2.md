@@ -1,7 +1,7 @@
 # searchdump-rs 1.2.0 release notes (DRAFT)
 
 Status: **draft on branch `release/1.2`**, not tagged, not published, `Cargo.toml` still says `1.1.0`.
-ROADMAP-1.2 section 9: questions 1, 3, 4, 5 and 7 are decided; the `min` margin and the 429 split are still **provisional pending the owner** (marked "provisional" below).
+ROADMAP-1.2 section 9: 1, 3, 4, 5, 6 and 7 are decided; the `min` margin is still **provisional pending the owner** (marked "provisional" below).
 The same material is summarised in [`CHANGELOG.md`](../../CHANGELOG.md) under **1.2.0**.
 
 ## Disclaimer
