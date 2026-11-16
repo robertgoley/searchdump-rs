@@ -1,7 +1,7 @@
 # searchdump-rs 1.2.0 release notes (DRAFT)
 
 Status: **draft on branch `release/1.2`**, not tagged, not published, `Cargo.toml` still says `1.1.0`.
-The answers to ROADMAP-1.2 section 9 are **provisional pending the owner** (marked "provisional" below).
+ROADMAP-1.2 section 9: questions 1, 3, 4, 5 and 7 are decided; the `min` margin and the 429 split are still **provisional pending the owner** (marked "provisional" below).
 The same material is summarised in [`CHANGELOG.md`](../../CHANGELOG.md) under **1.2.0**.
 
 ## Disclaimer
@@ -15,7 +15,7 @@ cluster first and verify every backup independently (restore it, compare counts)
 - **Server-aware sizing, `--serverLimits=off|auto|min|check`** (`searchdump` and `searchdump-multi`).
   One read-only probe at the start reads the smallest data node's heap, circuit breakers, indexing pressure,
   `http.max_content_length` and thread pools, and sizes pages, bulks and `searchdump-multi`'s parallelism from
-  them. Default `auto` (provisional). `auto` and `min` only ever **tighten** the defaults; they never raise a
+  them. Default `auto`. `auto` and `min` only ever **tighten** the defaults; they never raise a
   value above the 1.1 / 1.0 defaults or above a value you set.
 - **`check`** prints the limits and the sizes it would use and exits 0 without moving data, or exits 2 when a
   value you set is above them. The safe-simple examples run it as a preflight.
@@ -38,7 +38,7 @@ cluster first and verify every backup independently (restore it, compare counts)
   `off`.
 - Dump users need the `monitor` cluster privilege for the probe; without it the run prints one fallback line and
   uses the 1.1 sizes (it never fails because of the probe).
-- AWS OpenSearch Service: bulks stay at or below 10 MiB unless you give `--maxBulkBytes` (provisional).
+- AWS OpenSearch Service: bulks stay at or below 10 MiB unless you give `--maxBulkBytes`.
 - Children of `searchdump-multi` always run with `--serverLimits=off` and the sizes the parent computed; an older
   child binary without the flag gets only `--limit` / `--maxBulkBytes`.
 
@@ -46,14 +46,14 @@ cluster first and verify every backup independently (restore it, compare counts)
 
 | Flag | Default | Tool | Meaning |
 |---|---|---|---|
-| `--serverLimits=off\|auto\|min\|check` | `auto` (provisional) | both | See above. `min` uses half of `auto`'s budget (provisional). |
+| `--serverLimits=off\|auto\|min\|check` | `auto` | both | See above. `min` uses half of `auto`'s budget (provisional). |
 | data-run `--limit` / `--maxBulkBytes` | from the probe (`auto`); 1000 / 16 MB under `off` | `searchdump-multi` | 1.1-10 fixed defaults are now the `off` profile. |
 
 ## Not in 1.2
 
 - `--serverLimits=automax` (sizes that may also grow above the defaults, mid-run) is designed only
   (ROADMAP-1.2 section 13, FEATURES-TODO 1.2-2).
-- `check` is not a separate subcommand; byte paging is internal (no `--pageBytes`) (provisional).
+- `check` is not a separate subcommand; byte paging is internal (no `--pageBytes`); both may change in 1.3.
 
 ## Verification (release/1.2 candidate)
 

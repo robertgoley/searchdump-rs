@@ -264,22 +264,21 @@ phases use the choices below, each **PROVISIONAL pending Robert**; every one is 
 that changes in one place.
 
 1. Default `auto` in 1.2, or ship `off` as default for one release and make `auto` opt-in?
-   **PROVISIONAL: `auto` is the default**, trivially switchable (`limits::DEFAULT_MODE`, one line;
+   **DECIDED (Robert t206u, 2026-11-16): `auto` is the default in 1.2**, trivially switchable (`limits::DEFAULT_MODE`, one line;
    `--serverLimits=off` restores 1.1.0 exactly).
 2. `min` margin: half of `auto` (proposal), or a fixed fraction of the heap?
-   **PROVISIONAL: half of `auto`** (`limits::fractions`).
+   **PROVISIONAL: half of `auto`** (`limits::fractions`). Still open: Robert asked (t206u) what `auto`'s budget is and how it differs from the heap; answered in chat, awaiting his choice.
 3. Should `check` also be a separate subcommand (`searchdump-multi check-limits`) for discoverability?
-   **PROVISIONAL: no subcommand**; `--serverLimits=check` only.
+   **DECIDED (t206u): no subcommand in 1.2**; `--serverLimits=check` only. Possible 1.3 change (FEATURES-TODO 1.3-A).
 4. User-facing `--pageBytes`, or keep byte paging internal?
-   **PROVISIONAL: internal** (no new flag).
+   **DECIDED (t206u): internal in 1.2** (no new flag). A user-facing `--pageBytes` is a possible 1.3 change (FEATURES-TODO 1.3-B).
 5. AWS: hard-code the published payload table, or always use the 10 MiB floor unless the user raises it?
-   **PROVISIONAL: the 10 MiB floor** (`limits::AWS_PAYLOAD_FLOOR`) unless the user gives
+   **DECIDED (t206u): the 10 MiB floor** (`limits::AWS_PAYLOAD_FLOOR`) unless the user gives
    `--maxBulkBytes`.
 6. Should the 429 page-halving (section 5) ship alone first (1.1.1 or 1.2-early), since it is independent?
-   **PROVISIONAL: ships within 1.2** (phase 1.2-1c, commit L2-003); no 1.1.1.
+   **PROVISIONAL: ships within 1.2** (phase 1.2-1c, commit L2-003); no 1.1.1. Still open: Robert asked (t206u) how the 429 handling differs from `auto`; answered in chat.
 7. OpenSearch small-heap floor for the acceptance set: 256m like ES, or the smallest heap OS 2/3 boot with?
-   **PROVISIONAL: the smallest heap OpenSearch boots with that is >= 256m**, measured by
-   `scripts/load/limits_fixtures.py` (boot.json; recorded in results/local/L2-004.md and L2-006.md).
+   **DECIDED (t206u): deferred to 1.3 as a possible change** (FEATURES-TODO 1.3-C). 1.2 keeps the tested set: OpenSearch 2/3 at 256m and 384m, as in L2-006 (14/14 under auto).
 
 ## 10. Risks
 
