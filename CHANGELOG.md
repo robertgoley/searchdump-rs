@@ -5,6 +5,25 @@ a version with a hyphen (`1.0.0-beta1`) is a pre-release. The release workflow
 (`.github/workflows/release.yml`) uses the section for a version as the release notes of its draft
 GitHub release.
 
+## 1.2.0 (draft, unreleased)
+
+Release candidate on branch `release/1.2`; not tagged. User-facing notes:
+[`project/release/RELEASE-NOTES-1.2.md`](project/release/RELEASE-NOTES-1.2.md). Same disclaimer as 1.1.0 below applies.
+
+### Added
+
+- **`--serverLimits=off|auto|min|check`** in `searchdump` and `searchdump-multi`: one read-only probe of the smallest
+  data node's heap, breakers, indexing pressure and limits sizes pages, bulks and multi parallelism; `auto` and `min` only tighten.
+  `check` prints the limits and exits 0 or 2 without moving data (it never validates the output path, so `--output=/dev/null` works).
+- HTTP 429 handling by size: search pages halve and oversized bulks split mid-run.
+- `searchdump-multi`: one probe and one `_stats` call in the parent; worker-first byte-budget scheduling; manifest `server_limits` and per-index sizing.
+- Safe-simple examples (bash, docker/podman, kubernetes) with a `--serverLimits=check` preflight.
+
+### Fixed
+
+- `--serverLimits=check` with `--output=/dev/null` was refused as a usage error (L2-009 candidate, folded into L2-008).
+- `safe-simple-dump` examples wrote an uncompressed file named `.json.gz`; they now pass `--fsCompress`.
+
 ## 1.1.0
 
 Release date: the day `v1.1.0` is tagged (release candidate verified on 2026-11-15; not tagged

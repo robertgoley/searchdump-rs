@@ -82,7 +82,7 @@ spec:
                   --type="${t}" --overwrite --serverLimits="${SERVER_LIMITS}"
               done
               searchdump --input="${ES_URL}/${INDEX}" --output="/data/${INDEX}.data.json.gz" \
-                --type=data --overwrite --serverLimits="${SERVER_LIMITS}"
+                --type=data --overwrite --fsCompress --serverLimits="${SERVER_LIMITS}"
           env:
             - name: ES_URL
               value: http://elasticsearch.default.svc:9200

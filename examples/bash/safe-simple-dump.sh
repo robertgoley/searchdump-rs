@@ -24,13 +24,15 @@ preflight "${SEARCHDUMP_BIN}" --input="${ES_URL}/${INDEX}" --output=/dev/null --
   "${INPUT_CLUSTER_FLAGS[@]}"
 for t in settings mapping data; do
   ext=json
-  [[ "${t}" == data ]] && ext=json.gz
+  gz=()
+  [[ "${t}" == data ]] && { ext=json.gz; gz=(--fsCompress); }
   rerun_on_4 "${SEARCHDUMP_BIN}" \
     --input="${ES_URL}/${INDEX}" \
     --output="${DUMP_DIR}/${INDEX}.${t}.${ext}" \
     --type="${t}" \
     --overwrite \
     --serverLimits="${SERVER_LIMITS}" \
+    ${gz[@]+"${gz[@]}"} \
     "${INPUT_CLUSTER_FLAGS[@]}"
 done
 echo "wrote ${DUMP_DIR}/${INDEX}.{settings,mapping}.json and ${INDEX}.data.json.gz"

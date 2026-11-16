@@ -86,8 +86,9 @@ node and on a large cluster alike:
 
 Each one first runs a preflight (`_preflight.sh`, or an init container in Kubernetes):
 `--serverLimits=check` prints the limits it read and the sizes it will use, then exits **0** (go)
-or **2** (a value you set is above what the cluster can take); the script stops on 2 before any
-data moves. `SERVER_LIMITS=min` keeps every page within half of what `auto` would use (a fragile
+or **2** (a value you set is above what the cluster can take, or a usage error such as a bad
+flag; the message above says which); the script stops on 2 before any data moves. `check` never
+opens the output, so the preflight can name `--output=/dev/null`. `SERVER_LIMITS=min` keeps every page within half of what `auto` would use (a fragile
 or shared cluster); `SERVER_LIMITS=off` reproduces the 1.1.0 sizes exactly and sends no probe.
 
 When the limits cannot be read, the run never fails because of it; it falls back and says why in

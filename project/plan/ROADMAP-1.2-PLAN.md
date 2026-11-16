@@ -303,7 +303,7 @@ that changes in one place.
 | 1.2-1d | Probe module + budget + `--serverLimits` (`off`/`auto`/`min`/`check`) in `searchdump`; fixtures; fallbacks incl. AWS — **done (L2-004)** | M-L |
 | 1.2-1e | Multi: parent single stats call, byte-budget scheduler, remove the 1.1-10 pieces (section 6), manifest — **done (L2-005)** | M |
 | 1.2-1f | lowheap.py `auto`/`off` modes + OpenSearch cells; docs and examples rewrite | S-M |
-| 1.2-1g | Gates, IT, L0 16-engine perf vs 1.1.0 RC, kvmsvr1 handoff | M (perf run ~10 h on the box) |
+| 1.2-1g | Gates, IT, L0 16-engine perf vs 1.1.0 RC, kvmsvr1 handoff — **done (L2-008)** | M (perf run ~10 h on the box) |
 | 1.2-1h | Examples and README quick start led by `--serverLimits` as the main or only sizing option (section 12) — **done (L2-007)** | S-M |
 
 Each phase is one `L-NNN:` commit with its own results file. 1.1.0 is not changed by any of this.

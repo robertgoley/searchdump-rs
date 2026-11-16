@@ -5158,6 +5158,127 @@ async fn l2_004_check_exits_0_or_2_for_an_explicit_limit() {
     assert!(!m.requests().iter().any(|r| r.path.ends_with("/_search")));
 }
 
+/// 1.2 (L2-009): `--serverLimits=check` never opens the output, so a preflight that names
+/// `/dev/null` (as the safe-simple examples do) is not refused as "a character device" with
+/// exit 2, which the examples' `_preflight.sh` read as "explicit values exceed the limits" (the
+/// chain-1g safe-simple live failure). Outside `check` the L-644 refusal still applies.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn l2_009_check_preflight_accepts_dev_null_output() {
+    let dev_null = std::path::Path::new("/dev/null");
+    let m = l2_dump_mock((200, L2_SMALL_NODE), None, 1 << 20).await;
+    let o = run_async(
+        l2_args(&m.url(), dev_null, &["--type=data", "--serverLimits=check"]),
+        vec![],
+    )
+    .await;
+    let e = stderr(&o);
+    assert_eq!(o.status.code(), Some(0), "{e}");
+    assert!(e.contains("server limits (input): 1 data node"), "{e}");
+    assert!(!e.contains("character device"), "{e}");
+    assert!(!m.requests().iter().any(|r| r.path.ends_with("/_search")));
+
+    // an explicit value above the limits is still exit 2 with /dev/null
+    let m = l2_dump_mock((200, L2_SMALL_NODE), None, 1 << 20).await;
+    let o = run_async(
+        l2_args(
+            &m.url(),
+            dev_null,
+            &["--serverLimits=check", "--limit", "5000"],
+        ),
+        vec![],
+    )
+    .await;
+    let e = stderr(&o);
+    assert_eq!(o.status.code(), Some(2), "{e}");
+    assert!(e.contains("exceed") && e.contains("--limit=5000"), "{e}");
+
+    // a real run (auto) into a character device is still refused before any request
+    let m = l2_dump_mock((200, L2_SMALL_NODE), None, 1 << 20).await;
+    let o = run_async(l2_args(&m.url(), dev_null, &["--type=data"]), vec![]).await;
+    let e = stderr(&o);
+    assert_eq!(o.status.code(), Some(2), "{e}");
+    assert!(e.contains("character device"), "{e}");
+    assert!(!m.requests().iter().any(|r| r.path.ends_with("/_search")));
+}
+
+/// 1.2 (L2-009) example contract: `examples/bash/safe-simple-dump.sh` (preflight, then settings,
+/// mapping and data with `--serverLimits=auto`) exits 0 against a small-heap cluster and writes
+/// the three files; under auto nothing the script passes is refused.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn l2_009_safe_simple_dump_example_runs_end_to_end() {
+    use support::router_mock::{Reply, Route, RouterMock};
+    let hits: Vec<String> = (0..3)
+        .map(|i| hit(&format!("h{i}"), r#"{"f":1}"#))
+        .collect();
+    let m = RouterMock::builder()
+        .serve_probes()
+        .route(Route::exact("GET", "/").reply(Reply::ok(L2_INFO)))
+        .route(Route::prefix("GET", "/_nodes/stats").reply(Reply::ok(L2_SMALL_NODE)))
+        .route(
+            Route::prefix("GET", "/idx/_stats/docs,store").reply(Reply::ok(
+                r#"{"_all":{"primaries":{"docs":{"count":3},"store":{"size_in_bytes":300}}}}"#,
+            )),
+        )
+        .route(Route::prefix("GET", "/idx/_settings").reply(Reply::ok(
+            r#"{"idx":{"settings":{"index":{"number_of_shards":"1","number_of_replicas":"0"}}}}"#,
+        )))
+        .route(Route::prefix("GET", "/idx/_mapping").reply(Reply::ok(
+            r#"{"idx":{"mappings":{"properties":{"f":{"type":"long"}}}}}"#,
+        )))
+        .route(Route::prefix("POST", "/idx/_search").reply(Reply::ok(page("s1", &hits, 3))))
+        .route(Route::exact("POST", "/_search/scroll").reply(Reply::ok(page("s1", &[], 3))))
+        .route(
+            Route::prefix("DELETE", "/_search/scroll")
+                .reply(Reply::ok(r#"{"succeeded":true,"num_freed":1}"#)),
+        )
+        .fallback(Reply::json(404, r#"{"error":"nope"}"#))
+        .start()
+        .await;
+    let d = tempfile::tempdir().unwrap();
+    let script = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/examples/bash/safe-simple-dump.sh"
+    );
+    let url = m.url();
+    let dump_dir = d.path().to_path_buf();
+    let o = tokio::task::spawn_blocking(move || {
+        Command::new("bash")
+            .arg(script)
+            .env("ES_URL", &url)
+            .env("INDEX", "idx")
+            .env("DUMP_DIR", &dump_dir)
+            .env("SEARCHDUMP_BIN", env!("CARGO_BIN_EXE_searchdump"))
+            .env(
+                "SEARCHDUMP_MULTI_BIN",
+                env!("CARGO_BIN_EXE_searchdump-multi"),
+            )
+            .env_remove("HTTP_AUTH_FILE")
+            .env_remove("CA_FILE")
+            .env_remove("SERVER_LIMITS")
+            .env_remove("SEARCHDUMP_INPUT_USERNAME")
+            .env_remove("SEARCHDUMP_INPUT_PASSWORD")
+            .env_remove("RUST_LOG")
+            .output()
+            .expect("spawn bash")
+    })
+    .await
+    .unwrap();
+    let e = stderr(&o);
+    assert_eq!(o.status.code(), Some(0), "{e}\n{}", stdout(&o));
+    assert!(!e.contains("preflight"), "{e}");
+    assert!(e.contains("server limits (input): 1 data node"), "{e}");
+    for f in ["idx.settings.json", "idx.mapping.json", "idx.data.json.gz"] {
+        assert!(d.path().join(f).is_file(), "{f} missing: {e}");
+    }
+    // the `.json.gz` name must really be gzip (the example once wrote plain JSON under it)
+    let magic = std::fs::read(d.path().join("idx.data.json.gz")).unwrap();
+    assert_eq!(
+        &magic[..2],
+        &[0x1f, 0x8b],
+        "idx.data.json.gz is not gzip: {e}"
+    );
+}
+
 /// 1.2-1e (L2-005): the searchdump-multi parent reads the node limits once and every index's
 /// docs/store stats in ONE `_stats/docs,store?level=indices` call (no 1.1-10 per-index
 /// `{index}/_stats` request), and `--serverLimits=check` stops before any data request:
