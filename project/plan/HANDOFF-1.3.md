@@ -22,3 +22,10 @@ os3 (1.2 auto / 1.1 none / 1.2 min / 1.2 off) and os2,es912 1.2 auto, run ids `l
 1. Collect the chain results.
 2. lowheap.py os3 256m/384m with `LOAD_BIN_DIR=/workspace/rel-1.3-work/bin/1.2.0` (--mode auto, min, off)
    and 1.1.0 (--mode none), `--keep` to read the child logs (429 bodies: indexing pressure vs queue).
+
+## Update 17:50 ET
+- chain1/2/3 finished. Commits since: L3-007 (1.3-G same-host 1.1 vs 1.2 = 1.00), L3-008 (multi parent 429 retry
+  bug fix), L3-009 (1.3-R1 x20: 0 failures).
+- 1.3-D+: lowheap runs under results/load/l3-* (compare with scripts/load/lowheap_cmp.py); repeated interleaved
+  runs via scripts/load/lowheap_reps.py with bin/l3exp3 (= c205454 + experiments) are next; then stall loop
+  (scripts/perf/stall_loop.py) for the OS 2/3 restore stalls.
