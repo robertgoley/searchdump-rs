@@ -2,7 +2,7 @@
 
 ## 1.3-R1: multi-restore p8 "target index deleted and re-created" on ES 8.6 (1.1.0 RC)
 
-**Status:** open, review for 1.3. Not fixed in 1.1.0 (code frozen) and not part of 1.2.
+**Status:** mitigated in local `release/1.3` (L3-002 harness waits for and logs DELETEs; L3-009 rerun 60 x 20 reps on grokbox, 0 failures, every DELETE applied at once). Proposed: close as a harness race after a box resume. Not fixed in 1.1.0 (code frozen) and not part of 1.2.
 
 ### What happened
 - Run: 1.1.0 RC L0 suite on grokbox, engine `elasticsearch8-plain` (ES 8.6.1, plain HTTP),
@@ -54,3 +54,11 @@ correctly instead of claiming a good restore. Its exit 1 is the intended behavio
 ### Evidence to keep
 - `multi-restore-p8-rs-0-children/perf-src-*.data.log` and `.data.stats.json` in the RC result dir above.
 - RC `summary.md` for `elasticsearch8-plain` (line "Failure: multi-restore-p8/rs/rep0 ...").
+
+### 1.3 results (local release/1.3, grokbox 2026-11-17)
+- Items 1-2 (harness): done in L3-002 (`EngineRun.delete_index`: checks `acknowledged`, polls until 404, bounded
+  `PERF_DELETE_WAIT_S`, `deletes.log` per result dir). Recording each child's noted/final uuid is not done.
+- Item 3: ES 8.6.1 plain `multi-restore-p8` x20 with the old harness on 1.1.0 and 1.2.0 and x20 with the new
+  harness on 1.2.0: 0 failures, 336/336 DELETEs applied before the first poll (`results/local/L3-009.md`). The
+  pause / memory-pressure variants were not run.
+- Item 4: confirmed by code read: per-child targets with `--prefix`; no parent DELETE/PUT for data-only loads.
