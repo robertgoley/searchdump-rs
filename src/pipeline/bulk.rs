@@ -250,6 +250,19 @@ pub struct BulkSink {
     /// 1.2-1c: bulk byte cap lowered after an HTTP 429 split (0 = `--maxBulkBytes` as given),
     /// shared by the workers; it only ever goes down within a run.
     split_cap: Arc<AtomicUsize>,
+    /// 1.3 evaluation (`SEARCHDUMP_LIMITS_EXPERIMENT=growback`, off by default): accepted
+    /// chunks in a row since the last split; at [`GROW_AFTER`] the split cap doubles.
+    grow_streak: Arc<AtomicUsize>,
+    growback: bool,
+}
+
+/// 1.3 evaluation: accepted chunks in a row before a split cap may double again.
+pub const GROW_AFTER: usize = 8;
+
+/// The next split cap when growing back: double, and 0 (no cap) once it reaches `max`.
+pub fn grown_cap(cap: usize, max: usize) -> usize {
+    let next = cap.saturating_mul(2);
+    if next >= max { 0 } else { next }
 }
 
 /// 1.1-6: one batch, validated and encoded, ready to send. Owns its input lines so the send
@@ -636,6 +649,8 @@ impl BulkSink {
             data_stream_hint_shown: Arc::new(AtomicBool::new(false)),
             routing_hint_shown: Arc::new(AtomicBool::new(false)),
             split_cap: Arc::new(AtomicUsize::new(0)),
+            grow_streak: Arc::new(AtomicUsize::new(0)),
+            growback: crate::limits::Experiment::from_env().growback,
         }
     }
 
@@ -791,6 +806,8 @@ impl BulkSink {
             data_stream_hint_shown: Arc::clone(&self.data_stream_hint_shown),
             routing_hint_shown: Arc::clone(&self.routing_hint_shown),
             split_cap: Arc::clone(&self.split_cap),
+            grow_streak: Arc::clone(&self.grow_streak),
+            growback: self.growback,
         }
     }
 
@@ -1307,11 +1324,14 @@ impl BulkSink {
     /// smaller size (the cap never grows back within a run).
     async fn write_chunk(&mut self, chunk: &[&[u8]], body: Vec<u8>) -> Result<()> {
         let mut todo: Vec<(Vec<usize>, Vec<u8>)> = vec![((0..chunk.len()).collect(), body)];
+        let mut split = false;
         while let Some((pending, body)) = todo.pop() {
             let len = body.len();
             let Some(rest) = self.write_pending(chunk, pending, body).await? else {
                 continue;
             };
+            split = true;
+            self.grow_streak.store(0, Ordering::Relaxed);
             // `rest` (2+ documents, none applied) was refused as a whole: split it
             let mid = rest.len() / 2;
             let (a, b) = rest.split_at(mid);
@@ -1342,7 +1362,39 @@ impl BulkSink {
             todo.push((b.to_vec(), body_b));
             todo.push((a.to_vec(), body_a));
         }
+        if self.growback && !split {
+            self.grow_back();
+        }
         Ok(())
+    }
+
+    /// 1.3 evaluation (`growback`): after [`GROW_AFTER`] chunks in a row went through without
+    /// a split, double the split cap, back to `--maxBulkBytes` at most (cap 0 = no cap).
+    fn grow_back(&self) {
+        let cap = self.split_cap.load(Ordering::Relaxed);
+        if cap == 0 {
+            return;
+        }
+        if self.grow_streak.fetch_add(1, Ordering::Relaxed) + 1 < GROW_AFTER {
+            return;
+        }
+        self.grow_streak.store(0, Ordering::Relaxed);
+        let next = grown_cap(cap, self.opts.max_bulk_bytes);
+        if self
+            .split_cap
+            .compare_exchange(cap, next, Ordering::Relaxed, Ordering::Relaxed)
+            .is_ok()
+        {
+            log::info!(
+                "bulk cap grows back to {} KB after {GROW_AFTER} accepted bulks [growback]",
+                if next == 0 {
+                    self.opts.max_bulk_bytes
+                } else {
+                    next
+                }
+                .div_ceil(1024)
+            );
+        }
     }
 
     /// Send `pending` (documents of `chunk`, already encoded in `body`) and retry the items the
@@ -1738,6 +1790,18 @@ fn source_bytes<'a>(line: &'a [u8], source: Option<&'a LazyValue<'_>>, is_hit: b
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn grown_cap_doubles_back_to_no_cap() {
+        let max = 16 << 20;
+        assert_eq!(super::grown_cap(1 << 20, max), 2 << 20);
+        assert_eq!(
+            super::grown_cap(8 << 20, max),
+            0,
+            "reaching --maxBulkBytes lifts the cap"
+        );
+        assert_eq!(super::grown_cap(12 << 20, max), 0);
+    }
+
     /// L-808n: the memchr line splitter matches the byte-by-byte split it replaced.
     #[test]
     fn nonempty_lines_matches_split_filter() {

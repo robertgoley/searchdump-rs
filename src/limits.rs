@@ -249,13 +249,71 @@ fn frac(v: u64, f: f64) -> u64 {
     (v as f64 * f) as u64
 }
 
+/// 1.3 evaluation only (1.3-D+/C/E): opt-in sizing variants, chosen with the hidden environment
+/// variable `SEARCHDUMP_LIMITS_EXPERIMENT` (comma-separated). Unset (the default) is exactly the
+/// 1.2 behaviour. Not a user-facing setting: kept for measurements until Robert decides.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Experiment {
+    /// `floor`: never size from less headroom than a quarter of the parent-breaker limit
+    /// (a probe taken while the heap is full of garbage, e.g. right after a load, would
+    /// otherwise give a 0 MB page budget).
+    pub floor: bool,
+    /// `configured`: size from half of the configured parent-breaker limit, ignoring the
+    /// momentary estimate (the configured limits do not move with garbage collection).
+    pub configured: bool,
+    /// `growback`: after a 429 split, let the bulk cap double again after a run of
+    /// accepted bulks (see `pipeline::bulk`), never above the starting size.
+    pub growback: bool,
+}
+
+pub const EXPERIMENT_ENV: &str = "SEARCHDUMP_LIMITS_EXPERIMENT";
+
+impl Experiment {
+    pub fn parse(v: &str) -> Self {
+        let mut e = Experiment::default();
+        for w in v.split(',').map(str::trim) {
+            match w {
+                "floor" => e.floor = true,
+                "configured" => e.configured = true,
+                "growback" => e.growback = true,
+                _ => {}
+            }
+        }
+        e
+    }
+
+    pub fn from_env() -> Self {
+        std::env::var(EXPERIMENT_ENV)
+            .map(|v| Self::parse(&v))
+            .unwrap_or_default()
+    }
+}
+
+/// The headroom `budget` sizes from: 1.2 uses the momentary parent-breaker headroom.
+fn sizing_free(n: &Node, exp: Experiment) -> Option<u64> {
+    let free = n.parent_free()?;
+    let limit = n
+        .parent_limit
+        .or((n.heap_max > 0).then(|| n.heap_max / 100 * 95));
+    Some(match (exp.configured, exp.floor, limit) {
+        (true, _, Some(l)) => l / 2,
+        (false, true, Some(l)) => free.max(l / 4),
+        _ => free,
+    })
+}
+
 /// ROADMAP-1.2 3.1. `None` for a fallback (fixed defaults apply).
 pub fn budget(l: &Limits, mode: Mode, response_cap: u64) -> Option<Budget> {
+    budget_with(l, mode, response_cap, Experiment::from_env())
+}
+
+/// [`budget`] with an explicit [`Experiment`] (1.3 evaluation; the default is 1.2).
+pub fn budget_with(l: &Limits, mode: Mode, response_cap: u64, exp: Experiment) -> Option<Budget> {
     if l.source.is_fallback() || matches!(mode, Mode::Off) {
         return None;
     }
     let n = l.smallest()?;
-    let free = n.parent_free()?.max(1 << 20);
+    let free = sizing_free(n, exp)?.max(1 << 20);
     let request = n.request().unwrap_or(free);
     let (kp, ki, kb) = fractions(mode);
     let mut page = frac(free.min(request), kp);
@@ -820,6 +878,64 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// 1.3 evaluation (1.3-D+): the relcmp-20261117 os3/384m dump-fat probe (94 % heap used,
+    /// parent 365 MB with 2.3 MB free) sized a 0 MB page; `floor` and `configured` do not, and
+    /// the default (no experiment) is the 1.2 result unchanged.
+    #[test]
+    fn experiments_size_from_configured_limits_not_a_full_heap() {
+        let full = Limits {
+            source: Source::Probed,
+            nodes: vec![Node {
+                name: "n".into(),
+                data: true,
+                heap_max: 384 << 20,
+                heap_used_pct: Some(94),
+                parent_limit: Some(365 << 20),
+                parent_estimated: Some((365 << 20) - (23 << 17)),
+                request_limit: Some(230 << 20),
+                indexing_pressure: Some(38 << 20),
+                ..Default::default()
+            }],
+            aws: false,
+            reason: String::new(),
+        };
+        let none = budget_with(&full, Mode::Auto, 0, Experiment::default()).unwrap();
+        assert_eq!(
+            none.page_bytes,
+            (23u64 << 17) / 4,
+            "1.2: a quarter of 2.9 MB headroom"
+        );
+        assert!(page_docs(none.page_bytes, Some(79 << 10), MULTI_MAX_PAGE) <= 3);
+        let floor = budget_with(&full, Mode::Auto, 0, Experiment::parse("floor")).unwrap();
+        assert_eq!(floor.page_bytes, ((365u64 << 20) / 4) / 4);
+        assert!(page_docs(floor.page_bytes, Some(79 << 10), MULTI_MAX_PAGE) >= 90);
+        let conf = budget_with(&full, Mode::Auto, 0, Experiment::parse("configured")).unwrap();
+        assert_eq!(conf.page_bytes, ((365u64 << 20) / 2) / 4);
+        // never above the request breaker, and `min` stays half of auto
+        assert!(conf.page_bytes <= 230 << 20);
+        let conf_min = budget_with(&full, Mode::Min, 0, Experiment::parse("configured")).unwrap();
+        assert_eq!(conf_min.page_bytes * 2, conf.page_bytes);
+        // with plenty of headroom `floor` changes nothing
+        let mut idle = full.clone();
+        idle.nodes[0].parent_estimated = Some(100 << 20);
+        assert_eq!(
+            budget_with(&idle, Mode::Auto, 0, Experiment::parse("floor")),
+            budget_with(&idle, Mode::Auto, 0, Experiment::default())
+        );
+        assert_eq!(
+            Experiment::parse(" floor , growback,x"),
+            Experiment {
+                floor: true,
+                configured: false,
+                growback: true
+            }
+        );
+        assert_eq!(
+            budget_with(&full, Mode::Off, 0, Experiment::parse("floor")),
+            None
+        );
     }
 
     /// A 256 MB heap gets a page that fits the 1.1-10 evidence: pmc (~12 KB stored) well under
