@@ -254,6 +254,8 @@ pub struct BulkSink {
     /// chunks in a row since the last split; at [`GROW_AFTER`] the split cap doubles.
     grow_streak: Arc<AtomicUsize>,
     growback: bool,
+    /// 1.3 evaluation (`SEARCHDUMP_LIMITS_EXPERIMENT=retryfirst`, off by default).
+    retryfirst: bool,
 }
 
 /// 1.3 evaluation: accepted chunks in a row before a split cap may double again.
@@ -651,6 +653,7 @@ impl BulkSink {
             split_cap: Arc::new(AtomicUsize::new(0)),
             grow_streak: Arc::new(AtomicUsize::new(0)),
             growback: crate::limits::Experiment::from_env().growback,
+            retryfirst: crate::limits::Experiment::from_env().retryfirst,
         }
     }
 
@@ -808,6 +811,7 @@ impl BulkSink {
             split_cap: Arc::clone(&self.split_cap),
             grow_streak: Arc::clone(&self.grow_streak),
             growback: self.growback,
+            retryfirst: self.retryfirst,
         }
     }
 
@@ -1325,11 +1329,33 @@ impl BulkSink {
     async fn write_chunk(&mut self, chunk: &[&[u8]], body: Vec<u8>) -> Result<()> {
         let mut todo: Vec<(Vec<usize>, Vec<u8>)> = vec![((0..chunk.len()).collect(), body)];
         let mut split = false;
+        let mut retried_once = false;
         while let Some((pending, body)) = todo.pop() {
             let len = body.len();
+            // `retryfirst` (1.3 evaluation): keep a copy to resend the same request once
+            let again = (self.retryfirst && !retried_once).then(|| (pending.clone(), body.clone()));
             let Some((rest, cause)) = self.write_pending(chunk, pending, body).await? else {
                 continue;
             };
+            if let Some(same) = again {
+                retried_once = true;
+                log::warn!(
+                    "bulk request of {} document(s) ({} KB) rejected with HTTP 429 (the server's memory limit); sending it once more at the same size before splitting [retryfirst]{}",
+                    rest.len(),
+                    len.div_ceil(1024),
+                    if cause.is_empty() {
+                        String::new()
+                    } else {
+                        format!(" [cause: {cause}]")
+                    }
+                );
+                tokio::select! {
+                    _ = tokio::time::sleep(self.opts.retry.jittered_first_delay()) => {}
+                    _ = self.cancel.cancelled() => return Err(anyhow::Error::new(crate::http::DumpCancelled)),
+                }
+                todo.push(same);
+                continue;
+            }
             split = true;
             self.grow_streak.store(0, Ordering::Relaxed);
             // `rest` (2+ documents, none applied) was refused as a whole: split it

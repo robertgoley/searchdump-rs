@@ -264,6 +264,10 @@ pub struct Experiment {
     /// `growback`: after a 429 split, let the bulk cap double again after a run of
     /// accepted bulks (see `pipeline::bulk`), never above the starting size.
     pub growback: bool,
+    /// `retryfirst`: on a size 429 for a bulk, send the same request once more after the
+    /// jittered back-off before splitting it (a real-memory parent breaker often trips on
+    /// garbage that the next GC frees; 1.1 retried at the same size and recovered).
+    pub retryfirst: bool,
 }
 
 pub const EXPERIMENT_ENV: &str = "SEARCHDUMP_LIMITS_EXPERIMENT";
@@ -276,6 +280,7 @@ impl Experiment {
                 "floor" => e.floor = true,
                 "configured" => e.configured = true,
                 "growback" => e.growback = true,
+                "retryfirst" => e.retryfirst = true,
                 _ => {}
             }
         }
@@ -928,12 +933,12 @@ mod tests {
             Experiment::parse(" floor , growback,x"),
             Experiment {
                 floor: true,
-                configured: false,
-                growback: true
+                growback: true,
+                ..Default::default()
             }
         );
         assert_eq!(
-            budget_with(&full, Mode::Off, 0, Experiment::parse("floor")),
+            budget_with(&full, Mode::Off, 0, Experiment::parse("floor,retryfirst")),
             None
         );
     }
