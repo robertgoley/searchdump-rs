@@ -11,12 +11,12 @@ outputs, suite logs). Env: `source /workspace/perf-1.2/env.sh` (isolated podman 
 |---|---|---|---|
 | 1.3-G OS3 plain 1.2 slowdown | P1 | not reproducible: A/B 1.00-1.02x, identical traces, full fresh 1.2.0 pass normal (L3-002); 1.1.0 pass running via chain1.sh | results/local/L3-001.md, L3-002.md |
 | 1.3-G stalls (~17 s p8 / ~44 s p1, OS 2/3, all releases) | P1 | not started | |
-| 1.3-D+/C/E small-heap auto collapse | P1 | analysis only: os3 load 429s are split warnings (cb=0, not breaker; lowheap counts any "429" text, retries counts only "retrying in" -> retries=0) | relcmp lowheap/1.2.0.json |
+| 1.3-D+/C/E small-heap auto collapse | P1 | reproduced on grokbox (l3-os3-12-auto: 5 bulk splits per os3 load at 256m and 384m, 6.4 MB -> 170 KB cap). retries=0 explained: 1.2 splits log a WARN without "retrying in" and without the error body (so cb=0 too). L3-003 opt-in experiments (SEARCHDUMP_LIMITS_EXPERIMENT=floor/configured/growback), L3-004 cause in split/halve warnings. chain2.sh measures them | results/load/l3-* (not committed yet) |
 | 1.3-R1 ES 8.6 p8 restore | P2 | harness DELETE wait + deletes.log done (L3-002); 20-rep reruns not started | |
 | Reporting | P3 | done: scripts/perf/relcmp_report.py -> relcmp-20261117/REPORT-EXTRA.md | L3-002 |
 
 ## Next
-Background chain `/workspace/rel-1.3-work/chain1.sh` (log `chain1.log`): suite 1.1.0 os3-plain, then lowheap
+Background chains `/workspace/rel-1.3-work/chain1.sh` then `chain2.sh` (experiments on os3 with bin/l3exp = L3-004 build; 1.3-R1 ES 8.6 p8 x20 old harness 1.1.0/1.2.0 from worktree rel-1.3-work/oldharness at 53bb69a, then new harness 1.2.0). Chain1 (log `chain1.log`): suite 1.1.0 os3-plain, then lowheap
 os3 (1.2 auto / 1.1 none / 1.2 min / 1.2 off) and os2,es912 1.2 auto, run ids `l3-*`, `--keep`
 (work dirs under /var/tmp/searchdump-load/l3-*).
 1. Collect the chain results.
