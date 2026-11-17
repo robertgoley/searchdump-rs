@@ -1400,6 +1400,27 @@ pub fn split_url(
     Ok((url, user, pass))
 }
 
+/// L3-008 (1.3-D): how many times the parent repeats a read-only call (`GET`/`HEAD`, or a
+/// `POST .../_refresh` / `.../_count`) the cluster answered with HTTP 429 or 503. A small heap's
+/// real-memory parent breaker refuses even a 0-byte `_refresh` until the next GC (seen on
+/// OpenSearch 3 at 256m after a load); without a retry the parent failed an index whose child
+/// had written every document. Requests that change the cluster are not repeated here.
+pub const PARENT_429_RETRIES: u32 = 6;
+
+pub fn parent_call_retryable(method: &Method, segs: &[&str], status: u16) -> bool {
+    if status != 429 && status != 503 {
+        return false;
+    }
+    *method == Method::GET
+        || *method == Method::HEAD
+        || (*method == Method::POST && matches!(segs.last(), Some(&"_refresh") | Some(&"_count")))
+}
+
+/// 0.25 s, doubling, at most 4 s (about 12 s over all retries).
+pub fn parent_retry_delay(attempt: u32) -> Duration {
+    Duration::from_millis((250u64 << attempt.min(4)).min(4000))
+}
+
 pub struct Cluster {
     client: EsClient,
     /// What children get as --input/--output (as the user gave it, without a trailing slash).
@@ -1455,14 +1476,27 @@ impl Cluster {
         query: &[(&str, &str)],
         body: Body,
     ) -> Result<(u16, Vec<u8>)> {
-        let resp = self
-            .client
-            .send(method.clone(), segs, query, false, body)
-            .await
-            .map_err(|e| anyhow!("{method} /{}: {}", segs.join("/"), error_chain(&e)))?;
-        let status = resp.status().as_u16();
-        let bytes = resp.bytes().await?.to_vec();
-        Ok((status, bytes))
+        let mut attempt = 0u32;
+        loop {
+            let resp = self
+                .client
+                .send(method.clone(), segs, query, false, body.clone())
+                .await
+                .map_err(|e| anyhow!("{method} /{}: {}", segs.join("/"), error_chain(&e)))?;
+            let status = resp.status().as_u16();
+            let bytes = resp.bytes().await?.to_vec();
+            if attempt < PARENT_429_RETRIES && parent_call_retryable(&method, segs, status) {
+                let delay = parent_retry_delay(attempt);
+                eprintln!(
+                    "note: {method} /{} -> HTTP {status} (the cluster is busy or its memory is full); retrying in {delay:?}",
+                    segs.join("/")
+                );
+                tokio::time::sleep(delay).await;
+                attempt += 1;
+                continue;
+            }
+            return Ok((status, bytes));
+        }
     }
 
     async fn ok_json(
@@ -3471,6 +3505,35 @@ mod tests {
     /// 1.2: `--serverLimits=off` (and an unprobed / fallback run) gives every child exactly the
     /// 1.1.0 data flags: `--limit=1000` (fewer for large documents, the 1.1-10 rule) and
     /// `--maxBulkBytes=16mb`; `--noDefaultDataFlags` gives no sizes at all.
+    #[test]
+    fn parent_retries_only_read_only_calls_on_429_and_503() {
+        assert!(parent_call_retryable(
+            &Method::POST,
+            &["pmc", "_refresh"],
+            429
+        ));
+        assert!(parent_call_retryable(&Method::GET, &["pmc", "_count"], 503));
+        assert!(parent_call_retryable(&Method::HEAD, &["pmc"], 429));
+        assert!(!parent_call_retryable(
+            &Method::POST,
+            &["pmc", "_refresh"],
+            500
+        ));
+        assert!(!parent_call_retryable(&Method::PUT, &["pmc"], 429));
+        assert!(!parent_call_retryable(&Method::DELETE, &["pmc"], 429));
+        assert!(!parent_call_retryable(&Method::POST, &["_bulk"], 429));
+        assert!(!parent_call_retryable(
+            &Method::GET,
+            &["pmc", "_settings"],
+            200
+        ));
+        assert_eq!(parent_retry_delay(0), Duration::from_millis(250));
+        assert_eq!(parent_retry_delay(3), Duration::from_secs(2));
+        assert_eq!(parent_retry_delay(9), Duration::from_secs(4));
+        let total: Duration = (0..PARENT_429_RETRIES).map(parent_retry_delay).sum();
+        assert!(total <= Duration::from_secs(16), "{total:?}");
+    }
+
     #[test]
     fn server_limits_off_reproduces_1_1_0_flags() {
         use super::sizing::Plan;
