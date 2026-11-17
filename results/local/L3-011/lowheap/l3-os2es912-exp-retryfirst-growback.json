@@ -1,0 +1,440 @@
+{
+ "schema": "edrs-lowheap/v1",
+ "run_id": "l3-os2es912-exp-retryfirst-growback",
+ "engines": [
+  "os2",
+  "es912"
+ ],
+ "heaps": [
+  "256m",
+  "384m"
+ ],
+ "datasets": {
+  "pmc": {
+   "docs": 20000,
+   "avg_kb": 21.6,
+   "digest": "3809ce8c8a0ec41c",
+   "file": "pmc.json"
+  },
+  "fat": {
+   "docs": 3000,
+   "avg_kb": 78.0,
+   "digest": "02f824c5df91c7b6",
+   "file": "fat.json"
+  }
+ },
+ "regression": false,
+ "mode": "auto",
+ "git": "82f2f18",
+ "tool": "searchdump 1.2.0",
+ "started": "2026-11-17T17:34:15-05:00",
+ "cells": [
+  {
+   "engine": "os2",
+   "heap": "256m",
+   "steps": [
+    {
+     "step": "seed-pmc",
+     "kind": "seed",
+     "exit": 0,
+     "wall_s": 5.0,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": ""
+    },
+    {
+     "step": "dump-pmc",
+     "kind": "dump",
+     "exit": 0,
+     "wall_s": 7.4,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 20000,
+     "digest": "3809ce8c8a0ec41c",
+     "page_note": "note: pmc: documents average 21 KB stored; dumping 293 per page instead of 5000 (large-docs; give -- --limit=N to choose)",
+     "limits_line": "server limits: 1 data node, smallest d5fe032dad19: heap 256 MB (66 % used), parent breaker 243 MB (free 72 MB), request 154 MB, indexing pressure 26 MB, http.max_content_length 100 MB, search pool 13 -> page budget 18 MB, in flight 36 MB, bulk 6553 KB per worker, parallel 2 [auto]",
+     "equal": true
+    },
+    {
+     "step": "load-pmc",
+     "kind": "load",
+     "exit": 0,
+     "wall_s": 10.8,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 20000,
+     "digest": "3809ce8c8a0ec41c",
+     "equal": true
+    },
+    {
+     "step": "seed-fat",
+     "kind": "seed",
+     "exit": 0,
+     "wall_s": 3.3,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": ""
+    },
+    {
+     "step": "dump-fat",
+     "kind": "dump",
+     "exit": 0,
+     "wall_s": 5.0,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 3000,
+     "digest": "02f824c5df91c7b6",
+     "page_note": "note: fat: documents average 79 KB stored; dumping 68 per page instead of 5000 (large-docs; give -- --limit=N to choose)",
+     "limits_line": "server limits: 1 data node, smallest d5fe032dad19: heap 256 MB (70 % used), parent breaker 243 MB (free 63 MB), request 154 MB, indexing pressure 26 MB, http.max_content_length 100 MB, search pool 13 -> page budget 15 MB, in flight 31 MB, bulk 6553 KB per worker, parallel 2 [auto]",
+     "equal": true
+    },
+    {
+     "step": "load-fat",
+     "kind": "load",
+     "exit": 0,
+     "wall_s": 3.5,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 3000,
+     "digest": "02f824c5df91c7b6",
+     "equal": true
+    }
+   ],
+   "failures": [],
+   "regression": [],
+   "version": "2.19.7",
+   "oom_log_lines": 0,
+   "breakers_tripped": {},
+   "leak": {
+    "scroll_current": 0,
+    "pit_current": 0,
+    "other_open_contexts": null,
+    "part_files": [],
+    "part_files_n": 0
+   },
+   "container": "running 0 false"
+  },
+  {
+   "engine": "os2",
+   "heap": "384m",
+   "steps": [
+    {
+     "step": "seed-pmc",
+     "kind": "seed",
+     "exit": 0,
+     "wall_s": 6.8,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": ""
+    },
+    {
+     "step": "dump-pmc",
+     "kind": "dump",
+     "exit": 0,
+     "wall_s": 7.7,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 20000,
+     "digest": "3809ce8c8a0ec41c",
+     "page_note": "note: pmc: documents average 21 KB stored; dumping 297 per page instead of 5000 (large-docs; give -- --limit=N to choose)",
+     "limits_line": "server limits: 1 data node, smallest eb694f5ececf: heap 384 MB (76 % used), parent breaker 365 MB (free 73 MB), request 230 MB, indexing pressure 38 MB, http.max_content_length 100 MB, search pool 13 -> page budget 18 MB, in flight 36 MB, bulk 9830 KB per worker, parallel 2 [auto]",
+     "equal": true
+    },
+    {
+     "step": "load-pmc",
+     "kind": "load",
+     "exit": 0,
+     "wall_s": 6.0,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 20000,
+     "digest": "3809ce8c8a0ec41c",
+     "equal": true
+    },
+    {
+     "step": "seed-fat",
+     "kind": "seed",
+     "exit": 0,
+     "wall_s": 2.9,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": ""
+    },
+    {
+     "step": "dump-fat",
+     "kind": "dump",
+     "exit": 0,
+     "wall_s": 5.3,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 3000,
+     "digest": "02f824c5df91c7b6",
+     "page_note": "note: fat: documents average 31 KB stored; dumping 492 per page instead of 5000 (large-docs; give -- --limit=N to choose)",
+     "limits_line": "server limits: 1 data node, smallest eb694f5ececf: heap 384 MB (48 % used), parent breaker 365 MB (free 177 MB), request 230 MB, indexing pressure 38 MB, http.max_content_length 100 MB, search pool 13 -> page budget 44 MB, in flight 88 MB, bulk 9830 KB per worker, parallel 2 [auto]",
+     "equal": true
+    },
+    {
+     "step": "load-fat",
+     "kind": "load",
+     "exit": 0,
+     "wall_s": 3.0,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 3000,
+     "digest": "02f824c5df91c7b6",
+     "equal": true
+    }
+   ],
+   "failures": [],
+   "regression": [],
+   "version": "2.19.7",
+   "oom_log_lines": 0,
+   "breakers_tripped": {},
+   "leak": {
+    "scroll_current": 0,
+    "pit_current": 0,
+    "other_open_contexts": null,
+    "part_files": [],
+    "part_files_n": 0
+   },
+   "container": "running 0 false"
+  },
+  {
+   "engine": "es912",
+   "heap": "256m",
+   "steps": [
+    {
+     "step": "seed-pmc",
+     "kind": "seed",
+     "exit": 0,
+     "wall_s": 5.1,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": ""
+    },
+    {
+     "step": "dump-pmc",
+     "kind": "dump",
+     "exit": 0,
+     "wall_s": 7.6,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 20000,
+     "digest": "3809ce8c8a0ec41c",
+     "page_note": "note: pmc: documents average 21 KB stored; dumping 571 per page instead of 5000 (large-docs; give -- --limit=N to choose)",
+     "limits_line": "server limits: 1 data node, smallest 3123627e2104: heap 256 MB (40 % used), parent breaker 243 MB (free 140 MB), request 154 MB, indexing pressure 26 MB, http.max_content_length 100 MB, search pool 13 -> page budget 35 MB, in flight 70 MB, bulk 6553 KB per worker, parallel 2 [auto]",
+     "equal": true
+    },
+    {
+     "step": "load-pmc",
+     "kind": "load",
+     "exit": 0,
+     "wall_s": 4.2,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 20000,
+     "digest": "3809ce8c8a0ec41c",
+     "equal": true
+    },
+    {
+     "step": "seed-fat",
+     "kind": "seed",
+     "exit": 0,
+     "wall_s": 2.2,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": ""
+    },
+    {
+     "step": "dump-fat",
+     "kind": "dump",
+     "exit": 0,
+     "wall_s": 4.7,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 3000,
+     "digest": "02f824c5df91c7b6",
+     "page_note": "note: fat: documents average 79 KB stored; dumping 36 per page instead of 5000 (large-docs; give -- --limit=N to choose)",
+     "limits_line": "server limits: 1 data node, smallest 3123627e2104: heap 256 MB (81 % used), parent breaker 243 MB (free 34 MB), request 154 MB, indexing pressure 26 MB, http.max_content_length 100 MB, search pool 13 -> page budget 8 MB, in flight 16 MB, bulk 6553 KB per worker, parallel 2 [auto]",
+     "equal": true
+    },
+    {
+     "step": "load-fat",
+     "kind": "load",
+     "exit": 0,
+     "wall_s": 2.3,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 3000,
+     "digest": "02f824c5df91c7b6",
+     "equal": true
+    }
+   ],
+   "failures": [],
+   "regression": [],
+   "version": "9.1.2",
+   "oom_log_lines": 0,
+   "breakers_tripped": {},
+   "leak": {
+    "scroll_current": 0,
+    "pit_current": null,
+    "other_open_contexts": 0,
+    "part_files": [],
+    "part_files_n": 0
+   },
+   "container": "running 0 false"
+  },
+  {
+   "engine": "es912",
+   "heap": "384m",
+   "steps": [
+    {
+     "step": "seed-pmc",
+     "kind": "seed",
+     "exit": 0,
+     "wall_s": 4.6,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": ""
+    },
+    {
+     "step": "dump-pmc",
+     "kind": "dump",
+     "exit": 0,
+     "wall_s": 7.5,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 20000,
+     "digest": "3809ce8c8a0ec41c",
+     "page_note": "note: pmc: documents average 21 KB stored; dumping 938 per page instead of 5000 (large-docs; give -- --limit=N to choose)",
+     "limits_line": "server limits: 1 data node, smallest 3c6323d3da88: heap 384 MB (28 % used), parent breaker 365 MB (free 256 MB), request 230 MB, indexing pressure 38 MB, http.max_content_length 100 MB, search pool 13 -> page budget 57 MB, in flight 128 MB, bulk 9830 KB per worker, parallel 2 [auto]",
+     "equal": true
+    },
+    {
+     "step": "load-pmc",
+     "kind": "load",
+     "exit": 0,
+     "wall_s": 4.1,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 20000,
+     "digest": "3809ce8c8a0ec41c",
+     "equal": true
+    },
+    {
+     "step": "seed-fat",
+     "kind": "seed",
+     "exit": 0,
+     "wall_s": 2.2,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": ""
+    },
+    {
+     "step": "dump-fat",
+     "kind": "dump",
+     "exit": 0,
+     "wall_s": 4.8,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 3000,
+     "digest": "02f824c5df91c7b6",
+     "page_note": "note: fat: documents average 79 KB stored; dumping 149 per page instead of 5000 (large-docs; give -- --limit=N to choose)",
+     "limits_line": "server limits: 1 data node, smallest 3c6323d3da88: heap 384 MB (59 % used), parent breaker 365 MB (free 138 MB), request 230 MB, indexing pressure 38 MB, http.max_content_length 100 MB, search pool 13 -> page budget 34 MB, in flight 68 MB, bulk 9830 KB per worker, parallel 2 [auto]",
+     "equal": true
+    },
+    {
+     "step": "load-fat",
+     "kind": "load",
+     "exit": 0,
+     "wall_s": 2.3,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 3000,
+     "digest": "02f824c5df91c7b6",
+     "equal": true
+    }
+   ],
+   "failures": [],
+   "regression": [],
+   "version": "9.1.2",
+   "oom_log_lines": 0,
+   "breakers_tripped": {},
+   "leak": {
+    "scroll_current": 0,
+    "pit_current": null,
+    "other_open_contexts": 0,
+    "part_files": [],
+    "part_files_n": 0
+   },
+   "container": "running 0 false"
+  }
+ ],
+ "failures": [],
+ "finished": "2026-11-17T17:40:45-05:00",
+ "pass": true
+}
