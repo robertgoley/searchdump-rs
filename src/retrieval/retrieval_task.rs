@@ -68,8 +68,14 @@ where
             Ok(bytes) => return Ok(bytes),
             Err(e) if halvable && crate::http::retry::is_size_429(&e) => {
                 let smaller = (size / 2).max(1);
+                let cause = crate::http::retry::size_429_cause(&e);
+                let cause = if cause.is_empty() {
+                    String::new()
+                } else {
+                    format!(" [cause: {cause}]")
+                };
                 warn!(
-                    "Slice {slice_id}: {operation} rejected with HTTP 429 (circuit breaker: the page did not fit the server's memory); halving the page from {size} to {smaller} documents for the rest of this run"
+                    "Slice {slice_id}: {operation} rejected with HTTP 429 (circuit breaker: the page did not fit the server's memory); halving the page from {size} to {smaller} documents for the rest of this run{cause}"
                 );
                 if let Some(obj) = body.as_object_mut() {
                     obj.insert(&"size", sonic_rs::json!(smaller));

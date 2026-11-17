@@ -481,6 +481,31 @@ pub fn is_size_429(error: &anyhow::Error) -> bool {
     })
 }
 
+/// 1.3-D: a short cause for a size 429 in the split / halve warnings, so a log tells a
+/// circuit breaker (and which one) from indexing pressure: `type: reason` from the error body
+/// (reason cut at 200 characters), or "" when the error is not an HTTP error with a JSON body.
+pub fn size_429_cause(error: &anyhow::Error) -> String {
+    let Some(h) = error.downcast_ref::<EsHttpError>() else {
+        return String::new();
+    };
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(&h.body) else {
+        return String::new();
+    };
+    let e = &v["error"];
+    let ty = e["type"].as_str().unwrap_or("");
+    let reason = e["reason"].as_str().unwrap_or("");
+    let mut out = format!("{ty}: {reason}");
+    if out.len() > 200 {
+        let mut cut = 200;
+        while !out.is_char_boundary(cut) {
+            cut -= 1;
+        }
+        out.truncate(cut);
+        out.push_str("...");
+    }
+    out
+}
+
 /// How a request may be retried.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RetryMode {
@@ -1037,6 +1062,33 @@ pub fn validate_response_bytes(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn size_429_cause_names_the_breaker() {
+        let e = anyhow::Error::new(EsHttpError {
+            prefix: String::new(),
+            operation: "bulk".into(),
+            status: 429,
+            body: r#"{"error":{"type":"circuit_breaking_exception","reason":"[parent] Data too large, data for [<http_request>] would be [251MB], which is larger than the limit of [243MB]"},"status":429}"#.into(),
+            endpoint: String::new(),
+        });
+        assert_eq!(
+            size_429_cause(&e),
+            "circuit_breaking_exception: [parent] Data too large, data for [<http_request>] would be [251MB], which is larger than the limit of [243MB]"
+        );
+        let long = anyhow::Error::new(EsHttpError {
+            prefix: String::new(),
+            operation: "bulk".into(),
+            status: 429,
+            body: format!(
+                r#"{{"error":{{"type":"es_rejected_execution_exception","reason":"{}"}}}}"#,
+                "x".repeat(400)
+            ),
+            endpoint: String::new(),
+        });
+        assert!(size_429_cause(&long).ends_with("..."));
+        assert_eq!(size_429_cause(&anyhow::anyhow!("plain")), "");
+    }
+
     use super::*;
 
     // L-431a: only hyper's "request never left" cancel is redialled; a request that failed

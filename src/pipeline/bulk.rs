@@ -1327,7 +1327,7 @@ impl BulkSink {
         let mut split = false;
         while let Some((pending, body)) = todo.pop() {
             let len = body.len();
-            let Some(rest) = self.write_pending(chunk, pending, body).await? else {
+            let Some((rest, cause)) = self.write_pending(chunk, pending, body).await? else {
                 continue;
             };
             split = true;
@@ -1349,10 +1349,15 @@ impl BulkSink {
                 self.split_cap.store(cap, Ordering::Relaxed);
             }
             log::warn!(
-                "bulk request of {} document(s) ({} KB) rejected with HTTP 429 (the server's memory limit); splitting it in half and sending later bulks at <= {} KB",
+                "bulk request of {} document(s) ({} KB) rejected with HTTP 429 (the server's memory limit); splitting it in half and sending later bulks at <= {} KB{}",
                 rest.len(),
                 len.div_ceil(1024),
-                self.max_bulk_bytes().div_ceil(1024)
+                self.max_bulk_bytes().div_ceil(1024),
+                if cause.is_empty() {
+                    String::new()
+                } else {
+                    format!(" [cause: {cause}]")
+                }
             );
             tokio::select! {
                 _ = tokio::time::sleep(self.opts.retry.jittered_first_delay()) => {}
@@ -1405,7 +1410,7 @@ impl BulkSink {
         chunk: &[&[u8]],
         pending: Vec<usize>,
         body: Vec<u8>,
-    ) -> Result<Option<Vec<usize>>> {
+    ) -> Result<Option<(Vec<usize>, String)>> {
         let mut pending = pending;
         let mut body = body;
         let mut attempt = 0usize;
@@ -1422,7 +1427,7 @@ impl BulkSink {
             let (resp, resent) = match self.send_bulk(body, mode, splittable).await {
                 Ok(r) => r,
                 Err(e) if splittable && crate::http::retry::is_size_429(&e) => {
-                    return Ok(Some(pending));
+                    return Ok(Some((pending, crate::http::retry::size_429_cause(&e))));
                 }
                 Err(e)
                     if auto > 0
