@@ -16,6 +16,7 @@ import signal
 import statistics
 import subprocess
 import sys
+import time
 import tomllib
 
 HERE = Path(__file__).resolve().parent
@@ -98,6 +99,8 @@ class ToolTimeout(RuntimeError):
 # a few minutes; a run past this is hung or looping (or its engine died) and must not stall
 # the rest of the sequence. PERF_CMD_TIMEOUT_S overrides it.
 CMD_TIMEOUT_S = int(os.environ.get("PERF_CMD_TIMEOUT_S", "1800"))
+# 1.3-R1: bound on waiting for a harness DELETE to be applied (see EngineRun.delete_index)
+DELETE_WAIT_S = float(os.environ.get("PERF_DELETE_WAIT_S", "60"))
 
 
 def checked(cmd, timeout_s=None, **kw):
@@ -619,8 +622,40 @@ class EngineRun:
             self.refs[key] = paths
         return self.refs[key]
 
+    def delete_index(self, name, tag=""):
+        """1.3-R1: DELETE a harness index and wait (bounded) until it is really gone.
+
+        A late-acknowledged DELETE (cluster-manager ack timeout under load or after a box resume)
+        can leave the old index in place while the next rep's first bulks arrive; the delete then
+        lands mid-run and a later bulk auto-creates the index with a new uuid, which searchdump's
+        TST-BRK-SRV-008 detector reports as "deleted during the restore and re-created". Every
+        DELETE response and the wait are logged to <result dir>/deletes.log with timestamps.
+        """
+        t0 = time.time()
+        r = self.cl.req("DELETE", "/" + name, ok404=True)
+        acked = not isinstance(r, dict) or bool(r.get("acknowledged"))
+        gone = False
+        polls = 0
+        while time.time() - t0 < DELETE_WAIT_S:
+            # a real index answers its settings as a JSON object; 404 (None) means gone
+            if not isinstance(self.cl.req("GET", "/" + name + "/_settings", ok404=True), dict):
+                gone = True
+                break
+            polls += 1
+            time.sleep(0.1)
+        line = (f"{datetime.datetime.now().astimezone().isoformat(timespec='milliseconds')} {tag} DELETE /{name} "
+                f"resp={'404' if r is None else json.dumps(r, sort_keys=True, default=str)} acknowledged={acked} gone={gone} "
+                f"polls={polls} wait_s={time.time() - t0:.3f}\n")
+        try:
+            with open(self.directory / "deletes.log", "a") as f:
+                f.write(line)
+        except OSError:
+            pass
+        if not gone:
+            raise RuntimeError(f"{tag}: DELETE /{name} not applied after {DELETE_WAIT_S:g}s (acknowledged={acked})")
+
     def create_target(self, source, target, meta=False):
-        self.cl.req("DELETE", "/" + target, ok404=True)
+        self.delete_index(target, "create_target")
         if meta == "settings":
             # Both tools apply index settings by CREATING the index (Node: PUT /<index> with the
             # settings body; searchdump refuses an existing index because static settings such
@@ -670,7 +705,7 @@ class EngineRun:
                 flags += ["--prefix=perf-dst-"]
                 for rec in self.sources:
                     target = "perf-dst-" + rec["index"]
-                    self.cl.req("DELETE", "/" + target, ok404=True)
+                    self.delete_index(target, tag)
                     targets.append(target)
             if tool == "rs":
                 flags += ["--compression=none", "--noDefaultDataFlags", "--logDir=" + str(self.directory / (tag + "-children"))]
