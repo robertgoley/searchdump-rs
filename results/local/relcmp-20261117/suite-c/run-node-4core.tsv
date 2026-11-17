@@ -1,0 +1,5 @@
+tool	run	real_seconds	user_seconds	sys_seconds	cpu_seconds	lines	bytes
+elasticdump-pit	1	41.43	37.32	5.51	42.83	2000000	1356785713
+elasticdump-scroll	1	38.58	36.55	5.00	41.55	2000000	1356785713
+elasticdump-scroll	2	40.11	36.45	6.29	42.74	2000000	1356785713
+elasticdump-pit	2	39.75	36.78	5.18	41.96	2000000	1356785713

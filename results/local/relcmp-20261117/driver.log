@@ -1,0 +1,109 @@
+===== relcmp start 2026-11-16T03:18:44-05:00 host=kvmsvr1 main=5e2ee85 =====
+bins: 1.0=searchdump 1.0.0 1.1=searchdump 1.1.0 1.2=searchdump 1.2.0 node=6.125.1
+2026-11-16T03:18:44-05:00 START A es710-plain 10
+2026-11-16T04:11:50-05:00 DONE A es710-plain 10 rc=0 /work/build/elasticdump-rs-fork/results/perf/20261116T031845-901745 3186s
+2026-11-16T04:11:50-05:00 START A es710-plain 11
+2026-11-16T04:35:57-05:00 DONE A es710-plain 11 rc=0 /work/build/elasticdump-rs-fork/results/perf/20261116T041150-973700 1447s
+2026-11-16T04:35:57-05:00 START A es710-plain 12
+2026-11-16T05:00:09-05:00 DONE A es710-plain 12 rc=0 /work/build/elasticdump-rs-fork/results/perf/20261116T043558-1028670 1452s
+2026-11-16T05:00:09-05:00 START A es710-secure 10
+2026-11-16T06:15:42-05:00 DONE A es710-secure 10 rc=0 /work/build/elasticdump-rs-fork/results/perf/20261116T050010-1085059 4533s
+2026-11-16T06:15:42-05:00 START A es710-secure 11
+2026-11-16T06:48:13-05:00 DONE A es710-secure 11 rc=0 /work/build/elasticdump-rs-fork/results/perf/20261116T061542-1158274 1951s
+2026-11-16T06:48:14-05:00 START A es710-secure 12
+2026-11-16T07:25:54-05:00 DONE A es710-secure 12 rc=0 /work/build/elasticdump-rs-fork/results/perf/20261116T064814-1214230 2260s
+2026-11-16T07:25:54-05:00 START A es717-plain 10
+2026-11-16T08:17:40-05:00 DONE A es717-plain 10 rc=0 /work/build/elasticdump-rs-fork/results/perf/20261116T072555-1272220 3106s
+2026-11-16T08:17:40-05:00 START A es717-plain 11
+2026-11-16T08:42:57-05:00 DONE A es717-plain 11 rc=0 /work/build/elasticdump-rs-fork/results/perf/20261116T081740-1346170 1517s
+2026-11-16T08:42:57-05:00 START A es717-plain 12
+2026-11-16T09:06:52-05:00 DONE A es717-plain 12 rc=0 /work/build/elasticdump-rs-fork/results/perf/20261116T084258-1402844 1435s
+2026-11-16T09:06:52-05:00 START A es717-secure 10
+2026-11-16T10:04:02-05:00 DONE A es717-secure 10 rc=0 /work/build/elasticdump-rs-fork/results/perf/20261116T090654-1460801 3430s
+2026-11-16T10:04:02-05:00 START A es717-secure 11
+2026-11-16T10:31:22-05:00 DONE A es717-secure 11 rc=0 /work/build/elasticdump-rs-fork/results/perf/20261116T100403-1534999 1640s
+2026-11-16T10:31:22-05:00 START A es717-secure 12
+2026-11-16T10:58:49-05:00 DONE A es717-secure 12 rc=0 /work/build/elasticdump-rs-fork/results/perf/20261116T103122-1592103 1647s
+2026-11-16T10:58:49-05:00 START A elasticsearch8-plain 10
+2026-11-16T11:47:30-05:00 DONE A elasticsearch8-plain 10 rc=0 /work/build/elasticdump-rs-fork/results/perf/20261116T105850-1650826 2921s
+2026-11-16T11:47:31-05:00 START A elasticsearch8-plain 11
+2026-11-16T12:10:11-05:00 DONE A elasticsearch8-plain 11 rc=0 /work/build/elasticdump-rs-fork/results/perf/20261116T114731-1724111 1360s
+2026-11-16T12:10:11-05:00 START A elasticsearch8-plain 12
+2026-11-16T12:33:12-05:00 DONE A elasticsearch8-plain 12 rc=0 /work/build/elasticdump-rs-fork/results/perf/20261116T121011-1780512 1381s
+2026-11-16T12:33:12-05:00 START A elasticsearch8-secure 10
+2026-11-16T13:25:42-05:00 DONE A elasticsearch8-secure 10 rc=0 /work/build/elasticdump-rs-fork/results/perf/20261116T123313-1838293 3150s
+2026-11-16T13:25:42-05:00 START A elasticsearch8-secure 11
+2026-11-16T13:51:23-05:00 DONE A elasticsearch8-secure 11 rc=0 /work/build/elasticdump-rs-fork/results/perf/20261116T132543-1912550 1541s
+2026-11-16T13:51:23-05:00 START A elasticsearch8-secure 12
+2026-11-16T14:17:33-05:00 DONE A elasticsearch8-secure 12 rc=0 /work/build/elasticdump-rs-fork/results/perf/20261116T135124-1969769 1570s
+2026-11-16T14:17:33-05:00 START A es819-plain 10
+2026-11-16T15:08:47-05:00 DONE A es819-plain 10 rc=0 /work/build/elasticdump-rs-fork/results/perf/20261116T141734-2028443 3074s
+2026-11-16T15:08:47-05:00 START A es819-plain 11
+2026-11-16T15:32:02-05:00 DONE A es819-plain 11 rc=0 /work/build/elasticdump-rs-fork/results/perf/20261116T150848-2102150 1395s
+2026-11-16T15:32:02-05:00 START A es819-plain 12
+2026-11-16T15:55:15-05:00 DONE A es819-plain 12 rc=0 /work/build/elasticdump-rs-fork/results/perf/20261116T153203-2158384 1393s
+2026-11-16T15:55:15-05:00 START A es819-secure 10
+2026-11-16T16:51:34-05:00 DONE A es819-secure 10 rc=0 /work/build/elasticdump-rs-fork/results/perf/20261116T155516-2215998 3379s
+2026-11-16T16:51:34-05:00 START A es819-secure 11
+2026-11-16T17:19:40-05:00 DONE A es819-secure 11 rc=0 /work/build/elasticdump-rs-fork/results/perf/20261116T165135-2290014 1686s
+2026-11-16T17:19:40-05:00 START A es819-secure 12
+2026-11-16T17:47:02-05:00 DONE A es819-secure 12 rc=0 /work/build/elasticdump-rs-fork/results/perf/20261116T171941-2347193 1642s
+2026-11-16T17:47:02-05:00 START A elasticsearch-plain 10
+2026-11-16T18:37:24-05:00 DONE A elasticsearch-plain 10 rc=0 /work/build/elasticdump-rs-fork/results/perf/20261116T174703-2405534 3022s
+2026-11-16T18:37:24-05:00 START A elasticsearch-plain 11
+2026-11-16T19:01:11-05:00 DONE A elasticsearch-plain 11 rc=0 /work/build/elasticdump-rs-fork/results/perf/20261116T183724-2478934 1427s
+2026-11-16T19:01:11-05:00 START A elasticsearch-plain 12
+2026-11-16T19:24:50-05:00 DONE A elasticsearch-plain 12 rc=0 /work/build/elasticdump-rs-fork/results/perf/20261116T190112-2535691 1419s
+2026-11-16T19:24:51-05:00 START A elasticsearch-secure 10
+2026-11-16T20:21:51-05:00 DONE A elasticsearch-secure 10 rc=0 /work/build/elasticdump-rs-fork/results/perf/20261116T192452-2593813 3420s
+2026-11-16T20:21:51-05:00 START A elasticsearch-secure 11
+2026-11-16T20:50:10-05:00 DONE A elasticsearch-secure 11 rc=0 /work/build/elasticdump-rs-fork/results/perf/20261116T202151-2667944 1699s
+2026-11-16T20:50:10-05:00 START A elasticsearch-secure 12
+2026-11-16T21:18:07-05:00 DONE A elasticsearch-secure 12 rc=0 /work/build/elasticdump-rs-fork/results/perf/20261116T205011-2725639 1677s
+2026-11-16T21:18:07-05:00 START A os13-plain 10
+2026-11-16T22:06:31-05:00 DONE A os13-plain 10 rc=0 /work/build/elasticdump-rs-fork/results/perf/20261116T211808-2784906 2904s
+2026-11-16T22:06:31-05:00 START A os13-plain 11
+2026-11-16T22:28:33-05:00 DONE A os13-plain 11 rc=0 /work/build/elasticdump-rs-fork/results/perf/20261116T220632-2857223 1322s
+2026-11-16T22:28:33-05:00 START A os13-plain 12
+2026-11-16T22:51:30-05:00 DONE A os13-plain 12 rc=0 /work/build/elasticdump-rs-fork/results/perf/20261116T222833-2912147 1377s
+2026-11-16T22:51:30-05:00 START A os13-secure 10
+2026-11-16T23:49:33-05:00 DONE A os13-secure 10 rc=0 /work/build/elasticdump-rs-fork/results/perf/20261116T225131-2968613 3483s
+2026-11-16T23:49:33-05:00 START A os13-secure 11
+2026-11-17T00:18:17-05:00 DONE A os13-secure 11 rc=0 /work/build/elasticdump-rs-fork/results/perf/20261116T234934-3042991 1724s
+2026-11-17T00:18:17-05:00 START A os13-secure 12
+2026-11-17T00:46:23-05:00 DONE A os13-secure 12 rc=0 /work/build/elasticdump-rs-fork/results/perf/20261117T001818-3099029 1686s
+2026-11-17T00:46:23-05:00 START A os2-plain 10
+2026-11-17T01:37:25-05:00 DONE A os2-plain 10 rc=0 /work/build/elasticdump-rs-fork/results/perf/20261117T004624-3156499 3062s
+2026-11-17T01:37:25-05:00 START A os2-plain 11
+2026-11-17T02:01:46-05:00 DONE A os2-plain 11 rc=0 /work/build/elasticdump-rs-fork/results/perf/20261117T013726-3229894 1461s
+2026-11-17T02:01:46-05:00 START A os2-plain 12
+2026-11-17T02:26:35-05:00 DONE A os2-plain 12 rc=0 /work/build/elasticdump-rs-fork/results/perf/20261117T020147-3286190 1489s
+2026-11-17T02:26:35-05:00 START A os2-secure 10
+2026-11-17T03:25:45-05:00 DONE A os2-secure 10 rc=0 /work/build/elasticdump-rs-fork/results/perf/20261117T022636-3343870 3550s
+2026-11-17T03:25:45-05:00 START A os2-secure 11
+2026-11-17T03:54:46-05:00 DONE A os2-secure 11 rc=0 /work/build/elasticdump-rs-fork/results/perf/20261117T032546-3419601 1741s
+2026-11-17T03:54:46-05:00 START A os2-secure 12
+2026-11-17T04:23:52-05:00 DONE A os2-secure 12 rc=0 /work/build/elasticdump-rs-fork/results/perf/20261117T035447-3477286 1746s
+2026-11-17T04:23:52-05:00 START A os3-plain 10
+2026-11-17T05:16:35-05:00 DONE A os3-plain 10 rc=0 /work/build/elasticdump-rs-fork/results/perf/20261117T042353-3536275 3163s
+2026-11-17T05:16:35-05:00 START A os3-plain 11
+2026-11-17T05:41:52-05:00 DONE A os3-plain 11 rc=0 /work/build/elasticdump-rs-fork/results/perf/20261117T051635-3610121 1517s
+2026-11-17T05:41:52-05:00 START A os3-plain 12
+2026-11-17T06:10:05-05:00 DONE A os3-plain 12 rc=0 /work/build/elasticdump-rs-fork/results/perf/20261117T054152-3666928 1693s
+2026-11-17T06:10:05-05:00 START A os3-secure 10
+2026-11-17T07:13:43-05:00 DONE A os3-secure 10 rc=0 /work/build/elasticdump-rs-fork/results/perf/20261117T061006-3725324 3818s
+2026-11-17T07:13:43-05:00 START A os3-secure 11
+2026-11-17T07:43:47-05:00 DONE A os3-secure 11 rc=0 /work/build/elasticdump-rs-fork/results/perf/20261117T071343-3802521 1804s
+2026-11-17T07:43:47-05:00 START A os3-secure 12
+2026-11-17T08:15:30-05:00 DONE A os3-secure 12 rc=0 /work/build/elasticdump-rs-fork/results/perf/20261117T074348-3860762 1903s
+2026-11-17T08:15:30-05:00 START B node
+2026-11-17T08:43:12-05:00 DONE B node rc=0
+2026-11-17T08:43:13-05:00 START B 10 mode=none
+2026-11-17T09:23:00-05:00 DONE B 10 rc=1
+2026-11-17T09:23:00-05:00 START B 11 mode=none
+2026-11-17T09:53:49-05:00 DONE B 11 rc=0
+2026-11-17T09:53:49-05:00 START B 12 mode=auto
+2026-11-17T10:25:38-05:00 DONE B 12 rc=0
+2026-11-17T10:25:38-05:00 START C 2M sliced retrieval
+2026-11-17T10:40:55-05:00 DONE C rc=0
+===== relcmp done 2026-11-17T10:40:57-05:00 =====

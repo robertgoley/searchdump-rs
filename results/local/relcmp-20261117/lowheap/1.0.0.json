@@ -1,0 +1,1278 @@
+{
+ "schema": "edrs-lowheap/v1",
+ "run_id": "relcmp-lowheap-10",
+ "engines": [
+  "es710",
+  "es861",
+  "es819",
+  "es912",
+  "os13",
+  "os2",
+  "os3"
+ ],
+ "heaps": [
+  "256m",
+  "384m"
+ ],
+ "datasets": {
+  "pmc": {
+   "docs": 20000,
+   "avg_kb": 21.6,
+   "digest": "3809ce8c8a0ec41c",
+   "file": "pmc.json"
+  },
+  "fat": {
+   "docs": 3000,
+   "avg_kb": 78.0,
+   "digest": "02f824c5df91c7b6",
+   "file": "fat.json"
+  }
+ },
+ "regression": false,
+ "mode": "none",
+ "git": "5e2ee85",
+ "tool": "searchdump 1.0.0",
+ "started": "2026-11-17T08:43:13-05:00",
+ "cells": [
+  {
+   "engine": "es710",
+   "heap": "256m",
+   "steps": [
+    {
+     "step": "seed-pmc",
+     "kind": "seed",
+     "exit": 0,
+     "wall_s": 28.6,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": ""
+    },
+    {
+     "step": "dump-pmc",
+     "kind": "dump",
+     "exit": 1,
+     "wall_s": 13.9,
+     "node_alive": false,
+     "retries": 10,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "Error: Retrieval task failed: Slice 0: Elasticsearch initial search request failed: error sending request for url (http://127.0.0.1:19413/pmc/_search?scroll=10m&allow_partial_search_results=false): client error (Connect): tcp connect error: Connection refused (os error 111) (connection refused: the cluster is down or restarting, or the URL's port is wrong; --retryAttempts/--retryDelay set how long",
+     "docs": null,
+     "digest": null,
+     "page_note": "",
+     "limits_line": "",
+     "equal": false
+    },
+    {
+     "step": "seed-fat",
+     "kind": "seed",
+     "exit": 0,
+     "wall_s": 19.8,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": ""
+    },
+    {
+     "step": "dump-fat",
+     "kind": "dump",
+     "exit": 1,
+     "wall_s": 13.2,
+     "node_alive": false,
+     "retries": 10,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "Error: Retrieval task failed: Slice 0: Elasticsearch initial search request failed: error sending request for url (http://127.0.0.1:19413/fat/_search?scroll=10m&allow_partial_search_results=false): client error (Connect): tcp connect error: Connection refused (os error 111) (connection refused: the cluster is down or restarting, or the URL's port is wrong; --retryAttempts/--retryDelay set how long",
+     "docs": null,
+     "digest": null,
+     "page_note": "",
+     "limits_line": "",
+     "equal": false
+    }
+   ],
+   "failures": [
+    "dump pmc: exit 1",
+    "dump pmc: node down (exited 127 false)",
+    "dump fat: exit 1",
+    "dump fat: node down (exited 127 false)"
+   ],
+   "regression": [],
+   "version": "7.10.2",
+   "oom_log_lines": 6,
+   "breakers_tripped": {},
+   "leak": {
+    "scroll_current": 0,
+    "pit_current": null,
+    "other_open_contexts": 0,
+    "part_files": [],
+    "part_files_n": 0
+   },
+   "container": "running 0 false"
+  },
+  {
+   "engine": "es710",
+   "heap": "384m",
+   "steps": [
+    {
+     "step": "seed-pmc",
+     "kind": "seed",
+     "exit": 0,
+     "wall_s": 29.4,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": ""
+    },
+    {
+     "step": "dump-pmc",
+     "kind": "dump",
+     "exit": 0,
+     "wall_s": 15.0,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 20000,
+     "digest": "3809ce8c8a0ec41c",
+     "page_note": "",
+     "limits_line": "",
+     "equal": true
+    },
+    {
+     "step": "load-pmc",
+     "kind": "load",
+     "exit": 1,
+     "wall_s": 15.1,
+     "node_alive": true,
+     "retries": 10,
+     "http429": 24,
+     "circuit_breaking": 36,
+     "error": "Error: Elasticsearch bulk failed with HTTP 429: circuit_breaking_exception: [parent] Data too large, data for [<http_request>] would be [463274380/441.8mb], which is larger than the limit of [369819648/352.6mb], real usage: [253579720/241.8mb], new bytes reserved: [209694660/199.9mb], usages [request=0/0b, fielddata=0/0b, in_flight_requests=209694660/199.9mb, accounting=0/0b]; body: {\"error\":{\"roo",
+     "equal": false
+    },
+    {
+     "step": "seed-fat",
+     "kind": "seed",
+     "exit": 0,
+     "wall_s": 18.8,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": ""
+    },
+    {
+     "step": "dump-fat",
+     "kind": "dump",
+     "exit": 1,
+     "wall_s": 13.5,
+     "node_alive": false,
+     "retries": 10,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "Error: Retrieval task failed: Slice 0: Elasticsearch initial search request failed: error sending request for url (http://127.0.0.1:19413/fat/_search?scroll=10m&allow_partial_search_results=false): client error (Connect): tcp connect error: Connection refused (os error 111) (connection refused: the cluster is down or restarting, or the URL's port is wrong; --retryAttempts/--retryDelay set how long",
+     "docs": null,
+     "digest": null,
+     "page_note": "",
+     "limits_line": "",
+     "equal": false
+    }
+   ],
+   "failures": [
+    "load pmc: exit 1",
+    "dump fat: exit 1",
+    "dump fat: node down (exited 127 false)"
+   ],
+   "regression": [],
+   "version": "7.10.2",
+   "oom_log_lines": 3,
+   "breakers_tripped": {},
+   "leak": {
+    "scroll_current": 0,
+    "pit_current": null,
+    "other_open_contexts": 0,
+    "part_files": [],
+    "part_files_n": 0
+   },
+   "container": "running 0 false"
+  },
+  {
+   "engine": "es861",
+   "heap": "256m",
+   "steps": [
+    {
+     "step": "seed-pmc",
+     "kind": "seed",
+     "exit": 0,
+     "wall_s": 29.8,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": ""
+    },
+    {
+     "step": "dump-pmc",
+     "kind": "dump",
+     "exit": 1,
+     "wall_s": 13.9,
+     "node_alive": false,
+     "retries": 10,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "Error: Retrieval task failed: Slice 0: Elasticsearch initial search request failed: error sending request for url (http://127.0.0.1:19413/pmc/_search?scroll=10m&allow_partial_search_results=false): client error (Connect): tcp connect error: Connection refused (os error 111) (connection refused: the cluster is down or restarting, or the URL's port is wrong; --retryAttempts/--retryDelay set how long",
+     "docs": null,
+     "digest": null,
+     "page_note": "",
+     "limits_line": "",
+     "equal": false
+    },
+    {
+     "step": "seed-fat",
+     "kind": "seed",
+     "exit": 0,
+     "wall_s": 22.5,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": ""
+    },
+    {
+     "step": "dump-fat",
+     "kind": "dump",
+     "exit": 1,
+     "wall_s": 15.7,
+     "node_alive": false,
+     "retries": 10,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "Error: Retrieval task failed: Slice 0: Elasticsearch initial search request failed: error sending request for url (http://127.0.0.1:19413/fat/_search?scroll=10m&allow_partial_search_results=false): client error (Connect): tcp connect error: Connection refused (os error 111) (connection refused: the cluster is down or restarting, or the URL's port is wrong; --retryAttempts/--retryDelay set how long",
+     "docs": null,
+     "digest": null,
+     "page_note": "",
+     "limits_line": "",
+     "equal": false
+    }
+   ],
+   "failures": [
+    "dump pmc: exit 1",
+    "dump pmc: node down (exited 3 false)",
+    "dump fat: exit 1",
+    "dump fat: node down (exited 3 false)"
+   ],
+   "regression": [],
+   "version": "8.6.1",
+   "oom_log_lines": 4,
+   "breakers_tripped": {},
+   "leak": {
+    "scroll_current": 0,
+    "pit_current": null,
+    "other_open_contexts": 0,
+    "part_files": [],
+    "part_files_n": 0
+   },
+   "container": "running 0 false"
+  },
+  {
+   "engine": "es861",
+   "heap": "384m",
+   "steps": [
+    {
+     "step": "seed-pmc",
+     "kind": "seed",
+     "exit": 0,
+     "wall_s": 25.2,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": ""
+    },
+    {
+     "step": "dump-pmc",
+     "kind": "dump",
+     "exit": 0,
+     "wall_s": 14.8,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 20000,
+     "digest": "3809ce8c8a0ec41c",
+     "page_note": "",
+     "limits_line": "",
+     "equal": true
+    },
+    {
+     "step": "load-pmc",
+     "kind": "load",
+     "exit": 1,
+     "wall_s": 15.7,
+     "node_alive": true,
+     "retries": 10,
+     "http429": 24,
+     "circuit_breaking": 36,
+     "error": "Error: Elasticsearch bulk failed with HTTP 429: circuit_breaking_exception: [parent] Data too large, data for [<http_request>] would be [524371574/500mb], which is larger than the limit of [382520524/364.7mb], real usage: [314671616/300mb], new bytes reserved: [209699958/199.9mb], usages [inflight_requests=209699958/199.9mb, request=0/0b, fielddata=0/0b, eql_sequence=0/0b, model_inference=0/0b]; b",
+     "equal": false
+    },
+    {
+     "step": "seed-fat",
+     "kind": "seed",
+     "exit": 0,
+     "wall_s": 14.1,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": ""
+    },
+    {
+     "step": "dump-fat",
+     "kind": "dump",
+     "exit": 1,
+     "wall_s": 13.7,
+     "node_alive": false,
+     "retries": 10,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "Error: Retrieval task failed: Slice 0: Elasticsearch initial search request failed: error sending request for url (http://127.0.0.1:19413/fat/_search?scroll=10m&allow_partial_search_results=false): client error (Connect): tcp connect error: Connection refused (os error 111) (connection refused: the cluster is down or restarting, or the URL's port is wrong; --retryAttempts/--retryDelay set how long",
+     "docs": null,
+     "digest": null,
+     "page_note": "",
+     "limits_line": "",
+     "equal": false
+    }
+   ],
+   "failures": [
+    "load pmc: exit 1",
+    "dump fat: exit 1",
+    "dump fat: node down (exited 3 false)"
+   ],
+   "regression": [],
+   "version": "8.6.1",
+   "oom_log_lines": 2,
+   "breakers_tripped": {},
+   "leak": {
+    "scroll_current": 0,
+    "pit_current": null,
+    "other_open_contexts": 0,
+    "part_files": [],
+    "part_files_n": 0
+   },
+   "container": "running 0 false"
+  },
+  {
+   "engine": "es819",
+   "heap": "256m",
+   "steps": [
+    {
+     "step": "seed-pmc",
+     "kind": "seed",
+     "exit": 0,
+     "wall_s": 22.9,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": ""
+    },
+    {
+     "step": "dump-pmc",
+     "kind": "dump",
+     "exit": 1,
+     "wall_s": 12.3,
+     "node_alive": true,
+     "retries": 10,
+     "http429": 24,
+     "circuit_breaking": 24,
+     "error": "Error: Retrieval task failed: Slice 0: Elasticsearch initial search failed with HTTP 429: search_phase_execution_exception: all shards failed; body: {\"error\":{\"root_cause\":[{\"type\":\"circuit_breaking_exception\",\"reason\":\"[request] Data too large, data for [fetch source] would be [162026256/154.5mb], which is larger than the limit of [161061273/153.5mb]\",\"bytes_wanted\":162026256,\"bytes_limit\":161061",
+     "docs": null,
+     "digest": null,
+     "page_note": "",
+     "limits_line": "",
+     "equal": false
+    },
+    {
+     "step": "seed-fat",
+     "kind": "seed",
+     "exit": 0,
+     "wall_s": 14.6,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": ""
+    },
+    {
+     "step": "dump-fat",
+     "kind": "dump",
+     "exit": 1,
+     "wall_s": 10.7,
+     "node_alive": true,
+     "retries": 10,
+     "http429": 24,
+     "circuit_breaking": 24,
+     "error": "Error: Retrieval task failed: Slice 0: Elasticsearch initial search failed with HTTP 429: search_phase_execution_exception: all shards failed; body: {\"error\":{\"root_cause\":[{\"type\":\"circuit_breaking_exception\",\"reason\":\"[request] Data too large, data for [fetch source] would be [161305068/153.8mb], which is larger than the limit of [161061273/153.5mb]\",\"bytes_wanted\":161305068,\"bytes_limit\":161061",
+     "docs": null,
+     "digest": null,
+     "page_note": "",
+     "limits_line": "",
+     "equal": false
+    }
+   ],
+   "failures": [
+    "dump pmc: exit 1",
+    "dump fat: exit 1"
+   ],
+   "regression": [],
+   "version": "8.19.23",
+   "oom_log_lines": 0,
+   "breakers_tripped": {
+    "request": 12
+   },
+   "leak": {
+    "scroll_current": 0,
+    "pit_current": null,
+    "other_open_contexts": 0,
+    "part_files": [],
+    "part_files_n": 0
+   },
+   "container": "running 0 false"
+  },
+  {
+   "engine": "es819",
+   "heap": "384m",
+   "steps": [
+    {
+     "step": "seed-pmc",
+     "kind": "seed",
+     "exit": 0,
+     "wall_s": 25.6,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": ""
+    },
+    {
+     "step": "dump-pmc",
+     "kind": "dump",
+     "exit": 0,
+     "wall_s": 14.0,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 20000,
+     "digest": "3809ce8c8a0ec41c",
+     "page_note": "",
+     "limits_line": "",
+     "equal": true
+    },
+    {
+     "step": "load-pmc",
+     "kind": "load",
+     "exit": 1,
+     "wall_s": 15.5,
+     "node_alive": true,
+     "retries": 10,
+     "http429": 24,
+     "circuit_breaking": 36,
+     "error": "Error: Elasticsearch bulk failed with HTTP 429: circuit_breaking_exception: [parent] Data too large, data for [<http_request>] would be [498469284/475.3mb], which is larger than the limit of [382520524/364.7mb], real usage: [288788144/275.4mb], new bytes reserved: [209681140/199.9mb], usages [eql_sequence=0/0b, fielddata=0/0b, request=0/0b, inflight_requests=209681140/199.9mb, model_inference=0/0b",
+     "equal": false
+    },
+    {
+     "step": "seed-fat",
+     "kind": "seed",
+     "exit": 0,
+     "wall_s": 14.5,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": ""
+    },
+    {
+     "step": "dump-fat",
+     "kind": "dump",
+     "exit": 1,
+     "wall_s": 11.0,
+     "node_alive": true,
+     "retries": 10,
+     "http429": 24,
+     "circuit_breaking": 24,
+     "error": "Error: Retrieval task failed: Slice 0: Elasticsearch initial search failed with HTTP 429: search_phase_execution_exception: all shards failed; body: {\"error\":{\"root_cause\":[{\"type\":\"circuit_breaking_exception\",\"reason\":\"[request] Data too large, data for [fetch source] would be [242015028/230.8mb], which is larger than the limit of [241591910/230.3mb]\",\"bytes_wanted\":242015028,\"bytes_limit\":241591",
+     "docs": null,
+     "digest": null,
+     "page_note": "",
+     "limits_line": "",
+     "equal": false
+    }
+   ],
+   "failures": [
+    "load pmc: exit 1",
+    "dump fat: exit 1"
+   ],
+   "regression": [],
+   "version": "8.19.23",
+   "oom_log_lines": 0,
+   "breakers_tripped": {
+    "request": 6,
+    "parent": 6
+   },
+   "leak": {
+    "scroll_current": 0,
+    "pit_current": null,
+    "other_open_contexts": 0,
+    "part_files": [],
+    "part_files_n": 0
+   },
+   "container": "running 0 false"
+  },
+  {
+   "engine": "es912",
+   "heap": "256m",
+   "steps": [
+    {
+     "step": "seed-pmc",
+     "kind": "seed",
+     "exit": 0,
+     "wall_s": 41.6,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": ""
+    },
+    {
+     "step": "dump-pmc",
+     "kind": "dump",
+     "exit": 0,
+     "wall_s": 16.3,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 20000,
+     "digest": "3809ce8c8a0ec41c",
+     "page_note": "",
+     "limits_line": "",
+     "equal": true
+    },
+    {
+     "step": "load-pmc",
+     "kind": "load",
+     "exit": 0,
+     "wall_s": 18.1,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 20000,
+     "digest": "3809ce8c8a0ec41c",
+     "equal": true
+    },
+    {
+     "step": "seed-fat",
+     "kind": "seed",
+     "exit": 0,
+     "wall_s": 13.2,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": ""
+    },
+    {
+     "step": "dump-fat",
+     "kind": "dump",
+     "exit": 1,
+     "wall_s": 26.2,
+     "node_alive": true,
+     "retries": 10,
+     "http429": 24,
+     "circuit_breaking": 24,
+     "error": "Error: Retrieval task failed: Slice 0: Elasticsearch initial search failed with HTTP 429: search_phase_execution_exception: all shards failed; body: {\"error\":{\"root_cause\":[{\"type\":\"circuit_breaking_exception\",\"reason\":\"[parent] Data too large, data for [fetch source] would be [255640904/243.7mb], which is larger than the limit of [255013683/243.1mb], real usage: [255640904/243.7mb], new bytes res",
+     "docs": null,
+     "digest": null,
+     "page_note": "",
+     "limits_line": "",
+     "equal": false
+    }
+   ],
+   "failures": [
+    "dump fat: exit 1"
+   ],
+   "regression": [],
+   "version": "9.1.2",
+   "oom_log_lines": 0,
+   "breakers_tripped": {
+    "parent": 6
+   },
+   "leak": {
+    "scroll_current": 0,
+    "pit_current": null,
+    "other_open_contexts": 0,
+    "part_files": [],
+    "part_files_n": 0
+   },
+   "container": "running 0 false"
+  },
+  {
+   "engine": "es912",
+   "heap": "384m",
+   "steps": [
+    {
+     "step": "seed-pmc",
+     "kind": "seed",
+     "exit": 0,
+     "wall_s": 32.8,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": ""
+    },
+    {
+     "step": "dump-pmc",
+     "kind": "dump",
+     "exit": 0,
+     "wall_s": 15.0,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 20000,
+     "digest": "3809ce8c8a0ec41c",
+     "page_note": "",
+     "limits_line": "",
+     "equal": true
+    },
+    {
+     "step": "load-pmc",
+     "kind": "load",
+     "exit": 0,
+     "wall_s": 18.5,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 20000,
+     "digest": "3809ce8c8a0ec41c",
+     "equal": true
+    },
+    {
+     "step": "seed-fat",
+     "kind": "seed",
+     "exit": 0,
+     "wall_s": 13.9,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": ""
+    },
+    {
+     "step": "dump-fat",
+     "kind": "dump",
+     "exit": 0,
+     "wall_s": 11.5,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 3000,
+     "digest": "02f824c5df91c7b6",
+     "page_note": "",
+     "limits_line": "",
+     "equal": true
+    },
+    {
+     "step": "load-fat",
+     "kind": "load",
+     "exit": 0,
+     "wall_s": 8.1,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 3000,
+     "digest": "02f824c5df91c7b6",
+     "equal": true
+    }
+   ],
+   "failures": [],
+   "regression": [],
+   "version": "9.1.2",
+   "oom_log_lines": 0,
+   "breakers_tripped": {},
+   "leak": {
+    "scroll_current": 0,
+    "pit_current": null,
+    "other_open_contexts": 0,
+    "part_files": [],
+    "part_files_n": 0
+   },
+   "container": "running 0 false"
+  },
+  {
+   "engine": "os13",
+   "heap": "256m",
+   "steps": [
+    {
+     "step": "seed-pmc",
+     "kind": "seed",
+     "exit": 0,
+     "wall_s": 36.2,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": ""
+    },
+    {
+     "step": "dump-pmc",
+     "kind": "dump",
+     "exit": 1,
+     "wall_s": 22.3,
+     "node_alive": false,
+     "retries": 10,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "Error: Retrieval task failed: Slice 0: Elasticsearch initial search request failed: error sending request for url (http://127.0.0.1:19413/pmc/_search?scroll=10m&allow_partial_search_results=false): client error (Connect): tcp connect error: Connection refused (os error 111) (connection refused: the cluster is down or restarting, or the URL's port is wrong; --retryAttempts/--retryDelay set how long",
+     "docs": null,
+     "digest": null,
+     "page_note": "",
+     "limits_line": "",
+     "equal": false
+    },
+    {
+     "step": "seed-fat",
+     "kind": "seed",
+     "exit": 0,
+     "wall_s": 19.6,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": ""
+    },
+    {
+     "step": "dump-fat",
+     "kind": "dump",
+     "exit": 1,
+     "wall_s": 15.3,
+     "node_alive": false,
+     "retries": 10,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "Error: Retrieval task failed: Slice 0: Elasticsearch initial search request failed: error sending request for url (http://127.0.0.1:19413/fat/_search?scroll=10m&allow_partial_search_results=false): client error (Connect): tcp connect error: Connection refused (os error 111) (connection refused: the cluster is down or restarting, or the URL's port is wrong; --retryAttempts/--retryDelay set how long",
+     "docs": null,
+     "digest": null,
+     "page_note": "",
+     "limits_line": "",
+     "equal": false
+    }
+   ],
+   "failures": [
+    "dump pmc: exit 1",
+    "dump pmc: node down (exited 127 false)",
+    "dump fat: exit 1",
+    "dump fat: node down (exited 127 false)"
+   ],
+   "regression": [],
+   "version": "1.3.20",
+   "oom_log_lines": 8,
+   "breakers_tripped": {},
+   "leak": {
+    "scroll_current": 0,
+    "pit_current": null,
+    "other_open_contexts": 0,
+    "part_files": [],
+    "part_files_n": 0
+   },
+   "container": "running 0 false"
+  },
+  {
+   "engine": "os13",
+   "heap": "384m",
+   "steps": [
+    {
+     "step": "seed-pmc",
+     "kind": "seed",
+     "exit": 0,
+     "wall_s": 32.4,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": ""
+    },
+    {
+     "step": "dump-pmc",
+     "kind": "dump",
+     "exit": 0,
+     "wall_s": 17.8,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 20000,
+     "digest": "3809ce8c8a0ec41c",
+     "page_note": "",
+     "limits_line": "",
+     "equal": true
+    },
+    {
+     "step": "load-pmc",
+     "kind": "load",
+     "exit": 1,
+     "wall_s": 16.6,
+     "node_alive": true,
+     "retries": 10,
+     "http429": 24,
+     "circuit_breaking": 36,
+     "error": "Error: Elasticsearch bulk failed with HTTP 429: circuit_breaking_exception: [parent] Data too large, data for [<http_request>] would be [437419928/417.1mb], which is larger than the limit of [382520524/364.7mb], real usage: [227742208/217.1mb], new bytes reserved: [209677720/199.9mb], usages [request=0/0b, fielddata=0/0b, in_flight_requests=209677720/199.9mb, accounting=0/0b]; body: {\"error\":{\"roo",
+     "equal": false
+    },
+    {
+     "step": "seed-fat",
+     "kind": "seed",
+     "exit": 0,
+     "wall_s": 19.4,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": ""
+    },
+    {
+     "step": "dump-fat",
+     "kind": "dump",
+     "exit": 1,
+     "wall_s": 15.2,
+     "node_alive": false,
+     "retries": 10,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "Error: Retrieval task failed: Slice 0: Elasticsearch initial search request failed: error sending request for url (http://127.0.0.1:19413/fat/_search?scroll=10m&allow_partial_search_results=false): client error (Connect): tcp connect error: Connection refused (os error 111) (connection refused: the cluster is down or restarting, or the URL's port is wrong; --retryAttempts/--retryDelay set how long",
+     "docs": null,
+     "digest": null,
+     "page_note": "",
+     "limits_line": "",
+     "equal": false
+    }
+   ],
+   "failures": [
+    "load pmc: exit 1",
+    "dump fat: exit 1",
+    "dump fat: node down (exited 127 false)"
+   ],
+   "regression": [],
+   "version": "1.3.20",
+   "oom_log_lines": 3,
+   "breakers_tripped": {},
+   "leak": {
+    "scroll_current": 0,
+    "pit_current": null,
+    "other_open_contexts": 0,
+    "part_files": [],
+    "part_files_n": 0
+   },
+   "container": "running 0 false"
+  },
+  {
+   "engine": "os2",
+   "heap": "256m",
+   "steps": [
+    {
+     "step": "seed-pmc",
+     "kind": "seed",
+     "exit": 0,
+     "wall_s": 20.6,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": ""
+    },
+    {
+     "step": "dump-pmc",
+     "kind": "dump",
+     "exit": 1,
+     "wall_s": 15.6,
+     "node_alive": false,
+     "retries": 10,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "Error: Retrieval task failed: Slice 0: Elasticsearch initial search request failed: error sending request for url (http://127.0.0.1:19413/pmc/_search?scroll=10m&allow_partial_search_results=false): client error (Connect): tcp connect error: Connection refused (os error 111) (connection refused: the cluster is down or restarting, or the URL's port is wrong; --retryAttempts/--retryDelay set how long",
+     "docs": null,
+     "digest": null,
+     "page_note": "",
+     "limits_line": "",
+     "equal": false
+    },
+    {
+     "step": "seed-fat",
+     "kind": "seed",
+     "exit": 0,
+     "wall_s": 21.1,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": ""
+    },
+    {
+     "step": "dump-fat",
+     "kind": "dump",
+     "exit": 1,
+     "wall_s": 12.0,
+     "node_alive": false,
+     "retries": 10,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "Error: Retrieval task failed: Slice 0: Elasticsearch initial search request failed: error sending request for url (http://127.0.0.1:19413/fat/_search?scroll=10m&allow_partial_search_results=false): client error (Connect): tcp connect error: Connection refused (os error 111) (connection refused: the cluster is down or restarting, or the URL's port is wrong; --retryAttempts/--retryDelay set how long",
+     "docs": null,
+     "digest": null,
+     "page_note": "",
+     "limits_line": "",
+     "equal": false
+    }
+   ],
+   "failures": [
+    "dump pmc: exit 1",
+    "dump pmc: node down (exited 127 false)",
+    "dump fat: exit 1",
+    "dump fat: node down (exited 127 false)"
+   ],
+   "regression": [],
+   "version": "2.19.7",
+   "oom_log_lines": 8,
+   "breakers_tripped": {},
+   "leak": {
+    "scroll_current": 0,
+    "pit_current": 0,
+    "other_open_contexts": null,
+    "part_files": [],
+    "part_files_n": 0
+   },
+   "container": "running 0 false"
+  },
+  {
+   "engine": "os2",
+   "heap": "384m",
+   "steps": [
+    {
+     "step": "seed-pmc",
+     "kind": "seed",
+     "exit": 0,
+     "wall_s": 20.9,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": ""
+    },
+    {
+     "step": "dump-pmc",
+     "kind": "dump",
+     "exit": 0,
+     "wall_s": 13.6,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 20000,
+     "digest": "3809ce8c8a0ec41c",
+     "page_note": "",
+     "limits_line": "",
+     "equal": true
+    },
+    {
+     "step": "load-pmc",
+     "kind": "load",
+     "exit": 1,
+     "wall_s": 14.6,
+     "node_alive": true,
+     "retries": 10,
+     "http429": 24,
+     "circuit_breaking": 36,
+     "error": "Error: Elasticsearch bulk failed with HTTP 429: circuit_breaking_exception: [parent] Data too large, data for [<http_request>] would be [553361684/527.7mb], which is larger than the limit of [382520524/364.7mb], real usage: [343675968/327.7mb], new bytes reserved: [209685716/199.9mb], usages [request=0/0b, fielddata=313/313b, in_flight_requests=209685716/199.9mb]; body: {\"error\":{\"root_cause\":[{\"t",
+     "equal": false
+    },
+    {
+     "step": "seed-fat",
+     "kind": "seed",
+     "exit": 0,
+     "wall_s": 15.2,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": ""
+    },
+    {
+     "step": "dump-fat",
+     "kind": "dump",
+     "exit": 1,
+     "wall_s": 12.3,
+     "node_alive": false,
+     "retries": 10,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "Error: Retrieval task failed: Slice 0: Elasticsearch initial search request failed: error sending request for url (http://127.0.0.1:19413/fat/_search?scroll=10m&allow_partial_search_results=false): client error (Connect): tcp connect error: Connection refused (os error 111) (connection refused: the cluster is down or restarting, or the URL's port is wrong; --retryAttempts/--retryDelay set how long",
+     "docs": null,
+     "digest": null,
+     "page_note": "",
+     "limits_line": "",
+     "equal": false
+    }
+   ],
+   "failures": [
+    "load pmc: exit 1",
+    "dump fat: exit 1",
+    "dump fat: node down (exited 127 false)"
+   ],
+   "regression": [],
+   "version": "2.19.7",
+   "oom_log_lines": 3,
+   "breakers_tripped": {},
+   "leak": {
+    "scroll_current": 0,
+    "pit_current": 0,
+    "other_open_contexts": null,
+    "part_files": [],
+    "part_files_n": 0
+   },
+   "container": "running 0 false"
+  },
+  {
+   "engine": "os3",
+   "heap": "256m",
+   "steps": [
+    {
+     "step": "seed-pmc",
+     "kind": "seed",
+     "exit": 0,
+     "wall_s": 27.9,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": ""
+    },
+    {
+     "step": "dump-pmc",
+     "kind": "dump",
+     "exit": 1,
+     "wall_s": 30.6,
+     "node_alive": false,
+     "retries": 10,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "Error: Retrieval task failed: Slice 0: Elasticsearch initial search request failed: error sending request for url (http://127.0.0.1:19413/pmc/_search?scroll=10m&allow_partial_search_results=false): client error (Connect): tcp connect error: Connection refused (os error 111) (connection refused: the cluster is down or restarting, or the URL's port is wrong; --retryAttempts/--retryDelay set how long",
+     "docs": null,
+     "digest": null,
+     "page_note": "",
+     "limits_line": "",
+     "equal": false
+    },
+    {
+     "step": "seed-fat",
+     "kind": "seed",
+     "exit": 0,
+     "wall_s": 19.2,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": ""
+    },
+    {
+     "step": "dump-fat",
+     "kind": "dump",
+     "exit": 1,
+     "wall_s": 13.1,
+     "node_alive": false,
+     "retries": 10,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "Error: Retrieval task failed: Slice 0: Elasticsearch initial search request failed: error sending request for url (http://127.0.0.1:19413/fat/_search?scroll=10m&allow_partial_search_results=false): client error (Connect): tcp connect error: Connection refused (os error 111) (connection refused: the cluster is down or restarting, or the URL's port is wrong; --retryAttempts/--retryDelay set how long",
+     "docs": null,
+     "digest": null,
+     "page_note": "",
+     "limits_line": "",
+     "equal": false
+    }
+   ],
+   "failures": [
+    "dump pmc: exit 1",
+    "dump pmc: node down (exited 127 false)",
+    "dump fat: exit 1",
+    "dump fat: node down (exited 127 false)"
+   ],
+   "regression": [],
+   "version": "3.9.0",
+   "oom_log_lines": 7,
+   "breakers_tripped": {},
+   "leak": {
+    "scroll_current": 0,
+    "pit_current": 0,
+    "other_open_contexts": null,
+    "part_files": [],
+    "part_files_n": 0
+   },
+   "container": "running 0 false"
+  },
+  {
+   "engine": "os3",
+   "heap": "384m",
+   "steps": [
+    {
+     "step": "seed-pmc",
+     "kind": "seed",
+     "exit": 0,
+     "wall_s": 29.5,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": ""
+    },
+    {
+     "step": "dump-pmc",
+     "kind": "dump",
+     "exit": 0,
+     "wall_s": 14.5,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 20000,
+     "digest": "3809ce8c8a0ec41c",
+     "page_note": "",
+     "limits_line": "",
+     "equal": true
+    },
+    {
+     "step": "load-pmc",
+     "kind": "load",
+     "exit": 1,
+     "wall_s": 15.3,
+     "node_alive": true,
+     "retries": 10,
+     "http429": 24,
+     "circuit_breaking": 36,
+     "error": "Error: Elasticsearch bulk failed with HTTP 429: circuit_breaking_exception: [parent] Data too large, data for [<http_request>] would be [550363242/524.8mb], which is larger than the limit of [382520524/364.7mb], real usage: [340679776/324.8mb], new bytes reserved: [209683466/199.9mb], usages [request=0/0b, fielddata=0/0b, in_flight_requests=209683466/199.9mb, neural_search=0/0b]; body: {\"error\":{\"",
+     "equal": false
+    },
+    {
+     "step": "seed-fat",
+     "kind": "seed",
+     "exit": 0,
+     "wall_s": 20.1,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": ""
+    },
+    {
+     "step": "dump-fat",
+     "kind": "dump",
+     "exit": 1,
+     "wall_s": 17.0,
+     "node_alive": false,
+     "retries": 10,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "Error: Retrieval task failed: Slice 0: Elasticsearch initial search request failed: error sending request for url (http://127.0.0.1:19413/fat/_search?scroll=10m&allow_partial_search_results=false): client error (Connect): tcp connect error: Connection refused (os error 111) (connection refused: the cluster is down or restarting, or the URL's port is wrong; --retryAttempts/--retryDelay set how long",
+     "docs": null,
+     "digest": null,
+     "page_note": "",
+     "limits_line": "",
+     "equal": false
+    }
+   ],
+   "failures": [
+    "load pmc: exit 1",
+    "dump fat: exit 1",
+    "dump fat: node down (exited 127 false)"
+   ],
+   "regression": [],
+   "version": "3.9.0",
+   "oom_log_lines": 3,
+   "breakers_tripped": {},
+   "leak": {
+    "scroll_current": 0,
+    "pit_current": 0,
+    "other_open_contexts": null,
+    "part_files": [],
+    "part_files_n": 0
+   },
+   "container": "running 0 false"
+  }
+ ],
+ "failures": [
+  "es710/256m: dump pmc: exit 1",
+  "es710/256m: dump pmc: node down (exited 127 false)",
+  "es710/256m: dump fat: exit 1",
+  "es710/256m: dump fat: node down (exited 127 false)",
+  "es710/384m: load pmc: exit 1",
+  "es710/384m: dump fat: exit 1",
+  "es710/384m: dump fat: node down (exited 127 false)",
+  "es861/256m: dump pmc: exit 1",
+  "es861/256m: dump pmc: node down (exited 3 false)",
+  "es861/256m: dump fat: exit 1",
+  "es861/256m: dump fat: node down (exited 3 false)",
+  "es861/384m: load pmc: exit 1",
+  "es861/384m: dump fat: exit 1",
+  "es861/384m: dump fat: node down (exited 3 false)",
+  "es819/256m: dump pmc: exit 1",
+  "es819/256m: dump fat: exit 1",
+  "es819/384m: load pmc: exit 1",
+  "es819/384m: dump fat: exit 1",
+  "es912/256m: dump fat: exit 1",
+  "os13/256m: dump pmc: exit 1",
+  "os13/256m: dump pmc: node down (exited 127 false)",
+  "os13/256m: dump fat: exit 1",
+  "os13/256m: dump fat: node down (exited 127 false)",
+  "os13/384m: load pmc: exit 1",
+  "os13/384m: dump fat: exit 1",
+  "os13/384m: dump fat: node down (exited 127 false)",
+  "os2/256m: dump pmc: exit 1",
+  "os2/256m: dump pmc: node down (exited 127 false)",
+  "os2/256m: dump fat: exit 1",
+  "os2/256m: dump fat: node down (exited 127 false)",
+  "os2/384m: load pmc: exit 1",
+  "os2/384m: dump fat: exit 1",
+  "os2/384m: dump fat: node down (exited 127 false)",
+  "os3/256m: dump pmc: exit 1",
+  "os3/256m: dump pmc: node down (exited 127 false)",
+  "os3/256m: dump fat: exit 1",
+  "os3/256m: dump fat: node down (exited 127 false)",
+  "os3/384m: load pmc: exit 1",
+  "os3/384m: dump fat: exit 1",
+  "os3/384m: dump fat: node down (exited 127 false)"
+ ],
+ "finished": "2026-11-17T09:22:59-05:00",
+ "pass": false
+}

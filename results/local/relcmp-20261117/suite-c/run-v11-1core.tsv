@@ -1,0 +1,5 @@
+tool	run	real_seconds	user_seconds	sys_seconds	cpu_seconds	lines	bytes
+searchdump-pit	1	20.95	8.29	1.67	9.96	2000000	1398672425
+searchdump-scroll	1	20.38	7.99	1.62	9.61	2000000	1360785713
+searchdump-scroll	2	20.53	7.98	1.70	9.68	2000000	1360785713
+searchdump-pit	2	20.78	8.40	1.74	10.14	2000000	1398672425

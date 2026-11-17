@@ -1,0 +1,1001 @@
+{
+  "schema": "edrs-lowheap-node/v1",
+  "run_id": "20261117T081530-lowheap-node",
+  "tool": "node-6.125.1",
+  "note": "multielasticdump defaults (limit 100, parallel=nproc); not the 1.0 --limit=5000 flags",
+  "engines": [
+    "es710",
+    "es861",
+    "es819",
+    "es912",
+    "os13",
+    "os2",
+    "os3"
+  ],
+  "heaps": [
+    "256m",
+    "384m"
+  ],
+  "datasets": {
+    "pmc": {
+      "docs": 20000,
+      "digest": "3809ce8c8a0ec41c"
+    },
+    "fat": {
+      "docs": 3000,
+      "digest": "02f824c5df91c7b6"
+    }
+  },
+  "cells": [
+    {
+      "engine": "es710",
+      "heap": "256m",
+      "steps": [
+        {
+          "step": "seed-pmc",
+          "exit": 0,
+          "wall_s": 19.8,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0
+        },
+        {
+          "step": "dump-pmc",
+          "exit": 1,
+          "wall_s": 1.3,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0,
+          "docs": null,
+          "digest": null,
+          "equal": false
+        },
+        {
+          "step": "seed-fat",
+          "exit": 0,
+          "wall_s": 10.6,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0
+        },
+        {
+          "step": "dump-fat",
+          "exit": 1,
+          "wall_s": 1.3,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0,
+          "docs": null,
+          "digest": null,
+          "equal": false
+        }
+      ],
+      "failures": [
+        "dump pmc: exit 1 alive=True equal=False",
+        "dump fat: exit 1 alive=True equal=False"
+      ],
+      "version": "7.10.2",
+      "container": "running 0 false"
+    },
+    {
+      "engine": "es710",
+      "heap": "384m",
+      "steps": [
+        {
+          "step": "seed-pmc",
+          "exit": 0,
+          "wall_s": 18.3,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0
+        },
+        {
+          "step": "dump-pmc",
+          "exit": 1,
+          "wall_s": 1.3,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0,
+          "docs": null,
+          "digest": null,
+          "equal": false
+        },
+        {
+          "step": "seed-fat",
+          "exit": 0,
+          "wall_s": 10.6,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0
+        },
+        {
+          "step": "dump-fat",
+          "exit": 1,
+          "wall_s": 1.3,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0,
+          "docs": null,
+          "digest": null,
+          "equal": false
+        }
+      ],
+      "failures": [
+        "dump pmc: exit 1 alive=True equal=False",
+        "dump fat: exit 1 alive=True equal=False"
+      ],
+      "version": "7.10.2",
+      "container": "running 0 false"
+    },
+    {
+      "engine": "es861",
+      "heap": "256m",
+      "steps": [
+        {
+          "step": "seed-pmc",
+          "exit": 0,
+          "wall_s": 21.9,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0
+        },
+        {
+          "step": "dump-pmc",
+          "exit": 0,
+          "wall_s": 12.7,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0,
+          "docs": 20000,
+          "digest": "3809ce8c8a0ec41c",
+          "equal": true
+        },
+        {
+          "step": "load-pmc",
+          "exit": 0,
+          "wall_s": 41.7,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0,
+          "docs": 20000,
+          "digest": "3809ce8c8a0ec41c",
+          "equal": true
+        },
+        {
+          "step": "seed-fat",
+          "exit": 0,
+          "wall_s": 12.5,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0
+        },
+        {
+          "step": "dump-fat",
+          "exit": 0,
+          "wall_s": 10.7,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 1,
+          "circuit_breaking": 0,
+          "docs": 3000,
+          "digest": "02f824c5df91c7b6",
+          "equal": true
+        },
+        {
+          "step": "load-fat",
+          "exit": 0,
+          "wall_s": 14.6,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0,
+          "docs": 3000,
+          "digest": "02f824c5df91c7b6",
+          "equal": true
+        }
+      ],
+      "failures": [],
+      "version": "8.6.1",
+      "container": "running 0 false"
+    },
+    {
+      "engine": "es861",
+      "heap": "384m",
+      "steps": [
+        {
+          "step": "seed-pmc",
+          "exit": 0,
+          "wall_s": 20.4,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0
+        },
+        {
+          "step": "dump-pmc",
+          "exit": 0,
+          "wall_s": 16.7,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0,
+          "docs": 20000,
+          "digest": "3809ce8c8a0ec41c",
+          "equal": true
+        },
+        {
+          "step": "load-pmc",
+          "exit": 0,
+          "wall_s": 36.6,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0,
+          "docs": 20000,
+          "digest": "3809ce8c8a0ec41c",
+          "equal": true
+        },
+        {
+          "step": "seed-fat",
+          "exit": 0,
+          "wall_s": 7.6,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0
+        },
+        {
+          "step": "dump-fat",
+          "exit": 0,
+          "wall_s": 7.7,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0,
+          "docs": 3000,
+          "digest": "02f824c5df91c7b6",
+          "equal": true
+        },
+        {
+          "step": "load-fat",
+          "exit": 0,
+          "wall_s": 13.6,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0,
+          "docs": 3000,
+          "digest": "02f824c5df91c7b6",
+          "equal": true
+        }
+      ],
+      "failures": [],
+      "version": "8.6.1",
+      "container": "running 0 false"
+    },
+    {
+      "engine": "es819",
+      "heap": "256m",
+      "steps": [
+        {
+          "step": "seed-pmc",
+          "exit": 0,
+          "wall_s": 18.2,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0
+        },
+        {
+          "step": "dump-pmc",
+          "exit": 0,
+          "wall_s": 13.7,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0,
+          "docs": 20000,
+          "digest": "3809ce8c8a0ec41c",
+          "equal": true
+        },
+        {
+          "step": "load-pmc",
+          "exit": 0,
+          "wall_s": 39.7,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0,
+          "docs": 20000,
+          "digest": "3809ce8c8a0ec41c",
+          "equal": true
+        },
+        {
+          "step": "seed-fat",
+          "exit": 0,
+          "wall_s": 10.2,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0
+        },
+        {
+          "step": "dump-fat",
+          "exit": 0,
+          "wall_s": 7.6,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0,
+          "docs": 3000,
+          "digest": "02f824c5df91c7b6",
+          "equal": true
+        },
+        {
+          "step": "load-fat",
+          "exit": 0,
+          "wall_s": 15.6,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0,
+          "docs": 3000,
+          "digest": "02f824c5df91c7b6",
+          "equal": true
+        }
+      ],
+      "failures": [],
+      "version": "8.19.23",
+      "container": "running 0 false"
+    },
+    {
+      "engine": "es819",
+      "heap": "384m",
+      "steps": [
+        {
+          "step": "seed-pmc",
+          "exit": 0,
+          "wall_s": 14.4,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0
+        },
+        {
+          "step": "dump-pmc",
+          "exit": 0,
+          "wall_s": 13.7,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0,
+          "docs": 20000,
+          "digest": "3809ce8c8a0ec41c",
+          "equal": true
+        },
+        {
+          "step": "load-pmc",
+          "exit": 0,
+          "wall_s": 40.6,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0,
+          "docs": 20000,
+          "digest": "3809ce8c8a0ec41c",
+          "equal": true
+        },
+        {
+          "step": "seed-fat",
+          "exit": 0,
+          "wall_s": 11.0,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0
+        },
+        {
+          "step": "dump-fat",
+          "exit": 0,
+          "wall_s": 7.7,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0,
+          "docs": 3000,
+          "digest": "02f824c5df91c7b6",
+          "equal": true
+        },
+        {
+          "step": "load-fat",
+          "exit": 0,
+          "wall_s": 12.6,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0,
+          "docs": 3000,
+          "digest": "02f824c5df91c7b6",
+          "equal": true
+        }
+      ],
+      "failures": [],
+      "version": "8.19.23",
+      "container": "running 0 false"
+    },
+    {
+      "engine": "es912",
+      "heap": "256m",
+      "steps": [
+        {
+          "step": "seed-pmc",
+          "exit": 0,
+          "wall_s": 19.9,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0
+        },
+        {
+          "step": "dump-pmc",
+          "exit": 0,
+          "wall_s": 17.7,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0,
+          "docs": 20000,
+          "digest": "3809ce8c8a0ec41c",
+          "equal": true
+        },
+        {
+          "step": "load-pmc",
+          "exit": 0,
+          "wall_s": 38.7,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0,
+          "docs": 20000,
+          "digest": "3809ce8c8a0ec41c",
+          "equal": true
+        },
+        {
+          "step": "seed-fat",
+          "exit": 0,
+          "wall_s": 8.7,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0
+        },
+        {
+          "step": "dump-fat",
+          "exit": 0,
+          "wall_s": 7.7,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0,
+          "docs": 3000,
+          "digest": "02f824c5df91c7b6",
+          "equal": true
+        },
+        {
+          "step": "load-fat",
+          "exit": 0,
+          "wall_s": 16.6,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0,
+          "docs": 3000,
+          "digest": "02f824c5df91c7b6",
+          "equal": true
+        }
+      ],
+      "failures": [],
+      "version": "9.1.2",
+      "container": "running 0 false"
+    },
+    {
+      "engine": "es912",
+      "heap": "384m",
+      "steps": [
+        {
+          "step": "seed-pmc",
+          "exit": 0,
+          "wall_s": 22.9,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0
+        },
+        {
+          "step": "dump-pmc",
+          "exit": 0,
+          "wall_s": 60.7,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0,
+          "docs": 20000,
+          "digest": "3809ce8c8a0ec41c",
+          "equal": true
+        },
+        {
+          "step": "load-pmc",
+          "exit": 0,
+          "wall_s": 35.7,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0,
+          "docs": 20000,
+          "digest": "3809ce8c8a0ec41c",
+          "equal": true
+        },
+        {
+          "step": "seed-fat",
+          "exit": 0,
+          "wall_s": 11.5,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0
+        },
+        {
+          "step": "dump-fat",
+          "exit": 0,
+          "wall_s": 7.7,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0,
+          "docs": 3000,
+          "digest": "02f824c5df91c7b6",
+          "equal": true
+        },
+        {
+          "step": "load-fat",
+          "exit": 0,
+          "wall_s": 17.6,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0,
+          "docs": 3000,
+          "digest": "02f824c5df91c7b6",
+          "equal": true
+        }
+      ],
+      "failures": [],
+      "version": "9.1.2",
+      "container": "running 0 false"
+    },
+    {
+      "engine": "os13",
+      "heap": "256m",
+      "steps": [
+        {
+          "step": "seed-pmc",
+          "exit": 0,
+          "wall_s": 26.1,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0
+        },
+        {
+          "step": "dump-pmc",
+          "exit": 1,
+          "wall_s": 1.3,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0,
+          "docs": null,
+          "digest": null,
+          "equal": false
+        },
+        {
+          "step": "seed-fat",
+          "exit": 0,
+          "wall_s": 15.8,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0
+        },
+        {
+          "step": "dump-fat",
+          "exit": 1,
+          "wall_s": 1.3,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0,
+          "docs": null,
+          "digest": null,
+          "equal": false
+        }
+      ],
+      "failures": [
+        "dump pmc: exit 1 alive=True equal=False",
+        "dump fat: exit 1 alive=True equal=False"
+      ],
+      "version": "1.3.20",
+      "container": "running 0 false"
+    },
+    {
+      "engine": "os13",
+      "heap": "384m",
+      "steps": [
+        {
+          "step": "seed-pmc",
+          "exit": 0,
+          "wall_s": 19.2,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0
+        },
+        {
+          "step": "dump-pmc",
+          "exit": 1,
+          "wall_s": 1.3,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0,
+          "docs": null,
+          "digest": null,
+          "equal": false
+        },
+        {
+          "step": "seed-fat",
+          "exit": 0,
+          "wall_s": 10.2,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0
+        },
+        {
+          "step": "dump-fat",
+          "exit": 1,
+          "wall_s": 1.3,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0,
+          "docs": null,
+          "digest": null,
+          "equal": false
+        }
+      ],
+      "failures": [
+        "dump pmc: exit 1 alive=True equal=False",
+        "dump fat: exit 1 alive=True equal=False"
+      ],
+      "version": "1.3.20",
+      "container": "running 0 false"
+    },
+    {
+      "engine": "os2",
+      "heap": "256m",
+      "steps": [
+        {
+          "step": "seed-pmc",
+          "exit": 0,
+          "wall_s": 17.6,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0
+        },
+        {
+          "step": "dump-pmc",
+          "exit": 1,
+          "wall_s": 1.3,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0,
+          "docs": null,
+          "digest": null,
+          "equal": false
+        },
+        {
+          "step": "seed-fat",
+          "exit": 0,
+          "wall_s": 13.2,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0
+        },
+        {
+          "step": "dump-fat",
+          "exit": 1,
+          "wall_s": 1.3,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0,
+          "docs": null,
+          "digest": null,
+          "equal": false
+        }
+      ],
+      "failures": [
+        "dump pmc: exit 1 alive=True equal=False",
+        "dump fat: exit 1 alive=True equal=False"
+      ],
+      "version": "2.19.7",
+      "container": "running 0 false"
+    },
+    {
+      "engine": "os2",
+      "heap": "384m",
+      "steps": [
+        {
+          "step": "seed-pmc",
+          "exit": 0,
+          "wall_s": 15.3,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0
+        },
+        {
+          "step": "dump-pmc",
+          "exit": 1,
+          "wall_s": 1.3,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0,
+          "docs": null,
+          "digest": null,
+          "equal": false
+        },
+        {
+          "step": "seed-fat",
+          "exit": 0,
+          "wall_s": 9.2,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0
+        },
+        {
+          "step": "dump-fat",
+          "exit": 1,
+          "wall_s": 1.3,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0,
+          "docs": null,
+          "digest": null,
+          "equal": false
+        }
+      ],
+      "failures": [
+        "dump pmc: exit 1 alive=True equal=False",
+        "dump fat: exit 1 alive=True equal=False"
+      ],
+      "version": "2.19.7",
+      "container": "running 0 false"
+    },
+    {
+      "engine": "os3",
+      "heap": "256m",
+      "steps": [
+        {
+          "step": "seed-pmc",
+          "exit": 0,
+          "wall_s": 23.3,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 2,
+          "circuit_breaking": 0
+        },
+        {
+          "step": "dump-pmc",
+          "exit": 1,
+          "wall_s": 1.3,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0,
+          "docs": null,
+          "digest": null,
+          "equal": false
+        },
+        {
+          "step": "seed-fat",
+          "exit": 0,
+          "wall_s": 22.1,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 2,
+          "circuit_breaking": 0
+        },
+        {
+          "step": "dump-fat",
+          "exit": 1,
+          "wall_s": 1.3,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0,
+          "docs": null,
+          "digest": null,
+          "equal": false
+        }
+      ],
+      "failures": [
+        "dump pmc: exit 1 alive=True equal=False",
+        "dump fat: exit 1 alive=True equal=False"
+      ],
+      "version": "3.9.0",
+      "container": "running 0 false"
+    },
+    {
+      "engine": "os3",
+      "heap": "384m",
+      "steps": [
+        {
+          "step": "seed-pmc",
+          "exit": 0,
+          "wall_s": 47.9,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 4,
+          "circuit_breaking": 0
+        },
+        {
+          "step": "dump-pmc",
+          "exit": 1,
+          "wall_s": 1.4,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0,
+          "docs": null,
+          "digest": null,
+          "equal": false
+        },
+        {
+          "step": "seed-fat",
+          "exit": 0,
+          "wall_s": 22.5,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 2,
+          "circuit_breaking": 0
+        },
+        {
+          "step": "dump-fat",
+          "exit": 1,
+          "wall_s": 1.3,
+          "node_alive": true,
+          "error": "",
+          "retries": 0,
+          "http429": 0,
+          "circuit_breaking": 0,
+          "docs": null,
+          "digest": null,
+          "equal": false
+        }
+      ],
+      "failures": [
+        "dump pmc: exit 1 alive=True equal=False",
+        "dump fat: exit 1 alive=True equal=False"
+      ],
+      "version": "3.9.0",
+      "container": "running 0 false"
+    }
+  ],
+  "failures": [
+    "es710/256m: dump pmc: exit 1 alive=True equal=False",
+    "es710/256m: dump fat: exit 1 alive=True equal=False",
+    "es710/384m: dump pmc: exit 1 alive=True equal=False",
+    "es710/384m: dump fat: exit 1 alive=True equal=False",
+    "os13/256m: dump pmc: exit 1 alive=True equal=False",
+    "os13/256m: dump fat: exit 1 alive=True equal=False",
+    "os13/384m: dump pmc: exit 1 alive=True equal=False",
+    "os13/384m: dump fat: exit 1 alive=True equal=False",
+    "os2/256m: dump pmc: exit 1 alive=True equal=False",
+    "os2/256m: dump fat: exit 1 alive=True equal=False",
+    "os2/384m: dump pmc: exit 1 alive=True equal=False",
+    "os2/384m: dump fat: exit 1 alive=True equal=False",
+    "os3/256m: dump pmc: exit 1 alive=True equal=False",
+    "os3/256m: dump fat: exit 1 alive=True equal=False",
+    "os3/384m: dump pmc: exit 1 alive=True equal=False",
+    "os3/384m: dump fat: exit 1 alive=True equal=False"
+  ],
+  "started": "2026-11-17T08:15:54-05:00",
+  "finished": "2026-11-17T08:43:12-05:00"
+}
