@@ -1,0 +1,1058 @@
+[
+ {
+  "case": "mapping-dump",
+  "bin": "1.2.0",
+  "rep": -1,
+  "wall_s": 0.0122,
+  "rc": 0,
+  "t": "16:20:50"
+ },
+ {
+  "case": "mapping-dump",
+  "bin": "1.1.0",
+  "rep": -1,
+  "wall_s": 0.0098,
+  "rc": 0,
+  "t": "16:20:50"
+ },
+ {
+  "case": "mapping-restore",
+  "bin": "1.2.0",
+  "rep": -1,
+  "wall_s": 0.0203,
+  "rc": 0,
+  "t": "16:20:50"
+ },
+ {
+  "case": "mapping-restore",
+  "bin": "1.1.0",
+  "rep": -1,
+  "wall_s": 0.0191,
+  "rc": 0,
+  "t": "16:20:50"
+ },
+ {
+  "case": "settings-dump",
+  "bin": "1.2.0",
+  "rep": -1,
+  "wall_s": 0.0091,
+  "rc": 0,
+  "t": "16:20:50"
+ },
+ {
+  "case": "settings-dump",
+  "bin": "1.1.0",
+  "rep": -1,
+  "wall_s": 0.0102,
+  "rc": 0,
+  "t": "16:20:50"
+ },
+ {
+  "case": "settings-restore",
+  "bin": "1.2.0",
+  "rep": -1,
+  "wall_s": 0.0546,
+  "rc": 0,
+  "t": "16:20:50"
+ },
+ {
+  "case": "settings-restore",
+  "bin": "1.1.0",
+  "rep": -1,
+  "wall_s": 0.0387,
+  "rc": 0,
+  "t": "16:20:50"
+ },
+ {
+  "case": "multi-dump-p8",
+  "bin": "1.2.0",
+  "rep": -1,
+  "wall_s": 0.2276,
+  "rc": 0,
+  "t": "16:20:50"
+ },
+ {
+  "case": "multi-dump-p8",
+  "bin": "1.1.0",
+  "rep": -1,
+  "wall_s": 0.1566,
+  "rc": 0,
+  "t": "16:20:50"
+ },
+ {
+  "case": "multi-restore-p8",
+  "bin": "1.2.0",
+  "rep": -1,
+  "wall_s": 0.8303,
+  "rc": 0,
+  "t": "16:20:51"
+ },
+ {
+  "case": "multi-restore-p8",
+  "bin": "1.1.0",
+  "rep": -1,
+  "wall_s": 0.8022,
+  "rc": 0,
+  "t": "16:20:53"
+ },
+ {
+  "case": "mapping-dump",
+  "bin": "1.1.0",
+  "rep": 0,
+  "wall_s": 0.0107,
+  "rc": 0,
+  "t": "16:20:53"
+ },
+ {
+  "case": "mapping-dump",
+  "bin": "1.2.0",
+  "rep": 0,
+  "wall_s": 0.0112,
+  "rc": 0,
+  "t": "16:20:53"
+ },
+ {
+  "case": "mapping-restore",
+  "bin": "1.1.0",
+  "rep": 0,
+  "wall_s": 0.019,
+  "rc": 0,
+  "t": "16:20:53"
+ },
+ {
+  "case": "mapping-restore",
+  "bin": "1.2.0",
+  "rep": 0,
+  "wall_s": 0.0209,
+  "rc": 0,
+  "t": "16:20:53"
+ },
+ {
+  "case": "settings-dump",
+  "bin": "1.1.0",
+  "rep": 0,
+  "wall_s": 0.0097,
+  "rc": 0,
+  "t": "16:20:53"
+ },
+ {
+  "case": "settings-dump",
+  "bin": "1.2.0",
+  "rep": 0,
+  "wall_s": 0.009,
+  "rc": 0,
+  "t": "16:20:53"
+ },
+ {
+  "case": "settings-restore",
+  "bin": "1.1.0",
+  "rep": 0,
+  "wall_s": 0.0427,
+  "rc": 0,
+  "t": "16:20:53"
+ },
+ {
+  "case": "settings-restore",
+  "bin": "1.2.0",
+  "rep": 0,
+  "wall_s": 0.0397,
+  "rc": 0,
+  "t": "16:20:53"
+ },
+ {
+  "case": "multi-dump-p8",
+  "bin": "1.1.0",
+  "rep": 0,
+  "wall_s": 0.1762,
+  "rc": 0,
+  "t": "16:20:53"
+ },
+ {
+  "case": "multi-dump-p8",
+  "bin": "1.2.0",
+  "rep": 0,
+  "wall_s": 0.1484,
+  "rc": 0,
+  "t": "16:20:53"
+ },
+ {
+  "case": "multi-restore-p8",
+  "bin": "1.1.0",
+  "rep": 0,
+  "wall_s": 0.7546,
+  "rc": 0,
+  "t": "16:20:54"
+ },
+ {
+  "case": "multi-restore-p8",
+  "bin": "1.2.0",
+  "rep": 0,
+  "wall_s": 0.8722,
+  "rc": 0,
+  "t": "16:20:55"
+ },
+ {
+  "case": "mapping-dump",
+  "bin": "1.2.0",
+  "rep": 1,
+  "wall_s": 0.0115,
+  "rc": 0,
+  "t": "16:20:55"
+ },
+ {
+  "case": "mapping-dump",
+  "bin": "1.1.0",
+  "rep": 1,
+  "wall_s": 0.0096,
+  "rc": 0,
+  "t": "16:20:55"
+ },
+ {
+  "case": "mapping-restore",
+  "bin": "1.2.0",
+  "rep": 1,
+  "wall_s": 0.0181,
+  "rc": 0,
+  "t": "16:20:55"
+ },
+ {
+  "case": "mapping-restore",
+  "bin": "1.1.0",
+  "rep": 1,
+  "wall_s": 0.0182,
+  "rc": 0,
+  "t": "16:20:55"
+ },
+ {
+  "case": "settings-dump",
+  "bin": "1.2.0",
+  "rep": 1,
+  "wall_s": 0.009,
+  "rc": 0,
+  "t": "16:20:55"
+ },
+ {
+  "case": "settings-dump",
+  "bin": "1.1.0",
+  "rep": 1,
+  "wall_s": 0.0088,
+  "rc": 0,
+  "t": "16:20:55"
+ },
+ {
+  "case": "settings-restore",
+  "bin": "1.2.0",
+  "rep": 1,
+  "wall_s": 0.0383,
+  "rc": 0,
+  "t": "16:20:55"
+ },
+ {
+  "case": "settings-restore",
+  "bin": "1.1.0",
+  "rep": 1,
+  "wall_s": 0.0396,
+  "rc": 0,
+  "t": "16:20:55"
+ },
+ {
+  "case": "multi-dump-p8",
+  "bin": "1.2.0",
+  "rep": 1,
+  "wall_s": 0.1484,
+  "rc": 0,
+  "t": "16:20:56"
+ },
+ {
+  "case": "multi-dump-p8",
+  "bin": "1.1.0",
+  "rep": 1,
+  "wall_s": 0.1395,
+  "rc": 0,
+  "t": "16:20:56"
+ },
+ {
+  "case": "multi-restore-p8",
+  "bin": "1.2.0",
+  "rep": 1,
+  "wall_s": 0.7833,
+  "rc": 0,
+  "t": "16:20:57"
+ },
+ {
+  "case": "multi-restore-p8",
+  "bin": "1.1.0",
+  "rep": 1,
+  "wall_s": 0.8115,
+  "rc": 0,
+  "t": "16:20:58"
+ },
+ {
+  "case": "mapping-dump",
+  "bin": "1.1.0",
+  "rep": 2,
+  "wall_s": 0.011,
+  "rc": 0,
+  "t": "16:20:58"
+ },
+ {
+  "case": "mapping-dump",
+  "bin": "1.2.0",
+  "rep": 2,
+  "wall_s": 0.01,
+  "rc": 0,
+  "t": "16:20:58"
+ },
+ {
+  "case": "mapping-restore",
+  "bin": "1.1.0",
+  "rep": 2,
+  "wall_s": 0.0178,
+  "rc": 0,
+  "t": "16:20:58"
+ },
+ {
+  "case": "mapping-restore",
+  "bin": "1.2.0",
+  "rep": 2,
+  "wall_s": 0.029,
+  "rc": 0,
+  "t": "16:20:58"
+ },
+ {
+  "case": "settings-dump",
+  "bin": "1.1.0",
+  "rep": 2,
+  "wall_s": 0.0103,
+  "rc": 0,
+  "t": "16:20:58"
+ },
+ {
+  "case": "settings-dump",
+  "bin": "1.2.0",
+  "rep": 2,
+  "wall_s": 0.0115,
+  "rc": 0,
+  "t": "16:20:58"
+ },
+ {
+  "case": "settings-restore",
+  "bin": "1.1.0",
+  "rep": 2,
+  "wall_s": 0.0352,
+  "rc": 0,
+  "t": "16:20:58"
+ },
+ {
+  "case": "settings-restore",
+  "bin": "1.2.0",
+  "rep": 2,
+  "wall_s": 0.0394,
+  "rc": 0,
+  "t": "16:20:58"
+ },
+ {
+  "case": "multi-dump-p8",
+  "bin": "1.1.0",
+  "rep": 2,
+  "wall_s": 0.1502,
+  "rc": 0,
+  "t": "16:20:58"
+ },
+ {
+  "case": "multi-dump-p8",
+  "bin": "1.2.0",
+  "rep": 2,
+  "wall_s": 0.1535,
+  "rc": 0,
+  "t": "16:20:58"
+ },
+ {
+  "case": "multi-restore-p8",
+  "bin": "1.1.0",
+  "rep": 2,
+  "wall_s": 0.9747,
+  "rc": 0,
+  "t": "16:21:00"
+ },
+ {
+  "case": "multi-restore-p8",
+  "bin": "1.2.0",
+  "rep": 2,
+  "wall_s": 0.7506,
+  "rc": 0,
+  "t": "16:21:01"
+ },
+ {
+  "case": "mapping-dump",
+  "bin": "1.2.0",
+  "rep": 3,
+  "wall_s": 0.0097,
+  "rc": 0,
+  "t": "16:21:01"
+ },
+ {
+  "case": "mapping-dump",
+  "bin": "1.1.0",
+  "rep": 3,
+  "wall_s": 0.0115,
+  "rc": 0,
+  "t": "16:21:01"
+ },
+ {
+  "case": "mapping-restore",
+  "bin": "1.2.0",
+  "rep": 3,
+  "wall_s": 0.0193,
+  "rc": 0,
+  "t": "16:21:01"
+ },
+ {
+  "case": "mapping-restore",
+  "bin": "1.1.0",
+  "rep": 3,
+  "wall_s": 0.0196,
+  "rc": 0,
+  "t": "16:21:01"
+ },
+ {
+  "case": "settings-dump",
+  "bin": "1.2.0",
+  "rep": 3,
+  "wall_s": 0.0096,
+  "rc": 0,
+  "t": "16:21:01"
+ },
+ {
+  "case": "settings-dump",
+  "bin": "1.1.0",
+  "rep": 3,
+  "wall_s": 0.0079,
+  "rc": 0,
+  "t": "16:21:01"
+ },
+ {
+  "case": "settings-restore",
+  "bin": "1.2.0",
+  "rep": 3,
+  "wall_s": 0.0475,
+  "rc": 0,
+  "t": "16:21:01"
+ },
+ {
+  "case": "settings-restore",
+  "bin": "1.1.0",
+  "rep": 3,
+  "wall_s": 0.0373,
+  "rc": 0,
+  "t": "16:21:01"
+ },
+ {
+  "case": "multi-dump-p8",
+  "bin": "1.2.0",
+  "rep": 3,
+  "wall_s": 0.152,
+  "rc": 0,
+  "t": "16:21:01"
+ },
+ {
+  "case": "multi-dump-p8",
+  "bin": "1.1.0",
+  "rep": 3,
+  "wall_s": 0.1381,
+  "rc": 0,
+  "t": "16:21:01"
+ },
+ {
+  "case": "multi-restore-p8",
+  "bin": "1.2.0",
+  "rep": 3,
+  "wall_s": 0.8083,
+  "rc": 0,
+  "t": "16:21:02"
+ },
+ {
+  "case": "multi-restore-p8",
+  "bin": "1.1.0",
+  "rep": 3,
+  "wall_s": 0.8512,
+  "rc": 0,
+  "t": "16:21:03"
+ },
+ {
+  "case": "mapping-dump",
+  "bin": "1.1.0",
+  "rep": 4,
+  "wall_s": 0.0113,
+  "rc": 0,
+  "t": "16:21:03"
+ },
+ {
+  "case": "mapping-dump",
+  "bin": "1.2.0",
+  "rep": 4,
+  "wall_s": 0.0096,
+  "rc": 0,
+  "t": "16:21:04"
+ },
+ {
+  "case": "mapping-restore",
+  "bin": "1.1.0",
+  "rep": 4,
+  "wall_s": 0.0167,
+  "rc": 0,
+  "t": "16:21:04"
+ },
+ {
+  "case": "mapping-restore",
+  "bin": "1.2.0",
+  "rep": 4,
+  "wall_s": 0.019,
+  "rc": 0,
+  "t": "16:21:04"
+ },
+ {
+  "case": "settings-dump",
+  "bin": "1.1.0",
+  "rep": 4,
+  "wall_s": 0.0088,
+  "rc": 0,
+  "t": "16:21:04"
+ },
+ {
+  "case": "settings-dump",
+  "bin": "1.2.0",
+  "rep": 4,
+  "wall_s": 0.0102,
+  "rc": 0,
+  "t": "16:21:04"
+ },
+ {
+  "case": "settings-restore",
+  "bin": "1.1.0",
+  "rep": 4,
+  "wall_s": 0.0445,
+  "rc": 0,
+  "t": "16:21:04"
+ },
+ {
+  "case": "settings-restore",
+  "bin": "1.2.0",
+  "rep": 4,
+  "wall_s": 0.0437,
+  "rc": 0,
+  "t": "16:21:04"
+ },
+ {
+  "case": "multi-dump-p8",
+  "bin": "1.1.0",
+  "rep": 4,
+  "wall_s": 0.1478,
+  "rc": 0,
+  "t": "16:21:04"
+ },
+ {
+  "case": "multi-dump-p8",
+  "bin": "1.2.0",
+  "rep": 4,
+  "wall_s": 0.151,
+  "rc": 0,
+  "t": "16:21:04"
+ },
+ {
+  "case": "multi-restore-p8",
+  "bin": "1.1.0",
+  "rep": 4,
+  "wall_s": 0.7467,
+  "rc": 0,
+  "t": "16:21:05"
+ },
+ {
+  "case": "multi-restore-p8",
+  "bin": "1.2.0",
+  "rep": 4,
+  "wall_s": 0.7091,
+  "rc": 0,
+  "t": "16:21:06"
+ },
+ {
+  "case": "mapping-dump",
+  "bin": "1.2.0",
+  "rep": 5,
+  "wall_s": 0.01,
+  "rc": 0,
+  "t": "16:21:06"
+ },
+ {
+  "case": "mapping-dump",
+  "bin": "1.1.0",
+  "rep": 5,
+  "wall_s": 0.0254,
+  "rc": 0,
+  "t": "16:21:06"
+ },
+ {
+  "case": "mapping-restore",
+  "bin": "1.2.0",
+  "rep": 5,
+  "wall_s": 0.0185,
+  "rc": 0,
+  "t": "16:21:06"
+ },
+ {
+  "case": "mapping-restore",
+  "bin": "1.1.0",
+  "rep": 5,
+  "wall_s": 0.0189,
+  "rc": 0,
+  "t": "16:21:06"
+ },
+ {
+  "case": "settings-dump",
+  "bin": "1.2.0",
+  "rep": 5,
+  "wall_s": 0.0094,
+  "rc": 0,
+  "t": "16:21:06"
+ },
+ {
+  "case": "settings-dump",
+  "bin": "1.1.0",
+  "rep": 5,
+  "wall_s": 0.0078,
+  "rc": 0,
+  "t": "16:21:06"
+ },
+ {
+  "case": "settings-restore",
+  "bin": "1.2.0",
+  "rep": 5,
+  "wall_s": 0.0469,
+  "rc": 0,
+  "t": "16:21:06"
+ },
+ {
+  "case": "settings-restore",
+  "bin": "1.1.0",
+  "rep": 5,
+  "wall_s": 0.0352,
+  "rc": 0,
+  "t": "16:21:06"
+ },
+ {
+  "case": "multi-dump-p8",
+  "bin": "1.2.0",
+  "rep": 5,
+  "wall_s": 0.1667,
+  "rc": 0,
+  "t": "16:21:06"
+ },
+ {
+  "case": "multi-dump-p8",
+  "bin": "1.1.0",
+  "rep": 5,
+  "wall_s": 0.1503,
+  "rc": 0,
+  "t": "16:21:07"
+ },
+ {
+  "case": "multi-restore-p8",
+  "bin": "1.2.0",
+  "rep": 5,
+  "wall_s": 0.8124,
+  "rc": 0,
+  "t": "16:21:08"
+ },
+ {
+  "case": "multi-restore-p8",
+  "bin": "1.1.0",
+  "rep": 5,
+  "wall_s": 0.7451,
+  "rc": 0,
+  "t": "16:21:09"
+ },
+ {
+  "case": "mapping-dump",
+  "bin": "1.1.0",
+  "rep": 6,
+  "wall_s": 0.0098,
+  "rc": 0,
+  "t": "16:21:09"
+ },
+ {
+  "case": "mapping-dump",
+  "bin": "1.2.0",
+  "rep": 6,
+  "wall_s": 0.0098,
+  "rc": 0,
+  "t": "16:21:09"
+ },
+ {
+  "case": "mapping-restore",
+  "bin": "1.1.0",
+  "rep": 6,
+  "wall_s": 0.0184,
+  "rc": 0,
+  "t": "16:21:09"
+ },
+ {
+  "case": "mapping-restore",
+  "bin": "1.2.0",
+  "rep": 6,
+  "wall_s": 0.0159,
+  "rc": 0,
+  "t": "16:21:09"
+ },
+ {
+  "case": "settings-dump",
+  "bin": "1.1.0",
+  "rep": 6,
+  "wall_s": 0.009,
+  "rc": 0,
+  "t": "16:21:09"
+ },
+ {
+  "case": "settings-dump",
+  "bin": "1.2.0",
+  "rep": 6,
+  "wall_s": 0.0076,
+  "rc": 0,
+  "t": "16:21:09"
+ },
+ {
+  "case": "settings-restore",
+  "bin": "1.1.0",
+  "rep": 6,
+  "wall_s": 0.0398,
+  "rc": 0,
+  "t": "16:21:09"
+ },
+ {
+  "case": "settings-restore",
+  "bin": "1.2.0",
+  "rep": 6,
+  "wall_s": 0.0374,
+  "rc": 0,
+  "t": "16:21:09"
+ },
+ {
+  "case": "multi-dump-p8",
+  "bin": "1.1.0",
+  "rep": 6,
+  "wall_s": 0.1407,
+  "rc": 0,
+  "t": "16:21:09"
+ },
+ {
+  "case": "multi-dump-p8",
+  "bin": "1.2.0",
+  "rep": 6,
+  "wall_s": 0.1416,
+  "rc": 0,
+  "t": "16:21:09"
+ },
+ {
+  "case": "multi-restore-p8",
+  "bin": "1.1.0",
+  "rep": 6,
+  "wall_s": 0.7901,
+  "rc": 0,
+  "t": "16:21:10"
+ },
+ {
+  "case": "multi-restore-p8",
+  "bin": "1.2.0",
+  "rep": 6,
+  "wall_s": 0.7546,
+  "rc": 0,
+  "t": "16:21:11"
+ },
+ {
+  "case": "mapping-dump",
+  "bin": "1.2.0",
+  "rep": 7,
+  "wall_s": 0.0115,
+  "rc": 0,
+  "t": "16:21:11"
+ },
+ {
+  "case": "mapping-dump",
+  "bin": "1.1.0",
+  "rep": 7,
+  "wall_s": 0.0127,
+  "rc": 0,
+  "t": "16:21:11"
+ },
+ {
+  "case": "mapping-restore",
+  "bin": "1.2.0",
+  "rep": 7,
+  "wall_s": 0.0177,
+  "rc": 0,
+  "t": "16:21:11"
+ },
+ {
+  "case": "mapping-restore",
+  "bin": "1.1.0",
+  "rep": 7,
+  "wall_s": 0.0195,
+  "rc": 0,
+  "t": "16:21:11"
+ },
+ {
+  "case": "settings-dump",
+  "bin": "1.2.0",
+  "rep": 7,
+  "wall_s": 0.0111,
+  "rc": 0,
+  "t": "16:21:11"
+ },
+ {
+  "case": "settings-dump",
+  "bin": "1.1.0",
+  "rep": 7,
+  "wall_s": 0.0086,
+  "rc": 0,
+  "t": "16:21:11"
+ },
+ {
+  "case": "settings-restore",
+  "bin": "1.2.0",
+  "rep": 7,
+  "wall_s": 0.0375,
+  "rc": 0,
+  "t": "16:21:11"
+ },
+ {
+  "case": "settings-restore",
+  "bin": "1.1.0",
+  "rep": 7,
+  "wall_s": 0.0377,
+  "rc": 0,
+  "t": "16:21:11"
+ },
+ {
+  "case": "multi-dump-p8",
+  "bin": "1.2.0",
+  "rep": 7,
+  "wall_s": 0.147,
+  "rc": 0,
+  "t": "16:21:12"
+ },
+ {
+  "case": "multi-dump-p8",
+  "bin": "1.1.0",
+  "rep": 7,
+  "wall_s": 0.1512,
+  "rc": 0,
+  "t": "16:21:12"
+ },
+ {
+  "case": "multi-restore-p8",
+  "bin": "1.2.0",
+  "rep": 7,
+  "wall_s": 0.7681,
+  "rc": 0,
+  "t": "16:21:13"
+ },
+ {
+  "case": "multi-restore-p8",
+  "bin": "1.1.0",
+  "rep": 7,
+  "wall_s": 0.7534,
+  "rc": 0,
+  "t": "16:21:14"
+ },
+ {
+  "case": "mapping-dump",
+  "bin": "1.1.0",
+  "rep": 8,
+  "wall_s": 0.0087,
+  "rc": 0,
+  "t": "16:21:14"
+ },
+ {
+  "case": "mapping-dump",
+  "bin": "1.2.0",
+  "rep": 8,
+  "wall_s": 0.0095,
+  "rc": 0,
+  "t": "16:21:14"
+ },
+ {
+  "case": "mapping-restore",
+  "bin": "1.1.0",
+  "rep": 8,
+  "wall_s": 0.0176,
+  "rc": 0,
+  "t": "16:21:14"
+ },
+ {
+  "case": "mapping-restore",
+  "bin": "1.2.0",
+  "rep": 8,
+  "wall_s": 0.0195,
+  "rc": 0,
+  "t": "16:21:14"
+ },
+ {
+  "case": "settings-dump",
+  "bin": "1.1.0",
+  "rep": 8,
+  "wall_s": 0.0095,
+  "rc": 0,
+  "t": "16:21:14"
+ },
+ {
+  "case": "settings-dump",
+  "bin": "1.2.0",
+  "rep": 8,
+  "wall_s": 0.0096,
+  "rc": 0,
+  "t": "16:21:14"
+ },
+ {
+  "case": "settings-restore",
+  "bin": "1.1.0",
+  "rep": 8,
+  "wall_s": 0.04,
+  "rc": 0,
+  "t": "16:21:14"
+ },
+ {
+  "case": "settings-restore",
+  "bin": "1.2.0",
+  "rep": 8,
+  "wall_s": 0.0368,
+  "rc": 0,
+  "t": "16:21:14"
+ },
+ {
+  "case": "multi-dump-p8",
+  "bin": "1.1.0",
+  "rep": 8,
+  "wall_s": 0.1988,
+  "rc": 0,
+  "t": "16:21:14"
+ },
+ {
+  "case": "multi-dump-p8",
+  "bin": "1.2.0",
+  "rep": 8,
+  "wall_s": 0.1567,
+  "rc": 0,
+  "t": "16:21:14"
+ },
+ {
+  "case": "multi-restore-p8",
+  "bin": "1.1.0",
+  "rep": 8,
+  "wall_s": 0.7873,
+  "rc": 0,
+  "t": "16:21:15"
+ },
+ {
+  "case": "multi-restore-p8",
+  "bin": "1.2.0",
+  "rep": 8,
+  "wall_s": 0.7946,
+  "rc": 0,
+  "t": "16:21:16"
+ },
+ {
+  "case": "mapping-dump",
+  "bin": "1.2.0",
+  "rep": 9,
+  "wall_s": 0.0083,
+  "rc": 0,
+  "t": "16:21:16"
+ },
+ {
+  "case": "mapping-dump",
+  "bin": "1.1.0",
+  "rep": 9,
+  "wall_s": 0.0082,
+  "rc": 0,
+  "t": "16:21:16"
+ },
+ {
+  "case": "mapping-restore",
+  "bin": "1.2.0",
+  "rep": 9,
+  "wall_s": 0.0165,
+  "rc": 0,
+  "t": "16:21:16"
+ },
+ {
+  "case": "mapping-restore",
+  "bin": "1.1.0",
+  "rep": 9,
+  "wall_s": 0.0182,
+  "rc": 0,
+  "t": "16:21:16"
+ },
+ {
+  "case": "settings-dump",
+  "bin": "1.2.0",
+  "rep": 9,
+  "wall_s": 0.0085,
+  "rc": 0,
+  "t": "16:21:17"
+ },
+ {
+  "case": "settings-dump",
+  "bin": "1.1.0",
+  "rep": 9,
+  "wall_s": 0.0082,
+  "rc": 0,
+  "t": "16:21:17"
+ },
+ {
+  "case": "settings-restore",
+  "bin": "1.2.0",
+  "rep": 9,
+  "wall_s": 0.0357,
+  "rc": 0,
+  "t": "16:21:17"
+ },
+ {
+  "case": "settings-restore",
+  "bin": "1.1.0",
+  "rep": 9,
+  "wall_s": 0.0372,
+  "rc": 0,
+  "t": "16:21:17"
+ },
+ {
+  "case": "multi-dump-p8",
+  "bin": "1.2.0",
+  "rep": 9,
+  "wall_s": 0.1384,
+  "rc": 0,
+  "t": "16:21:17"
+ },
+ {
+  "case": "multi-dump-p8",
+  "bin": "1.1.0",
+  "rep": 9,
+  "wall_s": 0.1428,
+  "rc": 0,
+  "t": "16:21:17"
+ },
+ {
+  "case": "multi-restore-p8",
+  "bin": "1.2.0",
+  "rep": 9,
+  "wall_s": 0.7446,
+  "rc": 0,
+  "t": "16:21:18"
+ },
+ {
+  "case": "multi-restore-p8",
+  "bin": "1.1.0",
+  "rep": 9,
+  "wall_s": 0.736,
+  "rc": 0,
+  "t": "16:21:19"
+ }
+]
