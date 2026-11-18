@@ -53,3 +53,14 @@ under every observed accepted size, and equals 1.2's existing lower bound for th
 min 1 MiB). The 1/4-of-parent-limit sizing floor is the L3-003 `floor` experiment (the relcmp os3/384m dump-fat
 probe at 94 % heap gives a 22.8 MB page, ~96 fat docs, instead of 0 MB / 3 docs). Page halving keeps the 1-document
 minimum for correctness (callers detect the slice end from the page size), so the floor there is a stop at 10 docs.
+
+## Update 20:45 ET (growback tests, Robert t227u/t228u)
+- Commits: L3-014 b36f749 (floor default + decisions 1/4/5/6), L3-015 5727aae (floor reps OS3 256m), L3-016 1cf3d9e
+  (CapControl counters, failed grow-back penalty, `bulk size summary` line, grow back-off 8..256, unit tests,
+  `scripts/load/growback_reps.py`).
+- Running (do NOT start duplicates): `/workspace/rel-1.3-work/chain-gb.sh` (log `chain-gb.log`, rows
+  `gb-rows-<case>.jsonl`; OS3 256/384/512m, OS2 256m, ES 8.19 256m; load + multi8; 4 variants x 4 reps), then
+  `chain-gb2.sh` (log `chain-gb2.log`; sustained-429: es819 indexing_pressure 2mb with `--serverLimits=off`, 1mb with
+  auto, OS3 256m off). The planned "sustained" auto case with 2mb gave no 429 (auto sizes bulks to 1 MiB), hence chain 2.
+- Next: `python3 /workspace/rel-1.3-work/gb_table.py` (tables), write `results/local/L3-017-growback.md`, copy reps.json
+  from `results/load/l3-016/*` to `results/local/L3-017/`, commit named files, check `podman ps -a` (isolated store).
