@@ -6621,8 +6621,8 @@ async fn l812_routed_documents_into_a_data_stream_are_named_once() {
 // L2-003 (1.2-1c): a whole `_bulk` request refused with HTTP 429 by a circuit breaker is split in
 // half (down to what fits) instead of being re-sent unchanged until the retries run out. Every
 // document is written exactly once, in input order, and later bulks start at the smaller size.
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn l2_003_bulk_breaker_429_splits_the_request_in_half() {
+/// The L2-003 split scenario; returns the bulk request bodies and stderr.
+async fn l2_003_split_scenario(envs: Vec<(String, String)>) -> (Vec<String>, String) {
     let dir = tempfile::tempdir().unwrap();
     let input = dir.path().join("in.json");
     let lines: String = (0..16).fold(String::new(), |mut acc, i| {
@@ -6666,7 +6666,7 @@ async fn l2_003_bulk_breaker_429_splits_the_request_in_half() {
             "--retryDelay",
             "1",
         ]),
-        vec![],
+        envs,
     )
     .await;
     let e = stderr(&o);
@@ -6691,13 +6691,41 @@ async fn l2_003_bulk_breaker_429_splits_the_request_in_half() {
         .collect();
     let want: Vec<String> = (0..16).map(|i| format!("d{i:02}")).collect();
     assert_eq!(ok_ids, want, "each document once, in order");
-    // batch 1: 8 -> 4+4 -> 2+2+2+2 (7 requests); batch 2 starts at the lowered cap (4 docs
-    // fit 2 x 2-doc requests after one more split at most), never at the full 8 again
-    let first_batch_8 = bulks.iter().filter(|b| docs_in(b.as_bytes()) == 8).count();
+    (bulks, e)
+}
+
+fn docs_in_body(b: &str) -> usize {
+    b.lines().filter(|l| !l.is_empty()).count() / 2
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn l2_003_bulk_breaker_429_splits_the_request_in_half() {
+    // 1.2 sizing (`nofloor`): batch 1: 8 -> 4+4 -> 2+2+2+2 (7 requests); batch 2 starts at the
+    // lowered cap (4 docs fit 2 x 2-doc requests after one more split at most), never at the
+    // full 8 again
+    let (bulks, _) = l2_003_split_scenario(vec![(
+        "SEARCHDUMP_LIMITS_EXPERIMENT".into(),
+        "nofloor".into(),
+    )])
+    .await;
+    let first_batch_8 = bulks.iter().filter(|b| docs_in_body(b) == 8).count();
     assert_eq!(
         first_batch_8, 1,
         "the 8-document bulk is sent once: {bulks:?}"
     );
+}
+
+/// 1.3 floor (decision 3): the refused request is still split down to what fits, but later
+/// bulks keep a cap of at least 1 MiB, so a tiny batch 2 is sent whole again (and split again).
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn l3_014_split_cap_keeps_the_1_mib_floor() {
+    let (bulks, e) = l2_003_split_scenario(vec![]).await;
+    let full = bulks.iter().filter(|b| docs_in_body(b) == 8).count();
+    assert_eq!(
+        full, 2,
+        "both 8-document batches are tried whole: {bulks:?}"
+    );
+    assert!(e.contains("later bulks at <= 1024 KB"), "{e}");
 }
 
 // L2-003 (1.2-1c): a 429 for a full write queue (no memory limit named) is not a size problem:

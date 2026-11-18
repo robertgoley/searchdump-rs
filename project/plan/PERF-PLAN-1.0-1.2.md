@@ -17,6 +17,8 @@ Three suites, one host, four tools, in this order on every engine:
 
 The frozen case list in `scripts/perf/suite.py` / `scripts/perf/README.md`, plus the two 1.1 A/B cases (`PERF_AB_CASES=1`: `restore-norefresh`, `copy-norefresh`). Both tools that can run a case use the **same flags** (`--limit`, `--concurrency=1`, codec, slices). Multi cases pass `--noDefaultDataFlags`, so this suite does **not** measure 1.1-10 or `--serverLimits`. It measures code speed at equal flags.
 
+**1.3 decision 6 (2026-11-17):** for `searchdump` binaries that have `--serverLimits` (1.2 and later, detected from `--help`), the single-index **data** cases (dump/restore/copy, codecs, split, `--slices`, PIT, small/big/edge) also pass `--serverLimits=off`, so the start-up probe (~0.2-0.4 s per run, L3-007) is not timed. 1.0.0/1.1.0 (no such flag) and Node run unchanged; multi cases (already `--noDefaultDataFlags`) and mapping/settings cases are unchanged. The result JSON records `rs_server_limits_off`. Earlier 1.2 Suite A sliced-dump rows include the probe; compare them with that in mind.
+
 L0, place `box`, 3 measured reps after 1 untimed warm-up, one engine at a time. Engine order is the suite order: `es710`, `es717`, `elasticsearch8`, `es819`, `elasticsearch`, `os13`, `os2`, `os3`, each plain then secure (16 profiles). Heap is the suite's: 1024 MB, except OpenSearch 2 and 3 at 4096 MB.
 
 ### Suite B — low-memory restrained tests (1.1-10 and 1.2)

@@ -2,7 +2,7 @@
 
 ## 1.3-R1: multi-restore p8 "target index deleted and re-created" on ES 8.6 (1.1.0 RC)
 
-**Status:** mitigated in local `release/1.3` (L3-002 harness waits for and logs DELETEs; L3-009 rerun 60 x 20 reps on grokbox, 0 failures, every DELETE applied at once). Proposed: close as a harness race after a box resume. Not fixed in 1.1.0 (code frozen) and not part of 1.2.
+**Status:** **closed 2026-11-17 (1.3 decision 5, Robert t223u): harness-caused, mitigated.** The L3-002 harness DELETE wait is kept (checks `acknowledged`, polls until 404, logs every DELETE). Evidence: 63 ES 8.6.1 plain `multi-restore-p8` restores on grokbox with 0 failures (L3-009: x20 old harness 1.1.0, x20 old harness 1.2.0, x20+ new harness 1.2.0; 336/336 DELETEs applied before the first poll). Not a searchdump bug (code read: per-child targets, no parent DELETE/PUT). The pause / memory-pressure variants and per-child uuid logging were not run and are not needed for closing. Not fixed in 1.1.0 (code frozen) and not part of 1.2.
 
 ### What happened
 - Run: 1.1.0 RC L0 suite on grokbox, engine `elasticsearch8-plain` (ES 8.6.1, plain HTTP),

@@ -81,6 +81,17 @@ def cases(ab=False):
 
 CASES = cases(ab=os.environ.get("PERF_AB_CASES") == "1")
 
+# 1.3 decision 6 (2026-11-17): single-index searchdump data cases pass --serverLimits=off so the
+# start-up probe (~0.2-0.4 s per run, L3-007) is not timed; only binaries that have the flag
+# (1.2+, detected from --help in prerequisites). 1.0/1.1 and Node run unchanged; multi cases and
+# mapping/settings cases are unchanged. Recorded as `rs_server_limits_off` in the result.
+RS_LIMITS_OFF = False
+
+
+def rs_extra_flags(multi, meta, tool):
+    """Flags added to a searchdump (rs) single-index data run (see RS_LIMITS_OFF)."""
+    return ["--serverLimits=off"] if RS_LIMITS_OFF and tool == "rs" and not multi and not meta else []
+
 
 def write_json(path, data):
     path = Path(path)
@@ -447,6 +458,8 @@ def prerequisites(a, plan):
         checked(["cargo", "+1.91.1", "build", "--locked", "--release", "--workspace", "--bins",
                  "--jobs", os.environ.get("PERF_BUILD_JOBS", "2"), "--target-dir", target], cwd=ROOT)
     tools = {b: str(bindir / b) for b in binaries}
+    global RS_LIMITS_OFF
+    RS_LIMITS_OFF = "--serverLimits" in capture([tools["searchdump"], "--help"])
     if not a.skip_node:
         node_dir = Path(os.environ.get("NODE_ED_BIN", "/opt/node-ed/node_modules/.bin"))
         for b in ("elasticdump", "multielasticdump"):
@@ -730,7 +743,7 @@ class EngineRun:
                     paths = self.reference(case)
                     inputs = [str(p) for p in paths]
                     inp = str(paths[0])
-            flags += ["--type=" + typ]
+            flags += ["--type=" + typ, *rs_extra_flags(multi, meta, tool)]
             cmd = [exe, "--input=" + inp, "--output=" + output, *flags, *tls]
             if case.get("split") and case["kind"] == "restore":
                 # One measured job, same subprocess loop for both tools, numeric part order.
@@ -971,7 +984,8 @@ def main():
             result = dict(schema=PROTOCOL, started=now(), plan=plan, engines=[],
                           git=capture(["git", "rev-parse", "HEAD"], cwd=ROOT),
                           tool_hashes={k: hashlib.sha256(Path(v).read_bytes()).hexdigest() for k, v in tools.items()},
-                          node_runtime=capture(["node", "--version"]) if not a.skip_node else None)
+                          node_runtime=capture(["node", "--version"]) if not a.skip_node else None,
+                          rs_server_limits_off=RS_LIMITS_OFF)
             for entry in plan["engines"]:
                 # Guard against the engine's own heap, not only the tier default.
                 # Observed container RSS is ~1.1-1.3× heap for these images; keep 2× for small

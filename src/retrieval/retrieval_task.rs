@@ -67,7 +67,9 @@ where
         {
             Ok(bytes) => return Ok(bytes),
             Err(e) if halvable && crate::http::retry::is_size_429(&e) => {
-                let smaller = (size / 2).max(1);
+                // 1.3 floor: stop once at 10 documents before going lower
+                let smaller =
+                    crate::limits::halved_page(size, crate::limits::Experiment::from_env().floor());
                 let cause = crate::http::retry::size_429_cause(&e);
                 let cause = if cause.is_empty() {
                     String::new()

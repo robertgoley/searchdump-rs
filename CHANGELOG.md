@@ -5,6 +5,27 @@ a version with a hyphen (`1.0.0-beta1`) is a pre-release. The release workflow
 (`.github/workflows/release.yml`) uses the section for a version as the release notes of its draft
 GitHub release.
 
+## 1.3.0 (unreleased, draft on local `release/1.3`)
+
+Not released. User-facing notes draft: [`project/release/RELEASE-NOTES-1.3.md`](project/release/RELEASE-NOTES-1.3.md).
+
+### Changed
+
+- **Minimum sizes for `--serverLimits=auto`/`min` and the HTTP 429 handling** (1.3 decision 3, 2026-11-17): sizing never
+  uses less headroom than a quarter of the parent-breaker limit, pages / in-flight budgets and bulk requests are at
+  least 1 MiB, a 429 split keeps later bulks at 1 MiB or more (1.2 could go down to 54-390 KB for the rest of a run on
+  OpenSearch 3 small heaps), and a 429 page halving stops once at 10 documents. A smaller `--limit` / `--maxBulkBytes`
+  you set still applies; `SEARCHDUMP_LIMITS_EXPERIMENT=nofloor` restores the 1.2 sizing.
+- HTTP 429 split / halve warnings name the cause the server gave (for example the parent circuit breaker's "real
+  usage" or indexing pressure), so a log shows why a request was made smaller (1.3 decision 4).
+
+### Fixed
+
+- `searchdump-multi`: a load could report an index as failed although every document was written, when the parent's
+  final `POST /<index>/_refresh` (or a `_count`/GET/HEAD check) got a single HTTP 429 or 503 from a busy node (seen on
+  OpenSearch 3 with a 256 MB heap). The parent now retries these read-only calls up to 6 times (250 ms to 4 s
+  back-off). Affects 1.1.0 and 1.2.0 (1.3 decision 4).
+
 ## 1.2.0
 
 Release date: 2026-11-16 (tag `v1.2.0`). User-facing notes, including what `--serverLimits` does and the

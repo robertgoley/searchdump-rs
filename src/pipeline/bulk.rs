@@ -256,6 +256,9 @@ pub struct BulkSink {
     growback: bool,
     /// 1.3 evaluation (`SEARCHDUMP_LIMITS_EXPERIMENT=retryfirst`, off by default).
     retryfirst: bool,
+    /// 1.3 floor (default on; `SEARCHDUMP_LIMITS_EXPERIMENT=nofloor` for 1.2): a 429 split
+    /// never lowers the cap for later bulks below `limits::BULK_FLOOR_BYTES`.
+    floor: bool,
 }
 
 /// 1.3 evaluation: accepted chunks in a row before a split cap may double again.
@@ -654,6 +657,7 @@ impl BulkSink {
             grow_streak: Arc::new(AtomicUsize::new(0)),
             growback: crate::limits::Experiment::from_env().growback,
             retryfirst: crate::limits::Experiment::from_env().retryfirst,
+            floor: crate::limits::Experiment::from_env().floor(),
         }
     }
 
@@ -812,6 +816,7 @@ impl BulkSink {
             grow_streak: Arc::clone(&self.grow_streak),
             growback: self.growback,
             retryfirst: self.retryfirst,
+            floor: self.floor,
         }
     }
 
@@ -1325,7 +1330,8 @@ impl BulkSink {
     /// request can fix (circuit breaker, indexing pressure) is split in half and the halves
     /// are written in order, down to one document. Nothing of a refused request was applied,
     /// so only those (unacknowledged) documents are sent again. Later chunks start at the
-    /// smaller size (the cap never grows back within a run).
+    /// smaller size (the cap never grows back within a run unless `growback`), but (1.3 floor)
+    /// not below 1 MiB or `--maxBulkBytes` when that is lower.
     async fn write_chunk(&mut self, chunk: &[&[u8]], body: Vec<u8>) -> Result<()> {
         let mut todo: Vec<(Vec<usize>, Vec<u8>)> = vec![((0..chunk.len()).collect(), body)];
         let mut split = false;
@@ -1369,7 +1375,8 @@ impl BulkSink {
             for &i in b {
                 self.encode_doc(chunk[i], &mut body_b)?;
             }
-            let cap = (len / 2).max(1);
+            // 1.3 floor: later bulks stay at >= 1 MiB (this request still splits to 1 doc)
+            let cap = crate::limits::split_cap(len, self.floor);
             let before = self.split_cap.fetch_min(cap, Ordering::Relaxed);
             if before == 0 {
                 self.split_cap.store(cap, Ordering::Relaxed);
