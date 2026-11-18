@@ -14,9 +14,8 @@ its own branch on 2026-11-17 (decision 7).
 **Other refs (do not touch without Robert).**
 - `main` = 53bb69a.
 - Tags: `v1.2.0` (latest, tag object c513a66 on 5e2ee85) and `v1.1.0` (on 47a73cc; Robert: leave it).
-- `origin/release/1.1` **and** `origin/release/1.2` both point at d8f41ae (author `robert@local`, most likely
-  pushed from kvmsvr1; not proven). That push moved `release/1.1`, so it now contains 1.2.0. Resetting it needs a
-  force push, which needs Robert's explicit OK. Open item.
+- `origin/release/1.1` **and** `origin/release/1.2` both point at d8f41ae (pushed by another of Robert's bots).
+  Robert (t233u, 2026-11-17): the current `release/1.1` files are correct. **Do not reset or force-push it.** Closed.
 
 **Commits on release/1.3** (`git log 53bb69a..origin/release/1.3`). Each commit message starts `L3-NNN:`.
 
@@ -175,7 +174,7 @@ load that met size 429s, each `searchdump` writes a warn line:
    - fix the `cross.rs` OSS ILM message assertion;
    - add a build step to `nightly.yml`;
    - the alias restore `.security-7` 403 is **Robert's decision** (behaviour change).
-10. **`release/1.1` moved to d8f41ae** (now contains 1.2.0). Resetting it needs a force push: Robert only.
+10. ~~`release/1.1` at d8f41ae~~: closed. Robert (t233u) says it is correct as is; do not reset it.
 11. **Before 1.3 can ship:**
     - version bump;
     - CHANGELOG "1.3.0" date;
