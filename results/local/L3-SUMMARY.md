@@ -1,8 +1,8 @@
 # 1.3 work summary (grokbox, local branch `release/1.3`, 2026-11-17)
 
-Branch `release/1.3` is cut from `origin/main` 53bb69a. It is **local only**: nothing is pushed, and there are no
-tags, no PRs and no reruns elsewhere.
-- Commits: L3-001 to L3-012 (see `git log 53bb69a..`).
+Branch `release/1.3` is cut from `origin/main` 53bb69a. It was pushed to origin as its own branch on 2026-11-17 (decision 7). It is not merged, and there are no tags and no
+PRs.
+- Commits: L3-001 to L3-018 (see `git log 53bb69a..`).
 - Binaries: release assets 1.1.0 (searchdump 06233a2a, the same build as kvmsvr1) and 1.2.0 (e0344bbe), both
   sha256-verified.
 - Experiment builds: `bin/l3exp*` in `/workspace/rel-1.3-work` (scratch).
@@ -79,18 +79,19 @@ REVIEW-1.3.md is set to "mitigated". The pause/memory-pressure variants were not
 - low-memory timing tables;
 - all Suite C 1-core/4-core rows.
 
-## Decisions needed from Robert
+## Robert's decisions (2026-11-17) and follow-up work (L3-014..018)
 
-1. Close 1.3-G as "not a 1.2 regression". Optionally have kvmsvr1 rerun in ABA order, plus `stall_loop.py` for
-   the OS 2/3 stalls.
-2. 1.3 429 policy: should `retryfirst` + `growback` become the default for parent-breaker 429s, or stay opt-in?
-   An alternative is cause-aware handling: never split when "real usage" alone is at or above the limit. This
-   reverses part of L2-003.
-3. Should the probe floor (`floor` or `configured`) become the default against the 0 MB page budget?
-4. Take the L3-008 parent retry fix and the L3-004 log text change into 1.3.
-5. Keep the harness DELETE wait and close 1.3-R1.
-6. Should Suite A pass `--serverLimits=off` for plain data runs, to compare equal flags?
-7. Whether and when to push `release/1.3`.
+1. 1.3-G stays open; retest on kvmsvr1 after the 1.3 release (t226u).
+2. `retryfirst` and `growback` stay opt-in (t229u). Grow-back matrix: `L3-017-growback.md`. A failed grow costs
+   about 2 s; growback is 1.51x slower than the floor on OS3 256m load and +43 % under a sustained 429.
+3. The floor is the default (t221u, kept as tested in L3-017 by t229u). See L3-014, L3-015 and the L3-017 worker-share
+   fix; values are in `project/plan/HANDOFF-1.3.md` section 3.
+4. L3-008 and L3-004 ship in 1.3 (t222u).
+5. Harness DELETE wait kept; 1.3-R1 closed (t223u).
+6. Suite A single-index data cases pass `--serverLimits=off` for 1.2+ (t225u).
+7. `release/1.3` pushed to origin as its own branch (t229u).
+
+The pickup document is `project/plan/HANDOFF-1.3.md`.
 
 ## What remains
 

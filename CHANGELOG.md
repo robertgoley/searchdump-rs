@@ -18,6 +18,10 @@ Not released. User-facing notes draft: [`project/release/RELEASE-NOTES-1.3.md`](
   you set still applies; `SEARCHDUMP_LIMITS_EXPERIMENT=nofloor` restores the 1.2 sizing.
 - HTTP 429 split / halve warnings name the cause the server gave (for example the parent circuit breaker's "real
   usage" or indexing pressure), so a log shows why a request was made smaller (1.3 decision 4).
+- `searchdump` (and so each `searchdump-multi` child log) writes one `bulk size summary` warning at the end of a load that met size 429s
+  (429s, splits, resends, grows, lowest and final bulk size).
+- Unchanged by decision (2, 2026-11-17): the 429 policy itself; `SEARCHDUMP_LIMITS_EXPERIMENT=retryfirst` and
+  `growback` stay opt-in evaluations.
 
 ### Fixed
 

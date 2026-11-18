@@ -35,7 +35,10 @@ and verify every backup independently (restore it, compare counts) before relyin
   (seen on OpenSearch 3 with a 256 MB heap) failed an index whose documents were all written. These read-only calls
   are now retried up to 6 times with 250 ms to 4 s back-off.
 
-## Not changed (still being evaluated)
+## Not changed
 
-- The 429 policy itself (split vs. retry at the same size first, and growing the bulk size back after a split) is
-  unchanged from 1.2 apart from the floor; `retryfirst` and `growback` stay opt-in measurements (decision 2 open).
+- The 429 policy itself is unchanged from 1.2 apart from the floor (decision 2, 2026-11-17: Robert t229u): a size 429
+  still splits a bulk or halves a page, and the smaller size is kept for the run. Two alternatives were measured
+  (results/local/L3-011, L3-017) and stay **opt-in** through `SEARCHDUMP_LIMITS_EXPERIMENT`: `retryfirst` (resend a
+  refused bulk once at the same size before splitting) and `growback` (let the bulk size double again after a run
+  of accepted bulks). They are not recommended for general use.
