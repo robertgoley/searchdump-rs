@@ -17,7 +17,8 @@ and verify every backup independently (restore it, compare counts) before relyin
   per page), and repeated HTTP 429 bulk splits on OpenSearch 3 small heaps took the bulk size from 6-16 MB down to
   54-390 KB for the rest of the run (3-13x slower). 1.3 keeps:
   - sizing from at least a quarter of the parent-breaker limit (not only the momentary headroom);
-  - a page / in-flight budget of at least 1 MiB and bulk requests of at least 1 MiB;
+  - a page / in-flight budget of at least 1 MiB and bulk requests of at least 1 MiB (unless the node's
+    indexing-pressure budget shared by all bulk workers is smaller; then each worker gets its share, as in 1.2);
   - after a 429 split, later bulks at 1 MiB or more (the refused request itself is still split as far as needed,
     so the floor never fails a run);
   - a 429 page halving that stops once at 10 documents and goes lower only if that page is refused too.

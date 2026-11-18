@@ -13,7 +13,7 @@ Not released. User-facing notes draft: [`project/release/RELEASE-NOTES-1.3.md`](
 
 - **Minimum sizes for `--serverLimits=auto`/`min` and the HTTP 429 handling** (1.3 decision 3, 2026-11-17): sizing never
   uses less headroom than a quarter of the parent-breaker limit, pages / in-flight budgets and bulk requests are at
-  least 1 MiB, a 429 split keeps later bulks at 1 MiB or more (1.2 could go down to 54-390 KB for the rest of a run on
+  least 1 MiB (bulks: unless the indexing-pressure budget split over the workers is smaller), a 429 split keeps later bulks at 1 MiB or more (1.2 could go down to 54-390 KB for the rest of a run on
   OpenSearch 3 small heaps), and a 429 page halving stops once at 10 documents. A smaller `--limit` / `--maxBulkBytes`
   you set still applies; `SEARCHDUMP_LIMITS_EXPERIMENT=nofloor` restores the 1.2 sizing.
 - HTTP 429 split / halve warnings name the cause the server gave (for example the parent circuit breaker's "real

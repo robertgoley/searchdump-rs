@@ -1137,7 +1137,7 @@ once, at most 5 s) and sizes requests from the smallest data node:
   later bulks are kept at that size; a full queue is retried as before).
 - **Minimum sizes (1.3).** `auto` and `min` never size from less headroom than a quarter of the parent-breaker
   limit (a probe taken while the heap is full of garbage, e.g. right after a load, gave a 0 MB page in 1.2), and
-  never give a page or in-flight budget below 1 MiB or a bulk request below 1 MiB. After a 429 split, later bulks
+  never give a page or in-flight budget below 1 MiB or a bulk request below 1 MiB (unless the indexing-pressure budget shared by all bulk workers is smaller: then each worker gets its share, at least 256 KiB, as in 1.2). After a 429 split, later bulks
   stay at 1 MiB or more (the refused request itself is still split down to one document, so the floor never fails
   a run); a 429 page halving stops once at 10 documents and only goes lower if that page is refused too. A smaller
   `--limit` or `--maxBulkBytes` that you set still applies. `SEARCHDUMP_LIMITS_EXPERIMENT=nofloor` gives the 1.2

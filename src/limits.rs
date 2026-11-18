@@ -408,21 +408,24 @@ pub fn page_docs(page_bytes: u64, avg_stored: Option<u64>, max_page: u64) -> u64
 }
 
 /// Bytes per bulk request for `workers` bulks in flight (concurrency x parallel), never above
-/// the request cap and (1.3) never below [`BULK_FLOOR_BYTES`].
+/// the request cap. 1.3 floor: never below [`BULK_FLOOR_BYTES`] unless the run's whole bulk
+/// budget (from indexing pressure, a configured node-wide limit) split over the workers is
+/// smaller; then the 1.2 rule (budget / workers, at least 256 KiB) applies, so many workers
+/// do not overrun a small indexing-pressure limit together (L3-017: 8 workers x 1 MiB against
+/// a 2 MB limit split every bulk).
 pub fn bulk_bytes(b: &Budget, workers: u64) -> u64 {
     bulk_bytes_with(b, workers, Experiment::from_env())
 }
 
 /// [`bulk_bytes`] with an explicit [`Experiment`].
 pub fn bulk_bytes_with(b: &Budget, workers: u64, exp: Experiment) -> u64 {
+    let per = b.bulk_total_bytes / workers.max(1);
     let min = if exp.floor() {
-        BULK_FLOOR_BYTES
+        BULK_FLOOR_BYTES.min(per).max(BULK_MIN_1_2)
     } else {
         BULK_MIN_1_2
     };
-    (b.bulk_total_bytes / workers.max(1))
-        .min(b.bulk_cap_bytes)
-        .max(min)
+    per.min(b.bulk_cap_bytes).max(min)
 }
 
 // ------------------------------------------------------------------- parsing (fixture-tested)
@@ -1045,10 +1048,15 @@ mod tests {
             assert_eq!(b.page_bytes, PAGE_FLOOR_BYTES, "{mode:?}");
             assert_eq!(b.inflight_bytes, PAGE_FLOOR_BYTES, "{mode:?}");
             assert_eq!(b.bulk_total_bytes, BULK_FLOOR_BYTES, "{mode:?}");
-            for workers in [1, 4, 64] {
+            assert_eq!(
+                bulk_bytes_with(&b, 1, Experiment::default()),
+                BULK_FLOOR_BYTES
+            );
+            // the 1 MiB budget is node-wide: 4 or 64 workers share it (1.2 minimum 256 KiB)
+            for workers in [4, 64] {
                 assert_eq!(
                     bulk_bytes_with(&b, workers, Experiment::default()),
-                    BULK_FLOOR_BYTES
+                    256 << 10
                 );
             }
             let old = budget_with(&tiny, mode, 0, Experiment::parse("nofloor")).unwrap();
@@ -1061,7 +1069,10 @@ mod tests {
         // the 1 MiB floor is the 1.2 lower bound of the bulk cap too, so it never exceeds it
         let b = budget_with(&full_heap_384m(), Mode::Auto, 0, Experiment::default()).unwrap();
         assert!(b.bulk_cap_bytes >= BULK_FLOOR_BYTES);
-        assert!(bulk_bytes_with(&b, 1000, Experiment::default()) >= BULK_FLOOR_BYTES);
+        assert!(bulk_bytes_with(&b, 1, Experiment::default()) >= BULK_FLOOR_BYTES);
+        // a sizing floor from garbage (1/4 of the parent limit) still gives 1 MiB bulks to
+        // 8 workers when indexing pressure allows it (38 MB x 0.5 / 8 = 2.4 MB)
+        assert!(bulk_bytes_with(&b, 8, Experiment::default()) >= BULK_FLOOR_BYTES);
     }
 
     /// 1.3 floor for a 429 bulk split: later bulks stay at >= 1 MiB (1.2 went to 54-390 KB on

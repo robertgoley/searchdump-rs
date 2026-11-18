@@ -64,3 +64,16 @@ minimum for correctness (callers detect the slice end from the page size), so th
   auto, OS3 256m off). The planned "sustained" auto case with 2mb gave no 429 (auto sizes bulks to 1 MiB), hence chain 2.
 - Next: `python3 /workspace/rel-1.3-work/gb_table.py` (tables), write `results/local/L3-017-growback.md`, copy reps.json
   from `results/load/l3-016/*` to `results/local/L3-017/`, commit named files, check `podman ps -a` (isolated store).
+- 21:35 ET: chains 1+2 done (no containers left). Finding: in es819 256m multi8 with indexing_pressure 2mb, the L3-014
+  per-request 1 MiB bulk floor x 8 workers overran the node-wide limit (1.3 floor 6.3 s vs 1.2.0 2.0 s). Uncommitted
+  fix in src/limits.rs `bulk_bytes_with`: floor = min(1 MiB, budget/workers), at least 256 KiB. fmt/clippy clean,
+  binary `bin/l3gb2`. Running `chain-gb3.sh` (log `chain-gb3.log`): that case before/after, 5 variants x 4 reps.
+  Then: full tests, gb_table.py, results/local/L3-017-growback.md, commit.
+- 21:40 ET: chain-gb3 done: ip2mb multi8 auto 1.3 floor before 6.2 s / after 1.5 s (1.2.0 1.4 s), 0 splits after. Next: full tests, doc, commit.
+- 21:50 ET: **L3-017 committed** (see git log): bulk-floor worker-share fix in `limits::bulk_bytes_with` (floor =
+  min(1 MiB, indexing budget / workers), >= 256 KiB), results `results/local/L3-017-growback.md` + `L3-017/*.json`.
+  Gates: fmt, clippy -D warnings, all cargo tests (323 lib, 26 multi, 63 chaos, ...) pass; podman clean.
+  Decision 2 recommendation: keep `growback` and `retryfirst` opt-in; ship floor only (failed grow ~2 s each, OS3
+  256m gb 1.51x slower than floor, sustained 429 +43 % / rf+gb +94 %). Open follow-ups: two unexplained multi
+  long tails (558 s 1.2.0 OS2 multi8, 227 s floor+gb sustained) -> rerun with parent stderr kept; optional
+  cause-aware retry + cheap grow probe.
