@@ -169,11 +169,25 @@ load that met size 429s, each `searchdump` writes a warn line:
 7. **Auto-probe cost in multi and single-index sliced dumps** (about 0.2-0.4 s, L3-007). Not measured.
 8. **1.3-A / 1.3-B / 1.3-F** (FEATURES-TODO): `check-limits` subcommand, `--pageBytes`, broken-pipe exit
    evaluation.
-9. **CI fixes offered for `main`, not yet approved** (from the 2026-11-17 review of the nightly failures):
-   - regenerate TESTING-MATRIX.md (E22 row out of date);
-   - fix the `cross.rs` OSS ILM message assertion;
-   - add a build step to `nightly.yml`;
-   - the alias restore `.security-7` 403 is **Robert's decision** (behaviour change).
+9. **CI fixes: landed on `main` and `release/1.3`** (Robert t235u "Fix the CI issues so they run properly", 2026-11-20):
+   - `main` a121b47 (CI-FIX-1 1109359 + CI-FIX-2 a121b47), cherry-picked here as 9304a44 + 4c3341f.
+   - CI-FIX-1: `--type alias` restore skips aliases of reserved system indices (`.security*`, `.async-search*`,
+     `.fleet-secrets*`, `.opendistro_security`, `.plugins-security*`) with a warning (`src/meta/alias.rs`,
+     unit tests in `meta::alias`, IT `alias_round_trip_keeps_every_property` checks the warning). Fixes the nightly
+     it-full 403 on `.security-7` (elasticsearch-secure, elasticsearch8-secure, es819-secure). CHANGELOG entry.
+   - CI-FIX-2: `nightly.yml` load-nightly builds the binaries first (edgen was missing); `tests/it/cross.rs`
+     accepts the OSS ES 7.10 "ILM is an X-Pack feature ... OSS build" refusal; TESTING-MATRIX.md regenerated
+     (E22 row; `ci` supply-chain).
+   - GitHub after the push (a121b47): `ci` 44684346577 success; `nightly` 44684356491 (dispatched) success,
+     every job green including load-nightly, cross and all it-full profiles; `security` 44684346604 **fails in
+     `image` only** (next item; every other security job passed).
+   - **Open, Robert's decision: `security` `image` job.** grype `--fail-on high` on the default dhi-debian image
+     finds 6 High OpenSSL CVEs in `libssl3t64`/`openssl`/`openssl-provider-legacy` 3.5.7-1~deb13u3+dhi0
+     (CVE-2026-88823, -95691, -95692, -107493, -107496, -124709; OpenSSL advisory 2026-11-10). Debian marks them
+     unfixed in trixie and sid, so no base-pin refresh helps yet. Options: (a) accept them as not-fixed with
+     grype/trivy ignore rules plus a SECURITY-CVE.md section (as for L-808d / L-810e / L-810i); (b) make the
+     dhi-alpine image the default; (c) leave `security` red until Debian/DHI ship a fix, then refresh the pin.
+     Not changed by any bot: policy says no ignore rule without an owner-approved SECURITY-CVE.md entry.
 10. ~~`release/1.1` at d8f41ae~~: closed. Robert (t233u) says it is correct as is; do not reset it.
 11. **Before 1.3 can ship:**
     - version bump;
@@ -192,5 +206,5 @@ load that met size 429s, each `searchdump` writes a warn line:
 ## 9. CI on this branch
 
 `ci.yml` and `security.yml` run on pushes to `main`/`rewrite` and on pull requests. `release.yml` runs on `v*`
-tags; nightly and soak are scheduled. **A push to `release/1.3` triggers no workflow.** To get CI, Robert can run
-`workflow_dispatch` on `ci.yml` for this branch, or open a PR (he said no PRs for now).
+tags; nightly and soak are scheduled. **A push to `release/1.3` triggers no workflow.** To get CI, run
+`gh workflow run ci.yml --ref release/1.3` (`ci.yml` has `workflow_dispatch`), or open a PR (Robert said no PRs for now).
