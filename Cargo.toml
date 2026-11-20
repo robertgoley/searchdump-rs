@@ -1,6 +1,6 @@
 [package]
 name = "searchdump-rs"
-version = "1.2.0"
+version = "1.3.0"
 edition = "2024"
 rust-version = "1.91"
 description = "Fast Elasticsearch/OpenSearch dump, restore and copy tool with an elasticdump-compatible CLI (derived from elasticdump-rs)"

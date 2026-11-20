@@ -5,9 +5,22 @@ a version with a hyphen (`1.0.0-beta1`) is a pre-release. The release workflow
 (`.github/workflows/release.yml`) uses the section for a version as the release notes of its draft
 GitHub release.
 
-## 1.3.0 (unreleased, draft on local `release/1.3`)
+## 1.3.0
 
-Not released. User-facing notes draft: [`project/release/RELEASE-NOTES-1.3.md`](project/release/RELEASE-NOTES-1.3.md).
+Release date: 2026-11-20 (tag `v1.3.0`). User-facing notes: [`project/release/RELEASE-NOTES-1.3.md`](project/release/RELEASE-NOTES-1.3.md).
+The kvmsvr1 performance runs (Suite A/B/C and the 1.3-G retest) are run after tagging.
+
+### Disclaimer
+
+searchdump-rs is provided "as is", without warranty of any kind, as stated in the MIT license
+(the same warranty disclaimer as the elasticdump-rs code it derives from; Node elasticdump,
+whose behaviour it follows, has the equivalent disclaimer in Apache-2.0, sections 7 and 8).
+The authors are not liable for any damage from its use, including data loss, corruption,
+downtime or service disruption, in production or elsewhere. It has been stable and fast in
+our testing, but no test suite covers every cluster version, configuration, plugin and
+storage backend. Test in a non-production environment first, and verify every backup and
+restore yourself (restore it, compare document counts) before you rely on it. See
+[Disclaimer](README.md#disclaimer).
 
 ### Changed
 

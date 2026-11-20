@@ -798,8 +798,8 @@ scripts/build-image.sh --type dhi-static            # shell-less dhi.io/static: 
 scripts/build-image.sh --type dhi-alpine            # Alpine/musl, musl allocator: searchdump-rs:<ver>-alpine
 scripts/build-image.sh --type public                # public Debian bases, no login (not default): <ver>-debian-public
 scripts/build-image.sh --platform both              # linux/amd64 + linux/arm64 manifest list (podman)
-scripts/build-image.sh --platform linux/arm64 --tag registry.example.com/team/searchdump-rs:1.2.0-arm64
-scripts/build-image.sh --tag registry.example.com/team/searchdump-rs:1.2.0 --push
+scripts/build-image.sh --platform linux/arm64 --tag registry.example.com/team/searchdump-rs:1.3.0-arm64
+scripts/build-image.sh --tag registry.example.com/team/searchdump-rs:1.3.0 --push
 scripts/build-image.sh --dry-run --type dhi-alpine  # print the podman commands only
 scripts/build-image.sh --help
 ```
@@ -825,13 +825,13 @@ make test-image            # --version, --help, non-root, compat symlinks (each 
 make test-image IMAGE_VARIANT=dhi-alpine   # the same for :<ver>-alpine (variants: dhi-debian, dhi-static,
                                            # dhi-alpine, public, alpine)
 make sbom scan             # syft SBOM (CycloneDX + SPDX), grype + trivy (fail on HIGH/CRITICAL) of IMAGE_VARIANT
-make image REGISTRY=registry.example.com/team IMAGE_NAME=searchdump IMAGE_TAG=1.2.0
+make image REGISTRY=registry.example.com/team IMAGE_NAME=searchdump IMAGE_TAG=1.3.0
 
 # podman
-podman run --rm -v "$PWD/dumps:/data:Z" localhost/searchdump-rs:1.2.0 \
+podman run --rm -v "$PWD/dumps:/data:Z" localhost/searchdump-rs:1.3.0 \
   --input=http://es:9200/my_index --output=/data/my_index.json --type=data
 # docker (same image, Node-style entrypoint name)
-docker run --rm -v "$PWD/dumps:/data" --entrypoint elasticdump localhost/searchdump-rs:1.2.0 \
+docker run --rm -v "$PWD/dumps:/data" --entrypoint elasticdump localhost/searchdump-rs:1.3.0 \
   --input=/data/my_index.json --output=http://es:9200/my_index --type=data
 ```
 
@@ -866,7 +866,7 @@ anything is pushed or drafted. The draft contains:
   tags.
 
 Every archive, the SBOM and every pushed image have a GitHub build-provenance attestation:
-`gh attestation verify searchdump-rs-1.2.0-x86_64-unknown-linux-gnu.tar.gz --repo robertgoley/searchdump-rs`.
+`gh attestation verify searchdump-rs-1.3.0-x86_64-unknown-linux-gnu.tar.gz --repo robertgoley/searchdump-rs`.
 
 Container images: every image type is built, tested with `scripts/test-image.sh` and pushed to
 `ghcr.io/robertgoley/searchdump-rs:<version>-<type>` (`dhi-debian`, `dhi-static`, `dhi-alpine`, `public`, `alpine`;

@@ -1,6 +1,6 @@
 # Examples
 
-Worked dump and restore commands for [searchdump-rs](../README.md) 1.2.0. Start with the
+Worked dump and restore commands for [searchdump-rs](../README.md) 1.3.0. Start with the
 [safe simple](#safe-simple-recommended) cases: they need no sizing flags. The other cases use
 `--serverLimits` (new in 1.2.0; drop it, and set the sizes by hand, to run them with a 1.1.0 or
 1.0.0 binary or image); the 1.1.0 behaviours they rely on or mention are marked (see
@@ -25,9 +25,9 @@ private file (`chmod 600`), and do not commit the filled copy.
 The default container image in the Kubernetes and Docker/Podman examples is the project's
 dhi.io Debian image with a shell:
 
-- published: `ghcr.io/robertgoley/searchdump-rs:1.2.0-dhi-debian` (published with `v1.2.0`;
-  a `:1.1.0-*` tag works only without `--serverLimits`)
-- local `make image` / `scripts/build-image.sh`: `localhost/searchdump-rs:1.2.0` (and
+- published: `ghcr.io/robertgoley/searchdump-rs:1.3.0-dhi-debian` (published with `v1.3.0`;
+  a `:1.2.0-*` tag also runs these examples; a `:1.1.0-*` tag works only without `--serverLimits`)
+- local `make image` / `scripts/build-image.sh`: `localhost/searchdump-rs:1.3.0` (and
   `:latest`)
 
 The image entrypoint is `searchdump`; `searchdump-multi` is next to it. It runs as uid 65532,
@@ -268,7 +268,7 @@ able to write it (the scripts create the directory and explain the permission op
 
 ```bash
 export ES_URL=http://127.0.0.1:9200 INDEX=logs
-# SEARCHDUMP_IMAGE=localhost/searchdump-rs:1.2.0
+# SEARCHDUMP_IMAGE=localhost/searchdump-rs:1.3.0
 examples/docker-podman/minimum-resources-dump.sh
 ```
 

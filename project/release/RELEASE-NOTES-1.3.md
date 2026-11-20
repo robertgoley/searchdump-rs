@@ -1,13 +1,16 @@
-# searchdump-rs 1.3.0 release notes (DRAFT)
+# searchdump-rs 1.3.0 release notes
 
-Status: **draft, not released.** Work is on the local branch `release/1.3` (not pushed). Entries are added as
-Robert decides the 1.3 questions (results/local/L3-SUMMARY.md, "Decisions needed"). The same material is summarised
-in [`CHANGELOG.md`](../../CHANGELOG.md) under **1.3.0**.
+Status: **released 2026-11-20** as tag `v1.3.0` (`release/1.3` merged into `main`). The kvmsvr1 performance runs
+(Suite A/B/C with the 1.3 build and the 1.3-G retest, decision 1) run after tagging; results go to
+`results/local/` and do not change this release. The same material is summarised in
+[`CHANGELOG.md`](../../CHANGELOG.md) under **1.3.0**.
 
 ## Disclaimer
 
 searchdump-rs is provided **as is, without warranty of any kind**, as set out in its
-[MIT license](../../LICENSE). See [Disclaimer](../../README.md#disclaimer). Try it on a non-production cluster first
+[MIT license](../../LICENSE) (the same warranty disclaimer as the elasticdump-rs code it derives from; Node
+elasticdump, whose behaviour it follows, has the equivalent disclaimer in Apache-2.0, sections 7 and 8). The authors
+accept no liability for any damage from its use, including data loss. See [Disclaimer](../../README.md#disclaimer). Try it on a non-production cluster first
 and verify every backup independently (restore it, compare counts) before relying on it.
 
 ## Highlights
@@ -34,6 +37,11 @@ and verify every backup independently (restore it, compare counts) before relyin
   final `POST /<index>/_refresh` (and `_count`, GET/HEAD checks) had no retry, so one HTTP 429/503 from a busy node
   (seen on OpenSearch 3 with a 256 MB heap) failed an index whose documents were all written. These read-only calls
   are now retried up to 6 times with 250 ms to 4 s back-off.
+
+- **`--type alias` restore and reserved system indices:** a host-only alias dump from a secured Elasticsearch 8/9
+  lists `.security-7` (alias `.security`); restoring it failed with HTTP 403 for the whole atomic `POST /_aliases`.
+  Aliases of reserved system indices (`.security*`, `.async-search*`, `.fleet-secrets*`, `.opendistro_security`,
+  `.plugins-security*`) are now skipped with a warning.
 
 ## Not changed
 
