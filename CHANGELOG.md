@@ -5,6 +5,15 @@ a version with a hyphen (`1.0.0-beta1`) is a pre-release. The release workflow
 (`.github/workflows/release.yml`) uses the section for a version as the release notes of its draft
 GitHub release.
 
+## Unreleased
+
+### Fixed
+
+- `--type alias` restore skips aliases of reserved system indices (`.security*`, `.async-search*`,
+  `.fleet-secrets*`, `.opendistro_security`, `.plugins-security*`) with a warning. A host-only alias dump from a
+  secured Elasticsearch 8/9 lists `.security-7` (alias `.security`), and the cluster refuses alias changes on it
+  even for a superuser (HTTP 403), which failed the whole atomic `POST /_aliases`.
+
 ## 1.2.0
 
 Release date: 2026-11-16 (tag `v1.2.0`). User-facing notes, including what `--serverLimits` does and the

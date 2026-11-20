@@ -1162,6 +1162,15 @@ async fn alias_round_trip_keeps_every_property() {
         ))
         .await;
         assert_success(&o);
+        // A host-only dump on a secured Elasticsearch lists `.security-7` (alias `.security`); the
+        // cluster forbids alias changes there, so the restore skips it with a warning.
+        if std::fs::read_to_string(&file)
+            .unwrap()
+            .contains("\".security-")
+        {
+            let err = String::from_utf8_lossy(&o.stderr);
+            assert!(err.contains("reserved system index '.security-"), "{err}");
+        }
         assert_eq!(
             aliases_of(&c, &[&a, &b]).await,
             want,
