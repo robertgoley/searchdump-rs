@@ -179,6 +179,7 @@ Endpoint x engine-version:
 | E19 ISM policies | n/a | n/a | n/a | n/a | n/a | n/a | ✓ | ✓ | ✓ |
 | E20 stored scripts | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | E21 cluster health wait | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| E22 1.2 --serverLimits probe | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
 | E12 index get/create/delete | ✓/400 | ✓/400 | ✓/400 | ✓/400 | ✓/400 | ✓/400 | ✓/400 | ✓/400 | ✓/400 |
 | E14 existence checks | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 

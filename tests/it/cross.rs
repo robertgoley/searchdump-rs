@@ -366,11 +366,17 @@ async fn restore_policy_export(c: &Cluster, label: &str, file: &std::path::Path,
     let err = String::from_utf8_lossy(&plain.stderr).to_string();
     match c.engine {
         Engine::Elasticsearch => {
-            // ISM -> ILM: always refused, with or without the flag
-            assert!(
-                !plain.status.success() && err.contains("ISM → ILM"),
-                "{label}: {err}"
-            );
+            // ISM -> ILM: always refused, with or without the flag. An OSS build (ES 7.10 OSS) has
+            // no ILM at all, so the tool refuses earlier with the OSS message instead.
+            let oss = c.is_oss().await;
+            let refused = |e: &str| {
+                if oss {
+                    e.contains("ILM is an X-Pack feature") && e.contains("OSS build")
+                } else {
+                    e.contains("ISM → ILM")
+                }
+            };
+            assert!(!plain.status.success() && refused(&err), "{label}: {err}");
             let o = run_loud(s(&[
                 "--input",
                 f,
@@ -381,9 +387,14 @@ async fn restore_policy_export(c: &Cluster, label: &str, file: &std::path::Path,
                 "--convertIlmToIsm",
             ]))
             .await;
-            assert!(!o.status.success(), "{label}");
-            let (st, _) = c.call("GET", &policy_path(c.engine, name), None).await;
-            assert_eq!(st, 404, "{label}");
+            let err = String::from_utf8_lossy(&o.stderr).to_string();
+            assert!(!o.status.success(), "{label}: {err}");
+            assert!(!oss || refused(&err), "{label}: {err}");
+            if !oss {
+                // An OSS build has no _ilm endpoint to ask; the refusal above is the check there.
+                let (st, _) = c.call("GET", &policy_path(c.engine, name), None).await;
+                assert_eq!(st, 404, "{label}");
+            }
         }
         Engine::OpenSearch => {
             // ILM -> ISM: refused without the flag, converted with it
