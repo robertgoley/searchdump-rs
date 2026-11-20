@@ -618,7 +618,7 @@ dependencies = [
  "clap",
  "flate2",
  "rand 0.8.8",
- "rand_chacha 0.3.1",
+ "rand_chacha 0.9.0",
  "regex",
  "serde",
  "serde_json",
