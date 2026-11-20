@@ -967,3 +967,222 @@ ignore:
     package:
       name: '^libkrb5support0$'
       type: deb
+  # L-824 (owner decision 2026-11-20, Robert): OpenSSL 3.5.7 High CVEs (OpenSSL advisory 2026-11-10), unfixed in
+  # Debian trixie and sid; accepted for this exact package version only while grype reports not-fixed / wont-fix.
+  # Remove once Debian/DHI ship a fixed openssl and the base pin is refreshed; see SECURITY-CVE.md "OpenSSL 3.5.7 (L-824)".
+  - vulnerability: CVE-2026-88823
+    fix-state: not-fixed
+    package:
+      name: '^libssl3t64$'
+      version: '3.5.7-1~deb13u3+dhi0'
+      type: deb
+  - vulnerability: CVE-2026-88823
+    fix-state: wont-fix
+    package:
+      name: '^libssl3t64$'
+      version: '3.5.7-1~deb13u3+dhi0'
+      type: deb
+  - vulnerability: CVE-2026-88823
+    fix-state: not-fixed
+    package:
+      name: '^openssl$'
+      version: '3.5.7-1~deb13u3+dhi0'
+      type: deb
+  - vulnerability: CVE-2026-88823
+    fix-state: wont-fix
+    package:
+      name: '^openssl$'
+      version: '3.5.7-1~deb13u3+dhi0'
+      type: deb
+  - vulnerability: CVE-2026-88823
+    fix-state: not-fixed
+    package:
+      name: '^openssl-provider-legacy$'
+      version: '3.5.7-1~deb13u3+dhi0'
+      type: deb
+  - vulnerability: CVE-2026-88823
+    fix-state: wont-fix
+    package:
+      name: '^openssl-provider-legacy$'
+      version: '3.5.7-1~deb13u3+dhi0'
+      type: deb
+  - vulnerability: CVE-2026-95691
+    fix-state: not-fixed
+    package:
+      name: '^libssl3t64$'
+      version: '3.5.7-1~deb13u3+dhi0'
+      type: deb
+  - vulnerability: CVE-2026-95691
+    fix-state: wont-fix
+    package:
+      name: '^libssl3t64$'
+      version: '3.5.7-1~deb13u3+dhi0'
+      type: deb
+  - vulnerability: CVE-2026-95691
+    fix-state: not-fixed
+    package:
+      name: '^openssl$'
+      version: '3.5.7-1~deb13u3+dhi0'
+      type: deb
+  - vulnerability: CVE-2026-95691
+    fix-state: wont-fix
+    package:
+      name: '^openssl$'
+      version: '3.5.7-1~deb13u3+dhi0'
+      type: deb
+  - vulnerability: CVE-2026-95691
+    fix-state: not-fixed
+    package:
+      name: '^openssl-provider-legacy$'
+      version: '3.5.7-1~deb13u3+dhi0'
+      type: deb
+  - vulnerability: CVE-2026-95691
+    fix-state: wont-fix
+    package:
+      name: '^openssl-provider-legacy$'
+      version: '3.5.7-1~deb13u3+dhi0'
+      type: deb
+  - vulnerability: CVE-2026-95692
+    fix-state: not-fixed
+    package:
+      name: '^libssl3t64$'
+      version: '3.5.7-1~deb13u3+dhi0'
+      type: deb
+  - vulnerability: CVE-2026-95692
+    fix-state: wont-fix
+    package:
+      name: '^libssl3t64$'
+      version: '3.5.7-1~deb13u3+dhi0'
+      type: deb
+  - vulnerability: CVE-2026-95692
+    fix-state: not-fixed
+    package:
+      name: '^openssl$'
+      version: '3.5.7-1~deb13u3+dhi0'
+      type: deb
+  - vulnerability: CVE-2026-95692
+    fix-state: wont-fix
+    package:
+      name: '^openssl$'
+      version: '3.5.7-1~deb13u3+dhi0'
+      type: deb
+  - vulnerability: CVE-2026-95692
+    fix-state: not-fixed
+    package:
+      name: '^openssl-provider-legacy$'
+      version: '3.5.7-1~deb13u3+dhi0'
+      type: deb
+  - vulnerability: CVE-2026-95692
+    fix-state: wont-fix
+    package:
+      name: '^openssl-provider-legacy$'
+      version: '3.5.7-1~deb13u3+dhi0'
+      type: deb
+  - vulnerability: CVE-2026-107493
+    fix-state: not-fixed
+    package:
+      name: '^libssl3t64$'
+      version: '3.5.7-1~deb13u3+dhi0'
+      type: deb
+  - vulnerability: CVE-2026-107493
+    fix-state: wont-fix
+    package:
+      name: '^libssl3t64$'
+      version: '3.5.7-1~deb13u3+dhi0'
+      type: deb
+  - vulnerability: CVE-2026-107493
+    fix-state: not-fixed
+    package:
+      name: '^openssl$'
+      version: '3.5.7-1~deb13u3+dhi0'
+      type: deb
+  - vulnerability: CVE-2026-107493
+    fix-state: wont-fix
+    package:
+      name: '^openssl$'
+      version: '3.5.7-1~deb13u3+dhi0'
+      type: deb
+  - vulnerability: CVE-2026-107493
+    fix-state: not-fixed
+    package:
+      name: '^openssl-provider-legacy$'
+      version: '3.5.7-1~deb13u3+dhi0'
+      type: deb
+  - vulnerability: CVE-2026-107493
+    fix-state: wont-fix
+    package:
+      name: '^openssl-provider-legacy$'
+      version: '3.5.7-1~deb13u3+dhi0'
+      type: deb
+  - vulnerability: CVE-2026-107496
+    fix-state: not-fixed
+    package:
+      name: '^libssl3t64$'
+      version: '3.5.7-1~deb13u3+dhi0'
+      type: deb
+  - vulnerability: CVE-2026-107496
+    fix-state: wont-fix
+    package:
+      name: '^libssl3t64$'
+      version: '3.5.7-1~deb13u3+dhi0'
+      type: deb
+  - vulnerability: CVE-2026-107496
+    fix-state: not-fixed
+    package:
+      name: '^openssl$'
+      version: '3.5.7-1~deb13u3+dhi0'
+      type: deb
+  - vulnerability: CVE-2026-107496
+    fix-state: wont-fix
+    package:
+      name: '^openssl$'
+      version: '3.5.7-1~deb13u3+dhi0'
+      type: deb
+  - vulnerability: CVE-2026-107496
+    fix-state: not-fixed
+    package:
+      name: '^openssl-provider-legacy$'
+      version: '3.5.7-1~deb13u3+dhi0'
+      type: deb
+  - vulnerability: CVE-2026-107496
+    fix-state: wont-fix
+    package:
+      name: '^openssl-provider-legacy$'
+      version: '3.5.7-1~deb13u3+dhi0'
+      type: deb
+  - vulnerability: CVE-2026-124709
+    fix-state: not-fixed
+    package:
+      name: '^libssl3t64$'
+      version: '3.5.7-1~deb13u3+dhi0'
+      type: deb
+  - vulnerability: CVE-2026-124709
+    fix-state: wont-fix
+    package:
+      name: '^libssl3t64$'
+      version: '3.5.7-1~deb13u3+dhi0'
+      type: deb
+  - vulnerability: CVE-2026-124709
+    fix-state: not-fixed
+    package:
+      name: '^openssl$'
+      version: '3.5.7-1~deb13u3+dhi0'
+      type: deb
+  - vulnerability: CVE-2026-124709
+    fix-state: wont-fix
+    package:
+      name: '^openssl$'
+      version: '3.5.7-1~deb13u3+dhi0'
+      type: deb
+  - vulnerability: CVE-2026-124709
+    fix-state: not-fixed
+    package:
+      name: '^openssl-provider-legacy$'
+      version: '3.5.7-1~deb13u3+dhi0'
+      type: deb
+  - vulnerability: CVE-2026-124709
+    fix-state: wont-fix
+    package:
+      name: '^openssl-provider-legacy$'
+      version: '3.5.7-1~deb13u3+dhi0'
+      type: deb
