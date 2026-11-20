@@ -56,7 +56,7 @@ rustls = { version = "0.23", default-features = false, features = [
 rustls-native-certs = "0.8"
 webpki-roots = "1"
 # Only to decrypt `--key` files in encrypted PKCS#8 form (feature `encrypted-keys`, on by default).
-pkcs8 = { version = "0.10", features = ["encryption", "pem", "std"], optional = true }
+pkcs8 = { version = "0.11", features = ["encryption", "pem", "std"], optional = true }
 clap = { version = "4.4", features = ["derive", "wrap_help"] }
 # `sanitize`: no SIMD over-read past the end of a string when serialising (L-505: ASan in
 # the bulk_encode_doc fuzz target flagged the deliberate same-page tail read in release builds).
