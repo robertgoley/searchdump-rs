@@ -181,13 +181,12 @@ load that met size 429s, each `searchdump` writes a warn line:
    - GitHub after the push (a121b47): `ci` 44684346577 success; `nightly` 44684356491 (dispatched) success,
      every job green including load-nightly, cross and all it-full profiles; `security` 44684346604 **fails in
      `image` only** (next item; every other security job passed).
-   - **Open, Robert's decision: `security` `image` job.** grype `--fail-on high` on the default dhi-debian image
-     finds 6 High OpenSSL CVEs in `libssl3t64`/`openssl`/`openssl-provider-legacy` 3.5.7-1~deb13u3+dhi0
-     (CVE-2026-88823, -95691, -95692, -107493, -107496, -124709; OpenSSL advisory 2026-11-10). Debian marks them
-     unfixed in trixie and sid, so no base-pin refresh helps yet. Options: (a) accept them as not-fixed with
-     grype/trivy ignore rules plus a SECURITY-CVE.md section (as for L-808d / L-810e / L-810i); (b) make the
-     dhi-alpine image the default; (c) leave `security` red until Debian/DHI ship a fix, then refresh the pin.
-     Not changed by any bot: policy says no ignore rule without an owner-approved SECURITY-CVE.md entry.
+   - ~~Open: `security` `image` job~~ **closed by L-824** (Robert 2026-11-20, option (a)): the 6 High OpenSSL CVEs
+     (CVE-2026-88823, -95691, -95692, -107493, -107496, -124709 in `libssl3t64`/`openssl`/`openssl-provider-legacy`
+     3.5.7-1~deb13u3+dhi0, unfixed in Debian trixie/sid) are accepted. `main` 6d66e7c, cherry-picked here.
+     grype rules are scoped to name + version + fix state; trivy rules to versioned purls; SECURITY-CVE.md section
+     "OpenSSL 3.5.7 (L-824)". **Removal trigger:** when Debian/DHI ship a fixed openssl, refresh the dhi-debian base
+     pin, rebuild, rescan, and delete these rules.
 10. ~~`release/1.1` at d8f41ae~~: closed. Robert (t233u) says it is correct as is; do not reset it.
 11. **Before 1.3 can ship:**
     - version bump;
