@@ -298,7 +298,26 @@ class ProtocolTests(unittest.TestCase):
             er = S.EngineRun(args(), plan, plan['engines'][0], {}, Path(td))
             er.cl = unittest.mock.Mock()
             er.create_target('perf-src', 'perf-dst', meta='settings')
-            self.assertEqual([c.args[0] for c in er.cl.req.call_args_list], ['DELETE'])
+            # 1.3-R1: the DELETE is followed by a wait until the index is gone (GET _settings -> 404);
+            # nothing creates the target
+            self.assertEqual([c.args[0] for c in er.cl.req.call_args_list], ['DELETE', 'GET'])
+            self.assertTrue((Path(td) / 'deletes.log').read_text().count('DELETE /perf-dst') == 1)
+
+    def test_delete_index_waits_until_gone_and_logs(self):
+        with tempfile.TemporaryDirectory(dir=S.ROOT / 'results') as td:
+            plan = S.make_plan(args(engines='es717-plain', cases='settings-restore'))
+            er = S.EngineRun(args(), plan, plan['engines'][0], {}, Path(td))
+            er.cl = unittest.mock.Mock()
+            # acknowledged late: the index still answers twice before it is gone
+            er.cl.req.side_effect = [{'acknowledged': False}, {'perf-dst': {}}, {'perf-dst': {}}, None]
+            with patch.object(S.time, 'sleep'):
+                er.delete_index('perf-dst', 'rep0')
+            line = (Path(td) / 'deletes.log').read_text()
+            self.assertIn('acknowledged=False gone=True polls=2', line)
+            er.cl.req.side_effect = None
+            er.cl.req.return_value = {'perf-dst': {}}
+            with patch.object(S, 'DELETE_WAIT_S', 0.01), self.assertRaises(RuntimeError):
+                er.delete_index('perf-dst', 'rep1')
 
     def test_multi_cli_child_flags_and_fresh_targets(self):
         with tempfile.TemporaryDirectory(dir=S.ROOT / 'results') as td:

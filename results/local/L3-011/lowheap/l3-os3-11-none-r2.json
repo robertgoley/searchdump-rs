@@ -1,0 +1,241 @@
+{
+ "schema": "edrs-lowheap/v1",
+ "run_id": "l3-os3-11-none-r2",
+ "engines": [
+  "os3"
+ ],
+ "heaps": [
+  "256m",
+  "384m"
+ ],
+ "datasets": {
+  "pmc": {
+   "docs": 20000,
+   "avg_kb": 21.6,
+   "digest": "3809ce8c8a0ec41c",
+   "file": "pmc.json"
+  },
+  "fat": {
+   "docs": 3000,
+   "avg_kb": 78.0,
+   "digest": "02f824c5df91c7b6",
+   "file": "fat.json"
+  }
+ },
+ "regression": false,
+ "mode": "none",
+ "git": "82f2f18",
+ "tool": "searchdump 1.1.0",
+ "started": "2026-11-17T17:40:45-05:00",
+ "cells": [
+  {
+   "engine": "os3",
+   "heap": "256m",
+   "steps": [
+    {
+     "step": "seed-pmc",
+     "kind": "seed",
+     "exit": 0,
+     "wall_s": 24.8,
+     "node_alive": true,
+     "retries": 4,
+     "http429": 12,
+     "circuit_breaking": 12,
+     "error": ""
+    },
+    {
+     "step": "dump-pmc",
+     "kind": "dump",
+     "exit": 0,
+     "wall_s": 7.5,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 20000,
+     "digest": "3809ce8c8a0ec41c",
+     "page_note": "note: pmc: documents average 22 KB stored; dumping 772 per page instead of 1000 (give -- --limit=N to choose)",
+     "limits_line": "",
+     "equal": true
+    },
+    {
+     "step": "load-pmc",
+     "kind": "load",
+     "exit": 0,
+     "wall_s": 4.1,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 20000,
+     "digest": "3809ce8c8a0ec41c",
+     "equal": true
+    },
+    {
+     "step": "seed-fat",
+     "kind": "seed",
+     "exit": 0,
+     "wall_s": 7.2,
+     "node_alive": true,
+     "retries": 1,
+     "http429": 3,
+     "circuit_breaking": 3,
+     "error": ""
+    },
+    {
+     "step": "dump-fat",
+     "kind": "dump",
+     "exit": 0,
+     "wall_s": 4.7,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 3000,
+     "digest": "02f824c5df91c7b6",
+     "page_note": "note: fat: documents average 79 KB stored; dumping 209 per page instead of 1000 (give -- --limit=N to choose)",
+     "limits_line": "",
+     "equal": true
+    },
+    {
+     "step": "load-fat",
+     "kind": "load",
+     "exit": 0,
+     "wall_s": 4.5,
+     "node_alive": true,
+     "retries": 1,
+     "http429": 3,
+     "circuit_breaking": 3,
+     "error": "",
+     "docs": 3000,
+     "digest": "02f824c5df91c7b6",
+     "equal": true
+    }
+   ],
+   "failures": [],
+   "regression": [],
+   "version": "3.9.0",
+   "oom_log_lines": 0,
+   "breakers_tripped": {
+    "parent": 6
+   },
+   "leak": {
+    "scroll_current": 0,
+    "pit_current": 0,
+    "other_open_contexts": null,
+    "part_files": [],
+    "part_files_n": 0
+   },
+   "container": "running 0 false"
+  },
+  {
+   "engine": "os3",
+   "heap": "384m",
+   "steps": [
+    {
+     "step": "seed-pmc",
+     "kind": "seed",
+     "exit": 0,
+     "wall_s": 15.3,
+     "node_alive": true,
+     "retries": 2,
+     "http429": 6,
+     "circuit_breaking": 6,
+     "error": ""
+    },
+    {
+     "step": "dump-pmc",
+     "kind": "dump",
+     "exit": 0,
+     "wall_s": 7.5,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 20000,
+     "digest": "3809ce8c8a0ec41c",
+     "page_note": "note: pmc: documents average 21 KB stored; dumping 782 per page instead of 1000 (give -- --limit=N to choose)",
+     "limits_line": "",
+     "equal": true
+    },
+    {
+     "step": "load-pmc",
+     "kind": "load",
+     "exit": 0,
+     "wall_s": 6.9,
+     "node_alive": true,
+     "retries": 1,
+     "http429": 3,
+     "circuit_breaking": 3,
+     "error": "",
+     "docs": 20000,
+     "digest": "3809ce8c8a0ec41c",
+     "equal": true
+    },
+    {
+     "step": "seed-fat",
+     "kind": "seed",
+     "exit": 0,
+     "wall_s": 12.8,
+     "node_alive": true,
+     "retries": 2,
+     "http429": 9,
+     "circuit_breaking": 6,
+     "error": ""
+    },
+    {
+     "step": "dump-fat",
+     "kind": "dump",
+     "exit": 0,
+     "wall_s": 4.7,
+     "node_alive": true,
+     "retries": 0,
+     "http429": 0,
+     "circuit_breaking": 0,
+     "error": "",
+     "docs": 3000,
+     "digest": "02f824c5df91c7b6",
+     "page_note": "note: fat: documents average 79 KB stored; dumping 209 per page instead of 1000 (give -- --limit=N to choose)",
+     "limits_line": "",
+     "equal": true
+    },
+    {
+     "step": "load-fat",
+     "kind": "load",
+     "exit": 0,
+     "wall_s": 6.7,
+     "node_alive": true,
+     "retries": 2,
+     "http429": 6,
+     "circuit_breaking": 6,
+     "error": "",
+     "docs": 3000,
+     "digest": "02f824c5df91c7b6",
+     "equal": true
+    }
+   ],
+   "failures": [],
+   "regression": [],
+   "version": "3.9.0",
+   "oom_log_lines": 0,
+   "breakers_tripped": {
+    "parent": 7
+   },
+   "leak": {
+    "scroll_current": 0,
+    "pit_current": 0,
+    "other_open_contexts": null,
+    "part_files": [],
+    "part_files_n": 0
+   },
+   "container": "running 0 false"
+  }
+ ],
+ "failures": [],
+ "finished": "2026-11-17T17:43:31-05:00",
+ "pass": true
+}

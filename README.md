@@ -1135,6 +1135,13 @@ once, at most 5 s) and sizes requests from the smallest data node:
 - The limits are a snapshot: a node that becomes busy later is handled by the 429 handling of 1.2 (a search refused
   by a circuit breaker halves the page for the rest of the run; a bulk refused as too large is split in half and
   later bulks are kept at that size; a full queue is retried as before).
+- **Minimum sizes (1.3).** `auto` and `min` never size from less headroom than a quarter of the parent-breaker
+  limit (a probe taken while the heap is full of garbage, e.g. right after a load, gave a 0 MB page in 1.2), and
+  never give a page or in-flight budget below 1 MiB or a bulk request below 1 MiB (unless the indexing-pressure budget shared by all bulk workers is smaller: then each worker gets its share, at least 256 KiB, as in 1.2). After a 429 split, later bulks
+  stay at 1 MiB or more (the refused request itself is still split down to one document, so the floor never fails
+  a run); a 429 page halving stops once at 10 documents and only goes lower if that page is refused too. A smaller
+  `--limit` or `--maxBulkBytes` that you set still applies. `SEARCHDUMP_LIMITS_EXPERIMENT=nofloor` gives the 1.2
+  sizing back (escape hatch).
 - Users without the `monitor` cluster privilege, OpenSearch Serverless, and proxies that hide `_nodes` get a one-line
   fallback note and the 1.1 sizes; on AWS OpenSearch Service bulks stay at or below 10 MiB unless you give
   `--maxBulkBytes`.

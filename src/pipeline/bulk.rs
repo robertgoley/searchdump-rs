@@ -3,7 +3,7 @@
 
 use std::collections::{BTreeSet, HashSet};
 use std::io::Write;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -247,10 +247,19 @@ pub struct BulkSink {
     data_stream_hint_shown: Arc<AtomicBool>,
     /// L-812: the data-stream custom-routing explanation, once per run.
     routing_hint_shown: Arc<AtomicBool>,
-    /// 1.2-1c: bulk byte cap lowered after an HTTP 429 split (0 = `--maxBulkBytes` as given),
-    /// shared by the workers; it only ever goes down within a run.
-    split_cap: Arc<AtomicUsize>,
+    /// 1.2-1c: bulk byte cap lowered after an HTTP 429 split, shared by the workers; it only
+    /// goes down within a run unless `growback` (see `bulk_cap`).
+    cap_ctl: Arc<super::bulk_cap::CapControl>,
+    /// 1.3 evaluation (`SEARCHDUMP_LIMITS_EXPERIMENT=growback`, off by default).
+    growback: bool,
+    /// 1.3 evaluation (`SEARCHDUMP_LIMITS_EXPERIMENT=retryfirst`, off by default).
+    retryfirst: bool,
+    /// 1.3 floor (default on; `SEARCHDUMP_LIMITS_EXPERIMENT=nofloor` for 1.2): a 429 split
+    /// never lowers the cap for later bulks below `limits::BULK_FLOOR_BYTES`.
+    floor: bool,
 }
+
+pub use super::bulk_cap::{GROW_AFTER, grown_cap};
 
 /// 1.1-6: one batch, validated and encoded, ready to send. Owns its input lines so the send
 /// can run on a worker task while the next batch is encoded.
@@ -635,7 +644,10 @@ impl BulkSink {
             conflict_hint_shown: Arc::new(AtomicBool::new(false)),
             data_stream_hint_shown: Arc::new(AtomicBool::new(false)),
             routing_hint_shown: Arc::new(AtomicBool::new(false)),
-            split_cap: Arc::new(AtomicUsize::new(0)),
+            cap_ctl: Arc::default(),
+            growback: crate::limits::Experiment::from_env().growback,
+            retryfirst: crate::limits::Experiment::from_env().retryfirst,
+            floor: crate::limits::Experiment::from_env().floor(),
         }
     }
 
@@ -790,7 +802,10 @@ impl BulkSink {
             conflict_hint_shown: Arc::clone(&self.conflict_hint_shown),
             data_stream_hint_shown: Arc::clone(&self.data_stream_hint_shown),
             routing_hint_shown: Arc::clone(&self.routing_hint_shown),
-            split_cap: Arc::clone(&self.split_cap),
+            cap_ctl: Arc::clone(&self.cap_ctl),
+            growback: self.growback,
+            retryfirst: self.retryfirst,
+            floor: self.floor,
         }
     }
 
@@ -866,6 +881,9 @@ impl BulkSink {
             }
         }
         self.final_refresh().await;
+        if let Some(line) = self.cap_ctl.summary(self.opts.max_bulk_bytes) {
+            log::warn!("{line}");
+        }
         self.check_target_index().await
     }
 
@@ -1294,24 +1312,62 @@ impl BulkSink {
 
     /// The bulk byte cap in force: `--maxBulkBytes`, or lower after an HTTP 429 split.
     fn max_bulk_bytes(&self) -> usize {
-        match self.split_cap.load(Ordering::Relaxed) {
-            0 => self.opts.max_bulk_bytes,
-            cap => cap.min(self.opts.max_bulk_bytes),
-        }
+        self.cap_ctl.cap(self.opts.max_bulk_bytes)
     }
 
     /// 1.2-1c: write one chunk; a whole bulk request refused with an HTTP 429 that a smaller
     /// request can fix (circuit breaker, indexing pressure) is split in half and the halves
     /// are written in order, down to one document. Nothing of a refused request was applied,
     /// so only those (unacknowledged) documents are sent again. Later chunks start at the
-    /// smaller size (the cap never grows back within a run).
+    /// smaller size (the cap never grows back within a run unless `growback`), but (1.3 floor)
+    /// not below 1 MiB or `--maxBulkBytes` when that is lower.
     async fn write_chunk(&mut self, chunk: &[&[u8]], body: Vec<u8>) -> Result<()> {
         let mut todo: Vec<(Vec<usize>, Vec<u8>)> = vec![((0..chunk.len()).collect(), body)];
+        let mut split = false;
+        let mut retried_once = false;
         while let Some((pending, body)) = todo.pop() {
             let len = body.len();
-            let Some(rest) = self.write_pending(chunk, pending, body).await? else {
+            // `retryfirst` (1.3 evaluation): keep a copy to resend the same request once
+            let again = (self.retryfirst && !retried_once).then(|| (pending.clone(), body.clone()));
+            let sent_at = std::time::Instant::now();
+            let Some((rest, cause)) = self.write_pending(chunk, pending, body).await? else {
                 continue;
             };
+            // 1.3 grow-back accounting: a refused request above the pre-grow cap is the
+            // grow's penalty (its round trip now, the back-off below)
+            let after_grow = self.cap_ctl.on_reject(len).after_grow;
+            let lost = sent_at.elapsed();
+            if after_grow {
+                log::debug!(
+                    "bulk request of {} KB refused after a grow-back [growback]",
+                    len.div_ceil(1024)
+                );
+            }
+            if let Some(same) = again {
+                retried_once = true;
+                self.cap_ctl.on_retryfirst();
+                log::warn!(
+                    "bulk request of {} document(s) ({} KB) rejected with HTTP 429 (the server's memory limit); sending it once more at the same size before splitting [retryfirst]{}",
+                    rest.len(),
+                    len.div_ceil(1024),
+                    if cause.is_empty() {
+                        String::new()
+                    } else {
+                        format!(" [cause: {cause}]")
+                    }
+                );
+                let delay = self.opts.retry.jittered_first_delay();
+                if after_grow {
+                    self.cap_ctl.add_failed_grow_time(lost + delay);
+                }
+                tokio::select! {
+                    _ = tokio::time::sleep(delay) => {}
+                    _ = self.cancel.cancelled() => return Err(anyhow::Error::new(crate::http::DumpCancelled)),
+                }
+                todo.push(same);
+                continue;
+            }
+            split = true;
             // `rest` (2+ documents, none applied) was refused as a whole: split it
             let mid = rest.len() / 2;
             let (a, b) = rest.split_at(mid);
@@ -1323,26 +1379,47 @@ impl BulkSink {
             for &i in b {
                 self.encode_doc(chunk[i], &mut body_b)?;
             }
-            let cap = (len / 2).max(1);
-            let before = self.split_cap.fetch_min(cap, Ordering::Relaxed);
-            if before == 0 {
-                self.split_cap.store(cap, Ordering::Relaxed);
-            }
+            // 1.3 floor: later bulks stay at >= 1 MiB (this request still splits to 1 doc)
+            self.cap_ctl.on_split(len, self.floor);
             log::warn!(
-                "bulk request of {} document(s) ({} KB) rejected with HTTP 429 (the server's memory limit); splitting it in half and sending later bulks at <= {} KB",
+                "bulk request of {} document(s) ({} KB) rejected with HTTP 429 (the server's memory limit); splitting it in half and sending later bulks at <= {} KB{}",
                 rest.len(),
                 len.div_ceil(1024),
-                self.max_bulk_bytes().div_ceil(1024)
+                self.max_bulk_bytes().div_ceil(1024),
+                if cause.is_empty() {
+                    String::new()
+                } else {
+                    format!(" [cause: {cause}]")
+                }
             );
+            let delay = self.opts.retry.jittered_first_delay();
+            if after_grow {
+                self.cap_ctl.add_failed_grow_time(lost + delay);
+            }
             tokio::select! {
-                _ = tokio::time::sleep(self.opts.retry.jittered_first_delay()) => {}
+                _ = tokio::time::sleep(delay) => {}
                 _ = self.cancel.cancelled() => return Err(anyhow::Error::new(crate::http::DumpCancelled)),
             }
             // LIFO: the first half goes out first, keeping the input order
             todo.push((b.to_vec(), body_b));
             todo.push((a.to_vec(), body_a));
         }
+        if self.growback && !split {
+            self.grow_back();
+        }
         Ok(())
+    }
+
+    /// 1.3 evaluation (`growback`): after [`GROW_AFTER`] chunks in a row went through without
+    /// a split (more after a failed grow, see `bulk_cap`), double the split cap, back to
+    /// `--maxBulkBytes` at most.
+    fn grow_back(&self) {
+        if let Some(next) = self.cap_ctl.on_clean(self.opts.max_bulk_bytes) {
+            log::warn!(
+                "bulk cap grows back to {} KB after accepted bulks [growback]",
+                next.div_ceil(1024)
+            );
+        }
     }
 
     /// Send `pending` (documents of `chunk`, already encoded in `body`) and retry the items the
@@ -1353,7 +1430,7 @@ impl BulkSink {
         chunk: &[&[u8]],
         pending: Vec<usize>,
         body: Vec<u8>,
-    ) -> Result<Option<Vec<usize>>> {
+    ) -> Result<Option<(Vec<usize>, String)>> {
         let mut pending = pending;
         let mut body = body;
         let mut attempt = 0usize;
@@ -1370,7 +1447,7 @@ impl BulkSink {
             let (resp, resent) = match self.send_bulk(body, mode, splittable).await {
                 Ok(r) => r,
                 Err(e) if splittable && crate::http::retry::is_size_429(&e) => {
-                    return Ok(Some(pending));
+                    return Ok(Some((pending, crate::http::retry::size_429_cause(&e))));
                 }
                 Err(e)
                     if auto > 0

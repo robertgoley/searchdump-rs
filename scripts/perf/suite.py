@@ -16,6 +16,7 @@ import signal
 import statistics
 import subprocess
 import sys
+import time
 import tomllib
 
 HERE = Path(__file__).resolve().parent
@@ -80,6 +81,17 @@ def cases(ab=False):
 
 CASES = cases(ab=os.environ.get("PERF_AB_CASES") == "1")
 
+# 1.3 decision 6 (2026-11-17): single-index searchdump data cases pass --serverLimits=off so the
+# start-up probe (~0.2-0.4 s per run, L3-007) is not timed; only binaries that have the flag
+# (1.2+, detected from --help in prerequisites). 1.0/1.1 and Node run unchanged; multi cases and
+# mapping/settings cases are unchanged. Recorded as `rs_server_limits_off` in the result.
+RS_LIMITS_OFF = False
+
+
+def rs_extra_flags(multi, meta, tool):
+    """Flags added to a searchdump (rs) single-index data run (see RS_LIMITS_OFF)."""
+    return ["--serverLimits=off"] if RS_LIMITS_OFF and tool == "rs" and not multi and not meta else []
+
 
 def write_json(path, data):
     path = Path(path)
@@ -98,6 +110,8 @@ class ToolTimeout(RuntimeError):
 # a few minutes; a run past this is hung or looping (or its engine died) and must not stall
 # the rest of the sequence. PERF_CMD_TIMEOUT_S overrides it.
 CMD_TIMEOUT_S = int(os.environ.get("PERF_CMD_TIMEOUT_S", "1800"))
+# 1.3-R1: bound on waiting for a harness DELETE to be applied (see EngineRun.delete_index)
+DELETE_WAIT_S = float(os.environ.get("PERF_DELETE_WAIT_S", "60"))
 
 
 def checked(cmd, timeout_s=None, **kw):
@@ -444,6 +458,8 @@ def prerequisites(a, plan):
         checked(["cargo", "+1.91.1", "build", "--locked", "--release", "--workspace", "--bins",
                  "--jobs", os.environ.get("PERF_BUILD_JOBS", "2"), "--target-dir", target], cwd=ROOT)
     tools = {b: str(bindir / b) for b in binaries}
+    global RS_LIMITS_OFF
+    RS_LIMITS_OFF = "--serverLimits" in capture([tools["searchdump"], "--help"])
     if not a.skip_node:
         node_dir = Path(os.environ.get("NODE_ED_BIN", "/opt/node-ed/node_modules/.bin"))
         for b in ("elasticdump", "multielasticdump"):
@@ -619,8 +635,40 @@ class EngineRun:
             self.refs[key] = paths
         return self.refs[key]
 
+    def delete_index(self, name, tag=""):
+        """1.3-R1: DELETE a harness index and wait (bounded) until it is really gone.
+
+        A late-acknowledged DELETE (cluster-manager ack timeout under load or after a box resume)
+        can leave the old index in place while the next rep's first bulks arrive; the delete then
+        lands mid-run and a later bulk auto-creates the index with a new uuid, which searchdump's
+        TST-BRK-SRV-008 detector reports as "deleted during the restore and re-created". Every
+        DELETE response and the wait are logged to <result dir>/deletes.log with timestamps.
+        """
+        t0 = time.time()
+        r = self.cl.req("DELETE", "/" + name, ok404=True)
+        acked = not isinstance(r, dict) or bool(r.get("acknowledged"))
+        gone = False
+        polls = 0
+        while time.time() - t0 < DELETE_WAIT_S:
+            # a real index answers its settings as a JSON object; 404 (None) means gone
+            if not isinstance(self.cl.req("GET", "/" + name + "/_settings", ok404=True), dict):
+                gone = True
+                break
+            polls += 1
+            time.sleep(0.1)
+        line = (f"{datetime.datetime.now().astimezone().isoformat(timespec='milliseconds')} {tag} DELETE /{name} "
+                f"resp={'404' if r is None else json.dumps(r, sort_keys=True, default=str)} acknowledged={acked} gone={gone} "
+                f"polls={polls} wait_s={time.time() - t0:.3f}\n")
+        try:
+            with open(self.directory / "deletes.log", "a") as f:
+                f.write(line)
+        except OSError:
+            pass
+        if not gone:
+            raise RuntimeError(f"{tag}: DELETE /{name} not applied after {DELETE_WAIT_S:g}s (acknowledged={acked})")
+
     def create_target(self, source, target, meta=False):
-        self.cl.req("DELETE", "/" + target, ok404=True)
+        self.delete_index(target, "create_target")
         if meta == "settings":
             # Both tools apply index settings by CREATING the index (Node: PUT /<index> with the
             # settings body; searchdump refuses an existing index because static settings such
@@ -670,7 +718,7 @@ class EngineRun:
                 flags += ["--prefix=perf-dst-"]
                 for rec in self.sources:
                     target = "perf-dst-" + rec["index"]
-                    self.cl.req("DELETE", "/" + target, ok404=True)
+                    self.delete_index(target, tag)
                     targets.append(target)
             if tool == "rs":
                 flags += ["--compression=none", "--noDefaultDataFlags", "--logDir=" + str(self.directory / (tag + "-children"))]
@@ -695,7 +743,7 @@ class EngineRun:
                     paths = self.reference(case)
                     inputs = [str(p) for p in paths]
                     inp = str(paths[0])
-            flags += ["--type=" + typ]
+            flags += ["--type=" + typ, *rs_extra_flags(multi, meta, tool)]
             cmd = [exe, "--input=" + inp, "--output=" + output, *flags, *tls]
             if case.get("split") and case["kind"] == "restore":
                 # One measured job, same subprocess loop for both tools, numeric part order.
@@ -936,7 +984,8 @@ def main():
             result = dict(schema=PROTOCOL, started=now(), plan=plan, engines=[],
                           git=capture(["git", "rev-parse", "HEAD"], cwd=ROOT),
                           tool_hashes={k: hashlib.sha256(Path(v).read_bytes()).hexdigest() for k, v in tools.items()},
-                          node_runtime=capture(["node", "--version"]) if not a.skip_node else None)
+                          node_runtime=capture(["node", "--version"]) if not a.skip_node else None,
+                          rs_server_limits_off=RS_LIMITS_OFF)
             for entry in plan["engines"]:
                 # Guard against the engine's own heap, not only the tier default.
                 # Observed container RSS is ~1.1-1.3× heap for these images; keep 2× for small

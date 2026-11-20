@@ -249,13 +249,127 @@ fn frac(v: u64, f: f64) -> u64 {
     (v as f64 * f) as u64
 }
 
+/// 1.3 (decision 3, 2026-11-17): the smallest page byte budget and in-flight budget `auto` /
+/// `min` size to. 1.2 could size a 0 MB page (64 KiB, 1 document of the fat set) from a probe
+/// taken while the heap was full of garbage (relcmp-20261117 os3/384m dump-fat, L3-011).
+pub const PAGE_FLOOR_BYTES: u64 = 1 << 20;
+
+/// 1.3 (decision 3): the smallest bulk request `auto` sizes, and the lowest the bulk cap goes
+/// after an HTTP 429 split for later bulks (1.2 went down to 54-390 KB on OS 3 small heaps and
+/// stayed there, L3-011; the bulks that were accepted after a split were 1.5-4.8 MB). A refused
+/// request itself is still split down to one document, so the floor never fails a run, and a
+/// lower `--maxBulkBytes` still applies.
+pub const BULK_FLOOR_BYTES: u64 = 1 << 20;
+
+/// 1.3 (decision 3): a 429 page halving stops once at this many documents (or the page it
+/// started from, when smaller); only a 429 at that size halves further, down to one document.
+pub const PAGE_FLOOR_DOCS: u64 = 10;
+
+/// 1.2 minimums, used when the floor is turned off (`SEARCHDUMP_LIMITS_EXPERIMENT=nofloor`).
+const PAGE_MIN_1_2: u64 = 64 << 10;
+const BULK_MIN_1_2: u64 = 256 << 10;
+
+/// Sizing variants chosen with the environment variable `SEARCHDUMP_LIMITS_EXPERIMENT`
+/// (comma-separated). Unset is the 1.3 default: the floor on, the other variants off. `nofloor`
+/// gives the 1.2 sizing back (escape hatch); `floor` is accepted and changes nothing. The other
+/// words are 1.3 evaluations kept for measurements until Robert decides (decision 2).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Experiment {
+    /// `nofloor`: the 1.2 sizing. Without it (the default) `auto` never sizes from less
+    /// headroom than a quarter of the parent-breaker limit (a probe taken while the heap is
+    /// full of garbage, e.g. right after a load, would otherwise give a 0 MB page budget) and
+    /// never below [`PAGE_FLOOR_BYTES`] / [`BULK_FLOOR_BYTES`]; a 429 split keeps the bulk cap
+    /// at [`BULK_FLOOR_BYTES`] or more and a 429 halving stops once at [`PAGE_FLOOR_DOCS`].
+    pub no_floor: bool,
+    /// `configured`: size from half of the configured parent-breaker limit, ignoring the
+    /// momentary estimate (the configured limits do not move with garbage collection).
+    pub configured: bool,
+    /// `growback`: after a 429 split, let the bulk cap double again after a run of
+    /// accepted bulks (see `pipeline::bulk`), never above the starting size.
+    pub growback: bool,
+    /// `retryfirst`: on a size 429 for a bulk, send the same request once more after the
+    /// jittered back-off before splitting it (a real-memory parent breaker often trips on
+    /// garbage that the next GC frees; 1.1 retried at the same size and recovered).
+    pub retryfirst: bool,
+}
+
+pub const EXPERIMENT_ENV: &str = "SEARCHDUMP_LIMITS_EXPERIMENT";
+
+impl Experiment {
+    pub fn parse(v: &str) -> Self {
+        let mut e = Experiment::default();
+        for w in v.split(',').map(str::trim) {
+            match w {
+                "nofloor" => e.no_floor = true,
+                "configured" => e.configured = true,
+                "growback" => e.growback = true,
+                "retryfirst" => e.retryfirst = true,
+                _ => {}
+            }
+        }
+        e
+    }
+
+    pub fn from_env() -> Self {
+        std::env::var(EXPERIMENT_ENV)
+            .map(|v| Self::parse(&v))
+            .unwrap_or_default()
+    }
+
+    /// The 1.3 floor is in force (the default).
+    pub fn floor(self) -> bool {
+        !self.no_floor
+    }
+}
+
+/// The headroom `budget` sizes from: the momentary parent-breaker headroom, with the 1.3 floor
+/// at a quarter of the parent-breaker limit.
+fn sizing_free(n: &Node, exp: Experiment) -> Option<u64> {
+    let free = n.parent_free()?;
+    let limit = n
+        .parent_limit
+        .or((n.heap_max > 0).then(|| n.heap_max / 100 * 95));
+    Some(match (exp.configured, exp.floor(), limit) {
+        (true, _, Some(l)) => l / 2,
+        (false, true, Some(l)) => free.max(l / 4),
+        _ => free,
+    })
+}
+
+/// The bulk cap for later bulks after a 429 split of a `len`-byte request: half of it, and
+/// with the 1.3 floor never below [`BULK_FLOOR_BYTES`] (`--maxBulkBytes` still caps it).
+pub fn split_cap(len: usize, floor: bool) -> usize {
+    let half = (len / 2).max(1);
+    if floor {
+        half.max(BULK_FLOOR_BYTES as usize)
+    } else {
+        half
+    }
+}
+
+/// The page size after a 429 halving of a `size`-document page: half of it, stopping once at
+/// [`PAGE_FLOOR_DOCS`] with the 1.3 floor (a page already at or below it halves on, down to 1).
+pub fn halved_page(size: u64, floor: bool) -> u64 {
+    let half = (size / 2).max(1);
+    if floor && size > PAGE_FLOOR_DOCS {
+        half.max(PAGE_FLOOR_DOCS)
+    } else {
+        half
+    }
+}
+
 /// ROADMAP-1.2 3.1. `None` for a fallback (fixed defaults apply).
 pub fn budget(l: &Limits, mode: Mode, response_cap: u64) -> Option<Budget> {
+    budget_with(l, mode, response_cap, Experiment::from_env())
+}
+
+/// [`budget`] with an explicit [`Experiment`] (the default is the 1.3 floor, `nofloor` is 1.2).
+pub fn budget_with(l: &Limits, mode: Mode, response_cap: u64, exp: Experiment) -> Option<Budget> {
     if l.source.is_fallback() || matches!(mode, Mode::Off) {
         return None;
     }
     let n = l.smallest()?;
-    let free = n.parent_free()?.max(1 << 20);
+    let free = sizing_free(n, exp)?.max(1 << 20);
     let request = n.request().unwrap_or(free);
     let (kp, ki, kb) = fractions(mode);
     let mut page = frac(free.min(request), kp);
@@ -267,10 +381,15 @@ pub fn budget(l: &Limits, mode: Mode, response_cap: u64) -> Option<Budget> {
     if l.aws {
         cap = cap.min(AWS_PAYLOAD_FLOOR);
     }
+    let (page_min, bulk_min) = if exp.floor() {
+        (PAGE_FLOOR_BYTES, BULK_FLOOR_BYTES)
+    } else {
+        (PAGE_MIN_1_2, BULK_MIN_1_2)
+    };
     Some(Budget {
-        page_bytes: page.max(64 << 10),
-        inflight_bytes: frac(free, ki).max(64 << 10),
-        bulk_total_bytes: frac(indexing.min(free), kb).max(256 << 10),
+        page_bytes: page.max(page_min),
+        inflight_bytes: frac(free, ki).max(page_min),
+        bulk_total_bytes: frac(indexing.min(free), kb).max(bulk_min),
         bulk_cap_bytes: cap,
         search_pool: l.search_pool(),
     })
@@ -289,11 +408,24 @@ pub fn page_docs(page_bytes: u64, avg_stored: Option<u64>, max_page: u64) -> u64
 }
 
 /// Bytes per bulk request for `workers` bulks in flight (concurrency x parallel), never above
-/// the request cap.
+/// the request cap. 1.3 floor: never below [`BULK_FLOOR_BYTES`] unless the run's whole bulk
+/// budget (from indexing pressure, a configured node-wide limit) split over the workers is
+/// smaller; then the 1.2 rule (budget / workers, at least 256 KiB) applies, so many workers
+/// do not overrun a small indexing-pressure limit together (L3-017: 8 workers x 1 MiB against
+/// a 2 MB limit split every bulk).
 pub fn bulk_bytes(b: &Budget, workers: u64) -> u64 {
-    (b.bulk_total_bytes / workers.max(1))
-        .min(b.bulk_cap_bytes)
-        .max(256 << 10)
+    bulk_bytes_with(b, workers, Experiment::from_env())
+}
+
+/// [`bulk_bytes`] with an explicit [`Experiment`].
+pub fn bulk_bytes_with(b: &Budget, workers: u64, exp: Experiment) -> u64 {
+    let per = b.bulk_total_bytes / workers.max(1);
+    let min = if exp.floor() {
+        BULK_FLOOR_BYTES.min(per).max(BULK_MIN_1_2)
+    } else {
+        BULK_MIN_1_2
+    };
+    per.min(b.bulk_cap_bytes).max(min)
 }
 
 // ------------------------------------------------------------------- parsing (fixture-tested)
@@ -820,6 +952,166 @@ mod tests {
                 );
             }
         }
+    }
+
+    fn full_heap_384m() -> Limits {
+        Limits {
+            source: Source::Probed,
+            nodes: vec![Node {
+                name: "n".into(),
+                data: true,
+                heap_max: 384 << 20,
+                heap_used_pct: Some(94),
+                parent_limit: Some(365 << 20),
+                parent_estimated: Some((365 << 20) - (23 << 17)),
+                request_limit: Some(230 << 20),
+                indexing_pressure: Some(38 << 20),
+                ..Default::default()
+            }],
+            aws: false,
+            reason: String::new(),
+        }
+    }
+
+    /// 1.3-D+ (decision 3): the relcmp-20261117 os3/384m dump-fat probe (94 % heap used,
+    /// parent 365 MB with 2.3 MB free) sized a 0 MB page in 1.2 (`nofloor`); the 1.3 default
+    /// floor and `configured` do not.
+    #[test]
+    fn floor_sizes_from_configured_limits_not_a_full_heap() {
+        let full = full_heap_384m();
+        let old = budget_with(&full, Mode::Auto, 0, Experiment::parse("nofloor")).unwrap();
+        assert_eq!(
+            old.page_bytes,
+            (23u64 << 17) / 4,
+            "1.2: a quarter of 2.9 MB headroom"
+        );
+        assert!(page_docs(old.page_bytes, Some(79 << 10), MULTI_MAX_PAGE) <= 3);
+        let floor = budget_with(&full, Mode::Auto, 0, Experiment::default()).unwrap();
+        assert_eq!(floor.page_bytes, ((365u64 << 20) / 4) / 4);
+        assert!(page_docs(floor.page_bytes, Some(79 << 10), MULTI_MAX_PAGE) >= 90);
+        // `floor` is accepted (and is the default)
+        assert_eq!(
+            budget_with(&full, Mode::Auto, 0, Experiment::parse("floor")),
+            Some(floor)
+        );
+        let conf = budget_with(&full, Mode::Auto, 0, Experiment::parse("configured")).unwrap();
+        assert_eq!(conf.page_bytes, ((365u64 << 20) / 2) / 4);
+        // never above the request breaker, and `min` stays half of auto
+        assert!(conf.page_bytes <= 230 << 20);
+        let conf_min = budget_with(&full, Mode::Min, 0, Experiment::parse("configured")).unwrap();
+        assert_eq!(conf_min.page_bytes * 2, conf.page_bytes);
+        // with plenty of headroom the floor changes nothing
+        let mut idle = full.clone();
+        idle.nodes[0].parent_estimated = Some(100 << 20);
+        assert_eq!(
+            budget_with(&idle, Mode::Auto, 0, Experiment::default()),
+            budget_with(&idle, Mode::Auto, 0, Experiment::parse("nofloor"))
+        );
+        assert_eq!(
+            Experiment::parse(" nofloor , growback,x"),
+            Experiment {
+                no_floor: true,
+                growback: true,
+                ..Default::default()
+            }
+        );
+        assert!(Experiment::default().floor());
+        assert!(!Experiment::parse("nofloor").floor());
+        assert_eq!(
+            budget_with(&full, Mode::Off, 0, Experiment::parse("retryfirst")),
+            None
+        );
+    }
+
+    /// 1.3 floor: even a node with (almost) no parent-breaker limit reported gives a page and
+    /// in-flight budget of at least 1 MiB and bulks of at least 1 MiB; 1.2 gave 64/256 KiB.
+    #[test]
+    fn floor_keeps_auto_page_and_bulk_at_one_mib() {
+        let tiny = Limits {
+            source: Source::Probed,
+            nodes: vec![Node {
+                name: "n".into(),
+                data: true,
+                heap_max: 32 << 20,
+                heap_used_pct: Some(99),
+                parent_limit: Some(2 << 20),
+                parent_estimated: Some(2 << 20),
+                request_limit: Some(1 << 20),
+                indexing_pressure: Some(1 << 20),
+                ..Default::default()
+            }],
+            aws: false,
+            reason: String::new(),
+        };
+        for mode in [Mode::Auto, Mode::Min] {
+            let b = budget_with(&tiny, mode, 0, Experiment::default()).unwrap();
+            assert_eq!(b.page_bytes, PAGE_FLOOR_BYTES, "{mode:?}");
+            assert_eq!(b.inflight_bytes, PAGE_FLOOR_BYTES, "{mode:?}");
+            assert_eq!(b.bulk_total_bytes, BULK_FLOOR_BYTES, "{mode:?}");
+            assert_eq!(
+                bulk_bytes_with(&b, 1, Experiment::default()),
+                BULK_FLOOR_BYTES
+            );
+            // the 1 MiB budget is node-wide: 4 or 64 workers share it (1.2 minimum 256 KiB)
+            for workers in [4, 64] {
+                assert_eq!(
+                    bulk_bytes_with(&b, workers, Experiment::default()),
+                    256 << 10
+                );
+            }
+            let old = budget_with(&tiny, mode, 0, Experiment::parse("nofloor")).unwrap();
+            assert!(old.page_bytes < PAGE_FLOOR_BYTES, "{mode:?}");
+            assert_eq!(
+                bulk_bytes_with(&old, 8, Experiment::parse("nofloor")),
+                256 << 10
+            );
+        }
+        // the 1 MiB floor is the 1.2 lower bound of the bulk cap too, so it never exceeds it
+        let b = budget_with(&full_heap_384m(), Mode::Auto, 0, Experiment::default()).unwrap();
+        assert!(b.bulk_cap_bytes >= BULK_FLOOR_BYTES);
+        assert!(bulk_bytes_with(&b, 1, Experiment::default()) >= BULK_FLOOR_BYTES);
+        // a sizing floor from garbage (1/4 of the parent limit) still gives 1 MiB bulks to
+        // 8 workers when indexing pressure allows it (38 MB x 0.5 / 8 = 2.4 MB)
+        assert!(bulk_bytes_with(&b, 8, Experiment::default()) >= BULK_FLOOR_BYTES);
+    }
+
+    /// 1.3 floor for a 429 bulk split: later bulks stay at >= 1 MiB (1.2 went to 54-390 KB on
+    /// OS 3 256m/384m, L3-011); without the floor it is half the refused request.
+    #[test]
+    fn floor_clamps_the_429_split_cap() {
+        assert_eq!(split_cap(16 << 20, true), 8 << 20);
+        assert_eq!(split_cap(2 << 20, true), 1 << 20);
+        assert_eq!(split_cap(780 << 10, true), 1 << 20);
+        assert_eq!(split_cap(1, true), 1 << 20);
+        assert_eq!(split_cap(780 << 10, false), 390 << 10);
+        assert_eq!(split_cap(1, false), 1);
+        // the cascade of L3-011 (6.4 MB, five splits) stops at 1 MiB
+        let mut cap = 6_400_000usize;
+        for _ in 0..5 {
+            cap = split_cap(cap, true);
+        }
+        assert_eq!(cap, 1 << 20);
+    }
+
+    /// 1.3 floor for a 429 page halving: a page above 10 documents stops once at 10; at or
+    /// below 10 it halves on to 1 (a refused page must still get smaller to succeed).
+    #[test]
+    fn floor_clamps_the_429_page_halving() {
+        assert_eq!(halved_page(5000, true), 2500);
+        assert_eq!(halved_page(30, true), 15);
+        assert_eq!(halved_page(15, true), PAGE_FLOOR_DOCS);
+        assert_eq!(halved_page(11, true), PAGE_FLOOR_DOCS);
+        assert_eq!(halved_page(10, true), 5);
+        assert_eq!(halved_page(2, true), 1);
+        assert_eq!(halved_page(1, true), 1);
+        assert_eq!(halved_page(15, false), 7);
+        let mut p = 1000;
+        let mut seen = vec![];
+        while p > 1 {
+            p = halved_page(p, true);
+            seen.push(p);
+        }
+        assert_eq!(seen, [500, 250, 125, 62, 31, 15, 10, 5, 2, 1]);
     }
 
     /// A 256 MB heap gets a page that fits the 1.1-10 evidence: pmc (~12 KB stored) well under
