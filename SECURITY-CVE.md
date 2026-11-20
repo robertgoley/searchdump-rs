@@ -18,7 +18,7 @@ Counts below are taken from the sections in this file (High+Critical image findi
 | Artifact | Open | Resolved | Won't-fix (accepted) | Not-affected |
 |---|---:|---:|---:|---:|
 | Cargo.lock (Rust dependencies) | 0 | 41 | 0 | 0 |
-| `dhi-debian` (default `make image` since L-810c) | 0 | 1 (CVE-2026-109518 in apt, fixed by the `94571f3d…` base) | 19 + 22 OpenSSH/Kerberos ids from L-810i (accepted 2026-11-14) | 0 |
+| `dhi-debian` (default `make image` since L-810c) | 0 | 1 (CVE-2026-109518 in apt, fixed by the `94571f3d…` base) | 19 + 22 OpenSSH/Kerberos ids from L-810i (accepted 2026-11-14) + 6 OpenSSL ids from L-824 (accepted 2026-11-20) | 0 |
 | `dhi-static` (default from L-808b to L-810c) | 0 | 0 | 5 | 0 |
 | `dhi-alpine` | 0 | 0 | 0 | 0 |
 | Public Alpine (`make image-alpine`) | 0 | 0 | 0 | 1 (CVE-2025-60876, Medium, busybox `wget`) |
@@ -30,6 +30,7 @@ The 15 public-Debian High CVEs are the same kind of base-OS won't-fix findings; 
 
 | Date (America/New_York) | Commit | Tool (DB) | Target | Result |
 |---|---|---|---|---|
+| 2026-11-20 | L-824 | grype 0.121.0 + trivy 0.76.1, box, on the CI SBOM of [run 44684346604](https://github.com/robertgoley/searchdump-rs/actions/runs/44684346604) | `dhi-debian` default image (base `94571f3d…`) | before: grype fails on 6 High OpenSSL ids (not-fixed, unfixed in Debian); trivy rates them MEDIUM. **Accepted by Robert 2026-11-20**, see [OpenSSL 3.5.7 (L-824)](#openssl-357-l-824). With the new rules grype passes; the confirming CI run is the `security` run on the L-824 commit. |
 | 2026-11-14 | L-810j | grype + trivy, box | `public` and `alpine` builds after deleting the passwd/adduser/init-system-helpers tools | Unchanged findings (files deleted, packages still in the dpkg database): Alpine 0 High/Critical; public Debian only its documented open base-OS findings, no OpenSSH/Kerberos id reported. `make test-image` PASS on both, SFTP round trip OK. dhi-debian confirmed by CI (see [results/local/L-810j.md](results/local/L-810j.md)). |
 | 2026-11-14 | L-810i (merged to `main` after the owner accepted the findings, t85u) | grype + trivy, box | `public` (debian:trixie-slim) and `alpine` image builds with the OpenSSH client added | Alpine: 0 High/Critical. Debian: openssh-client adds 1 Critical (CVE-2026-60002) and 5 High, its krb5 dependencies about 15 High ids, none fixable; **accepted by the owner 2026-11-14 (t85u)**, see [OpenSSH client (L-810i)](#openssh-client-l-810i) (details and options: [results/local/L-810i.md](results/local/L-810i.md)). dhi.io types not built (no login). |
 | 2026-11-11 | `800ff96` (L-810f) | CI [security.yml](https://github.com/robertgoley/searchdump-rs/actions/workflows/security.yml) (grype + trivy), `base=dhi-debian` | `dhi-debian` default image on digest `sha256:94571f3d…` (apt 3.0.4+dhi0) | **pass**. Confirming scan of the L-810e base refresh: [run 42998300960](https://github.com/robertgoley/searchdump-rs/actions/runs/42998300960) (manual dispatch, 04:48–05:00 America/New_York). CVE-2026-109518 is gone; remaining High findings are the accepted won't-fix set. Later pushes on `main` also passed the same workflow: 42998301407 (`800ff96` push), 43070931258 (`e1a0f8e`), 43071665377 (`f38af3f`), 43077967669 (`94e4afb`), 43085265717 (`a98be22`) |
@@ -290,6 +291,34 @@ same packages unless DHI patches them, and its CI `make scan` is the confirming 
 and `docker/grype-ignore.yaml`, only while the fix state is not-fixed or wont-fix; trivy rules in
 `docker/trivyignore.dhi-debian.yaml` (purl-scoped). Verified 2026-11-14 on the local `public` Debian build: with the
 rules, grype and trivy report none of these ids. Revisit when a fix is published (grype then fails `make scan`).
+
+### OpenSSL 3.5.7 (L-824)
+
+Owner decision 2026-11-20 (Robert, option (a)): six High findings in the dhi-debian image's OpenSSL packages
+(`libssl3t64`, `openssl`, `openssl-provider-legacy`, all **3.5.7-1~deb13u3+dhi0**) are **accepted by Robert 2026-11-20**
+as known and open, in the same way as L-808d / L-810e / L-810i. They come from the OpenSSL security advisory of
+2026-11-10 and first failed the `security` `image` job on 2026-11-17 (runs 44172063678 and 44684346604).
+
+| CVE | grype / trivy severity | Packages (version 3.5.7-1~deb13u3+dhi0) | grype fix state | Debian tracker |
+|---|---|---|---|---|
+| CVE-2026-88823 | High / MEDIUM | libssl3t64, openssl, openssl-provider-legacy | not-fixed | trixie and trixie-security 3.5.7-1~deb13u3: vulnerable; forky/sid 3.6.5-1: vulnerable (unfixed) |
+| CVE-2026-95691 | High / MEDIUM | same | not-fixed | same |
+| CVE-2026-95692 | High / MEDIUM | same | not-fixed | same (AES-GCM-SIV IV length; bookworm not affected) |
+| CVE-2026-107493 | High / MEDIUM | same | not-fixed | same |
+| CVE-2026-107496 | High / MEDIUM | same | not-fixed | same |
+| CVE-2026-124709 | High / MEDIUM | same | not-fixed | same |
+
+- **Why accepted:** no fix is available. Debian lists openssl as unfixed in trixie and sid, so no package upgrade or
+  base-pin refresh removes them. `searchdump` and `searchdump-multi` do not link OpenSSL (TLS is rustls; no
+  `openssl-sys` in Cargo.lock); the library is in the image for the OS tools, mainly the OpenSSH client used by `sftp://`.
+- **Scope of the ignores:** these six ids only, in these three packages, at this exact version. grype rules in
+  `docker/grype-ignore.dhi-debian.yaml` match package name + version and only while the fix state is not-fixed or
+  wont-fix; trivy rules in `docker/trivyignore.dhi-debian.yaml` use versioned purls
+  (`pkg:deb/debian/<name>@3.5.7-1~deb13u3%2Bdhi0`). Verified 2026-11-20 on the box against the CI SBOM of run
+  44684346604 (grype 0.121.0, trivy 0.76.1): without the rules grype fails with exactly these six ids (36 matches);
+  with them grype passes and trivy drops these six while still listing the other openssl ids (all MEDIUM).
+- **Removal trigger:** once Debian/DHI ship a fixed openssl, refresh the dhi-debian base pin, rebuild and rescan, then
+  delete these rules (a different openssl version no longer matches them, so a rebuilt image is scanned in full).
 
 ### Debian 13 public fallback (`make image-public`)
 

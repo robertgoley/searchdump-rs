@@ -214,3 +214,41 @@ vulnerabilities:
       - pkg:deb/debian/libkrb5-3
       - pkg:deb/debian/libkrb5support0
     statement: "no fix upstream; accepted for sftp:// (ssh client only, no sshd, no GSSAPI use), see SECURITY-CVE.md (L-810i)"
+  # L-824 (owner decision 2026-11-20, Robert): OpenSSL 3.5.7 High CVEs, unfixed in Debian trixie/sid. Scoped to
+  # the exact package version (purl with version), so a rebuilt base with another openssl no longer matches.
+  - id: CVE-2026-88823
+    purls:
+      - pkg:deb/debian/libssl3t64@3.5.7-1~deb13u3%2Bdhi0
+      - pkg:deb/debian/openssl@3.5.7-1~deb13u3%2Bdhi0
+      - pkg:deb/debian/openssl-provider-legacy@3.5.7-1~deb13u3%2Bdhi0
+    statement: "no fix upstream (Debian trixie/sid unfixed); accepted by Robert 2026-11-20 until a fixed openssl ships, see SECURITY-CVE.md (L-824)"
+  - id: CVE-2026-95691
+    purls:
+      - pkg:deb/debian/libssl3t64@3.5.7-1~deb13u3%2Bdhi0
+      - pkg:deb/debian/openssl@3.5.7-1~deb13u3%2Bdhi0
+      - pkg:deb/debian/openssl-provider-legacy@3.5.7-1~deb13u3%2Bdhi0
+    statement: "no fix upstream (Debian trixie/sid unfixed); accepted by Robert 2026-11-20 until a fixed openssl ships, see SECURITY-CVE.md (L-824)"
+  - id: CVE-2026-95692
+    purls:
+      - pkg:deb/debian/libssl3t64@3.5.7-1~deb13u3%2Bdhi0
+      - pkg:deb/debian/openssl@3.5.7-1~deb13u3%2Bdhi0
+      - pkg:deb/debian/openssl-provider-legacy@3.5.7-1~deb13u3%2Bdhi0
+    statement: "no fix upstream (Debian trixie/sid unfixed); accepted by Robert 2026-11-20 until a fixed openssl ships, see SECURITY-CVE.md (L-824)"
+  - id: CVE-2026-107493
+    purls:
+      - pkg:deb/debian/libssl3t64@3.5.7-1~deb13u3%2Bdhi0
+      - pkg:deb/debian/openssl@3.5.7-1~deb13u3%2Bdhi0
+      - pkg:deb/debian/openssl-provider-legacy@3.5.7-1~deb13u3%2Bdhi0
+    statement: "no fix upstream (Debian trixie/sid unfixed); accepted by Robert 2026-11-20 until a fixed openssl ships, see SECURITY-CVE.md (L-824)"
+  - id: CVE-2026-107496
+    purls:
+      - pkg:deb/debian/libssl3t64@3.5.7-1~deb13u3%2Bdhi0
+      - pkg:deb/debian/openssl@3.5.7-1~deb13u3%2Bdhi0
+      - pkg:deb/debian/openssl-provider-legacy@3.5.7-1~deb13u3%2Bdhi0
+    statement: "no fix upstream (Debian trixie/sid unfixed); accepted by Robert 2026-11-20 until a fixed openssl ships, see SECURITY-CVE.md (L-824)"
+  - id: CVE-2026-124709
+    purls:
+      - pkg:deb/debian/libssl3t64@3.5.7-1~deb13u3%2Bdhi0
+      - pkg:deb/debian/openssl@3.5.7-1~deb13u3%2Bdhi0
+      - pkg:deb/debian/openssl-provider-legacy@3.5.7-1~deb13u3%2Bdhi0
+    statement: "no fix upstream (Debian trixie/sid unfixed); accepted by Robert 2026-11-20 until a fixed openssl ships, see SECURITY-CVE.md (L-824)"
