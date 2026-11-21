@@ -24,11 +24,11 @@ jobs:
   dependencies:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { persist-credentials: false }
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
         with: { toolchain: 1.91.1 }
-      - uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
+      - uses: taiki-e/install-action@4a76afe23f9e08d2d9550fb56e556444e8611d21 # v2.90.4
         with: { tool: "cargo-audit@0.22.2,cargo-deny@0.20.2,cargo-cyclonedx@0.5.9" }
       # any vulnerability, or an unmaintained/unsound/yanked warning, fails the job
       - run: cargo audit --deny warnings
@@ -36,7 +36,7 @@ jobs:
       # L-808f: THIRD-PARTY-NOTICES.md (generated block) must match Cargo.lock / the cargo-deny crate graph
       - run: scripts/third-party-notices.py --check
       - run: cargo cyclonedx --format json --override-filename sbom-cargo.cdx
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with: { name: sbom-cargo, path: "sbom-cargo.cdx.json" }
 
   image:
@@ -48,7 +48,7 @@ jobs:
     if: github.event_name != 'pull_request' || github.event.pull_request.user.login != 'dependabot[bot]'
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { persist-credentials: false }
       # F-01: pinned scanner releases, SHA-256 checked (no `curl | sh`).
       - name: Install scanners (pinned, checksum-verified)
@@ -117,7 +117,7 @@ jobs:
       - name: grype + trivy (fail on HIGH/CRITICAL)
         run: make scan CONTAINER=podman IMAGE_VARIANT="$IMAGE_VARIANT"
       - if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with: { name: sbom-image, path: "sbom-image.*.json" }
       - if: always()
         run: podman logout dhi.io || true
@@ -126,7 +126,7 @@ jobs:
   unused-deps:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { persist-credentials: false }
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master, nightly
         with: { toolchain: nightly }
@@ -139,7 +139,7 @@ jobs:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { persist-credentials: false }
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
         with: { toolchain: 1.91.1 }
@@ -149,7 +149,7 @@ jobs:
       - run: scripts/sup/publishers.py diff supply-chain/publishers.json sc.json --markdown | tee publishers-report.md >> "$GITHUB_STEP_SUMMARY"; exit "${PIPESTATUS[0]}"
         shell: bash
       - if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: publishers-report
           path: |
@@ -161,7 +161,7 @@ jobs:
   coverage:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { persist-credentials: false }
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master, nightly (installs the tools)
         with: { toolchain: nightly }
@@ -179,7 +179,7 @@ jobs:
   offline-build:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { persist-credentials: false }
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
         with: { toolchain: 1.91.1 }
@@ -192,11 +192,11 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { persist-credentials: false, fetch-depth: 0 }
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
         with: { toolchain: 1.91.1 }
-      - uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
+      - uses: taiki-e/install-action@4a76afe23f9e08d2d9550fb56e556444e8611d21 # v2.90.4
         with: { tool: "cargo-cyclonedx@0.5.9" }
       - name: SBOM diff and label gate
         env:
@@ -209,7 +209,7 @@ jobs:
             echo "::error::SBOM/build-time code changed: review, then add the sbom-reviewed label"; exit 1
           fi
           [ "$rc" = 0 ] || [ "$rc" = 10 ]
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with: { name: sbom-diff, path: sbom-diff/ }
 
@@ -217,7 +217,7 @@ jobs:
   secret-scan:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { persist-credentials: false, fetch-depth: 0 }
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
         with: { toolchain: 1.91.1 }
@@ -238,7 +238,7 @@ jobs:
   zizmor:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { persist-credentials: false }
       - name: install zizmor 1.31.1 (checksum-verified)
         env:

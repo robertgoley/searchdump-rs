@@ -47,7 +47,7 @@ jobs:
       prerelease: ${{ steps.v.outputs.prerelease }}
       channel: ${{ steps.v.outputs.channel }}
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           ref: ${{ inputs.tag && format('refs/tags/{0}', inputs.tag) || github.ref }}
@@ -86,7 +86,7 @@ jobs:
           - { target: x86_64-unknown-linux-musl, zigtarget: x86_64-unknown-linux-musl }
           - { target: aarch64-unknown-linux-musl, zigtarget: aarch64-unknown-linux-musl }
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           ref: refs/tags/${{ needs.meta.outputs.tag }}
@@ -94,7 +94,7 @@ jobs:
         with: { toolchain: 1.91.1, targets: "${{ matrix.target }}" }
       # zig provides the C cross-compiler for zstd-sys / ring / mimalloc and the glibc version pin.
       # No build cache in release builds (no cache poisoning from other refs).
-      - uses: mlugg/setup-zig@53fc45b17fe98b52f92ee5ea08ff48a85a3e7eb7 # v1.2.2
+      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
         with: { version: 0.13.0, use-cache: false }
       # pinned: 0.21.8 (MSRV 1.85; builds on the 1.91.1 CI toolchain)
       - run: cargo install cargo-zigbuild --locked --version 0.21.8
@@ -137,7 +137,7 @@ jobs:
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: searchdump-rs-${{ needs.meta.outputs.version }}-${{ matrix.target }}.tar.gz
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: dist-${{ matrix.target }}
           path: searchdump-rs-${{ needs.meta.outputs.version }}-${{ matrix.target }}.tar.gz*
@@ -150,13 +150,13 @@ jobs:
       id-token: write
       attestations: write
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           ref: refs/tags/${{ needs.meta.outputs.tag }}
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
         with: { toolchain: 1.91.1 }
-      - uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
+      - uses: taiki-e/install-action@4a76afe23f9e08d2d9550fb56e556444e8611d21 # v2.90.4
         with: { tool: "cargo-cyclonedx@0.5.9" }
       - env: { VERSION: "${{ needs.meta.outputs.version }}" }
         run: |
@@ -167,7 +167,7 @@ jobs:
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: searchdump-rs-${{ needs.meta.outputs.version }}.cdx.json
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: dist-sbom
           path: searchdump-rs-${{ needs.meta.outputs.version }}.cdx.json*
@@ -189,7 +189,7 @@ jobs:
       IT_DIR: /tmp/edrs-it
       RC_DIFF_DIR: /tmp/edrs-it/rc-diff
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           ref: refs/tags/${{ needs.meta.outputs.tag }}
@@ -215,7 +215,7 @@ jobs:
       - if: always()
         run: cat /tmp/edrs-it/rc-diff/diff.md >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
       - if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with: { name: rc-diff, path: /tmp/edrs-it/rc-diff/ }
       - if: always()
         run: podman logout dhi.io || true
@@ -241,7 +241,7 @@ jobs:
       matrix:
         type: [dhi-debian, dhi-static, dhi-alpine, public, alpine]
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           ref: refs/tags/${{ needs.meta.outputs.tag }}
@@ -314,11 +314,11 @@ jobs:
     permissions:
       contents: write       # create the draft release and upload its assets
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           ref: refs/tags/${{ needs.meta.outputs.tag }}
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with: { pattern: "dist-*", path: dist, merge-multiple: true }
       - name: Create the draft release
         env:
