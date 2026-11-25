@@ -189,7 +189,10 @@ jobs:
             echo "# candidates"; apt-cache policy libc6 libssl3t64 openssl openssl-provider-legacy libkrb5-3 libgssapi-krb5-2 libk5crypto3 libkrb5support0 libzstd1 openssh-client
             echo "# openssh-client depends"; apt-cache depends --no-recommends --no-suggests openssh-client
             echo "# ssh-like clients"; apt-cache search --names-only "^(openssh-client|dropbear-bin|lsh-client)" || true
-            echo "# upgradable"; apt list --upgradable 2>/dev/null' > base-refresh/probe-dhi-debian.txt 2>&1 || true
+            echo "# upgradable"; apt list --upgradable 2>/dev/null
+            echo "# DHI changelog of the newest libssl3t64 / libkrb5-3 / openssh-client"
+            apt-get install -y -qq --no-install-recommends libssl3t64 openssh-client >/dev/null 2>&1 || true
+            for p in libssl3t64 libkrb5-3 openssh-client; do echo "## $p"; zcat "/usr/share/doc/$p/changelog.Debian.gz" 2>/dev/null | head -40; done' > base-refresh/probe-dhi-debian.txt 2>&1 || true
           podman run --rm --user 0 --entrypoint /bin/sh "dhi.io/alpine-base:$DHI_ALPINE_BASE_NEW" -c '
             apk update -q >/dev/null
             echo "# installed"; apk list -I 2>/dev/null | grep -E "^(musl|libssl3|libcrypto3|zstd-libs|krb5)" || true

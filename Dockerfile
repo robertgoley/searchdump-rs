@@ -27,9 +27,9 @@
 # Builder and runtime always use the same libc. dhi.io needs `podman login dhi.io` /
 # `docker login dhi.io` (pull only; credentials never enter the image).
 ARG BUILDER_IMAGE=dhi.io/rust
-ARG BUILDER_TAG=1.99.1-debian13-dev@sha256:be6c6ec91c61ae15b80521052df1c7f60fefd303293563b3dbd9f57e58783809
+ARG BUILDER_TAG=1.99.1-debian13-dev@sha256:6d78c1696e4745d1e006193ddef94d354094c890a284fa8ad6b954a8777eb63d
 ARG BASE_IMAGE=dhi.io/debian-base
-ARG BASE_TAG=trixie-debian13-dev@sha256:94571f3dc07fbc7166f6f1cbf1fe068a7647198ee2554e6b90d59a68cc8b053c
+ARG BASE_TAG=trixie-debian13-dev@sha256:36cada6ceac36fc775a1ce0597dc7a02b4f97d48163d955a0b382f2a0ae6add0
 
 # ----------------------------------------------------------------- builder
 FROM ${BUILDER_IMAGE}:${BUILDER_TAG} AS builder
@@ -113,6 +113,8 @@ COPY --from=builder /out/searchdump /usr/local/bin/searchdump
 # Bulk dump/load of regex-selected indices (runs searchdump from the same directory).
 COPY --from=builder /out/searchdump-multi /usr/local/bin/searchdump-multi
 COPY --from=builder /out/root/usr/share/doc/searchdump-rs/ /usr/share/doc/searchdump-rs/
+# - Package upgrade first (L-831, 1.3.1): `apt-get upgrade` on Debian, like `apk upgrade` on Alpine, so
+#   package fixes that DHI publishes after the pinned base digest (e.g. openssl +dhiN rebuilds) are in the image.
 # - OpenSSH client (L-810i, owner decision 2026-11-14): OpenDAL's sftp:// backend runs the system
 #   `ssh` binary (Dropbear's client is not compatible). Alpine: openssh-client-default (ssh only,
 #   no keysign); Debian: openssh-client without recommends, apt lists removed, and the setuid bit
@@ -132,6 +134,7 @@ RUN --mount=type=bind,from=builder,source=/out/ca-certificates.crt,target=/tmp/c
     elif command -v apt-get >/dev/null 2>&1; then \
       export DEBIAN_FRONTEND=noninteractive \
       && apt-get update \
+      && apt-get -y --no-install-recommends upgrade \
       && apt-get install -y --no-install-recommends openssh-client \
       && apt-get clean \
       && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*.deb /var/log/apt /var/log/dpkg.log \
