@@ -80,8 +80,7 @@
    "tarcieri"
   ],
   "bitflags": [
-   "KodrAus",
-   "rust-lang-owner"
+   "KodrAus"
   ],
   "block-buffer": [
    "github:rustcrypto:utils",
@@ -750,17 +749,12 @@
    "dtolnay"
   ],
   "regex": [
-   "BurntSushi",
-   "github:rust-lang-nursery:regex-owners",
    "rust-lang-owner"
   ],
   "regex-automata": [
-   "BurntSushi",
    "rust-lang-owner"
   ],
   "regex-syntax": [
-   "BurntSushi",
-   "github:rust-lang-nursery:regex-owners",
    "rust-lang-owner"
   ],
   "rend": [
@@ -1117,8 +1111,7 @@
    "jwilm"
   ],
   "uuid": [
-   "KodrAus",
-   "rust-lang-owner"
+   "KodrAus"
   ],
   "vec-strings": [
    "NobodyXu"
