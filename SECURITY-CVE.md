@@ -18,9 +18,9 @@ Counts below are taken from the sections in this file (High+Critical image findi
 | Artifact | Open | Resolved | Won't-fix (accepted) | Not-affected |
 |---|---:|---:|---:|---:|
 | Cargo.lock (Rust dependencies) | 0 | 41 | 0 | 0 |
-| `dhi-debian` (default `make image` since L-810c) | 0 | 1 (CVE-2026-109518 in apt, fixed by the `94571f3d…` base) | 19 + 22 OpenSSH/Kerberos ids from L-810i (accepted 2026-11-14) + 6 OpenSSL ids from L-824 (accepted 2026-11-20) | 0 |
+| `dhi-debian` (default `make image` since L-810c) | 0 | 1 (CVE-2026-109518, apt, L-810e) + 2 glibc + 15 Kerberos ids (1.3.1 base refresh, L-831) + 8 OpenSSL ids (DHI backport in openssl +dhi2, L-831; the scanners still list them, see [OpenSSL 3.5.9 (L-831)](#openssl-359-l-831)) | 17 base-OS ids (L-810e, incl. trivy-only CVE-2026-16742) + 7 OpenSSH/Kerberos ids (L-810i) + 1 OpenSSL id, CVE-2026-84786 (L-831, accepted 2026-11-25) | 0 |
 | `dhi-static` (default from L-808b to L-810c) | 0 | 0 | 5 | 0 |
-| `dhi-alpine` | 0 | 0 | 0 | 0 |
+| `dhi-alpine` | 0 | 0 | 5 OpenSSL ids in libssl3/libcrypto3 3.5.9-r3 (L-831, accepted 2026-11-25; grype High, trivy not High) | 0 |
 | Public Alpine (`make image-alpine`) | 0 | 0 | 0 | 1 (CVE-2025-60876, Medium, busybox `wget`) |
 | Public Debian (`make image-public`) | 15 High (this base is not recommended) | 0 | 15 are Debian won't-fix / not-fixed; still open if this image is shipped | 0 |
 
@@ -30,6 +30,7 @@ The 15 public-Debian High CVEs are the same kind of base-OS won't-fix findings; 
 
 | Date (America/New_York) | Commit | Tool (DB) | Target | Result |
 |---|---|---|---|---|
+| 2026-11-25 | L-830/L-831 (1.3.1) | grype 0.121.0 + trivy 0.76.1 in CI, `security` `base_refresh` runs [45723093599](https://github.com/robertgoley/searchdump-rs/actions/runs/45723093599) (digests) and [45728110685](https://github.com/robertgoley/searchdump-rs/actions/runs/45728110685) (rebuild + rescan) | `dhi-debian` and `dhi-alpine` on the refreshed digests (debian-base `36cada6c…`, alpine-base `7e00fc0f…`) | Before (1.3.0 / main, run 45133930173): grype failed on glibc CVE-2026-5435/-19499 and krb5 ids (fixed upstream, rules matched only wont-fix) and 3 new OpenSSL ids. After: glibc 2.41-12+deb13u5, krb5 1.21.3-5+deb13u2, zstd deb13u1 and (via `apt-get upgrade`) openssl 3.5.9-1~deb13u1+dhi2; 17 ids gone and their rules removed; only the 9 OpenSSL ids remain, 8 of them backported by DHI. dhi-alpine: 5 OpenSSL ids (no fixed build). `sftp://` smoke test through each image's own `ssh` passed on both. See [OpenSSL 3.5.9 (L-831)](#openssl-359-l-831). |
 | 2026-11-20 | L-824 | grype 0.121.0 + trivy 0.76.1, box, on the CI SBOM of [run 44684346604](https://github.com/robertgoley/searchdump-rs/actions/runs/44684346604) | `dhi-debian` default image (base `94571f3d…`) | before: grype fails on 6 High OpenSSL ids (not-fixed, unfixed in Debian); trivy rates them MEDIUM. **Accepted by Robert 2026-11-20**, see [OpenSSL 3.5.7 (L-824)](#openssl-357-l-824). With the new rules grype passes; the confirming CI run is the `security` run on the L-824 commit. |
 | 2026-11-14 | L-810j | grype + trivy, box | `public` and `alpine` builds after deleting the passwd/adduser/init-system-helpers tools | Unchanged findings (files deleted, packages still in the dpkg database): Alpine 0 High/Critical; public Debian only its documented open base-OS findings, no OpenSSH/Kerberos id reported. `make test-image` PASS on both, SFTP round trip OK. dhi-debian confirmed by CI (see [results/local/L-810j.md](results/local/L-810j.md)). |
 | 2026-11-14 | L-810i (merged to `main` after the owner accepted the findings, t85u) | grype + trivy, box | `public` (debian:trixie-slim) and `alpine` image builds with the OpenSSH client added | Alpine: 0 High/Critical. Debian: openssh-client adds 1 Critical (CVE-2026-60002) and 5 High, its krb5 dependencies about 15 High ids, none fixable; **accepted by the owner 2026-11-14 (t85u)**, see [OpenSSH client (L-810i)](#openssh-client-l-810i) (details and options: [results/local/L-810i.md](results/local/L-810i.md)). dhi.io types not built (no login). |
@@ -249,8 +250,8 @@ Image type `dhi-debian`: builder `dhi.io/rust:1.99.1-debian13-dev`, runtime `dhi
 | CVE-2025-69720 | libtinfo6, ncurses-base, ncurses-bin, ncurses-term 6.5+20250216-2+dhi4 | High / HIGH | won't-fix | Stack overflow in the `infocmp` program; searchdump never runs `infocmp` and does not link libtinfo | 2026-11-11 | fix published, or searchdump links ncurses |
 | CVE-2026-102010 | gcc-14-base, libgcc-s1, libstdc++6 14.2.0-19+dhi5 | High / MEDIUM | won't-fix | Flaw in libstdc++'s priority-queue `erase_if`; searchdump does not link libstdc++ (Rust; libgcc_s only provides unwinding) | 2026-11-11 | fix published, or a C++ dependency is added |
 | CVE-2026-95619 | gcc-14-base, libgcc-s1, libstdc++6 14.2.0-19+dhi5 | High / MEDIUM | won't-fix | Integer overflow in libstdc++'s aligned `operator new`; libstdc++ is not linked or loaded | 2026-11-11 | fix published, or a C++ dependency is added |
-| CVE-2026-19499 | libc-bin, libc6 2.41-12+deb13u4+dhi1 | High / MEDIUM | won't-fix | `strfmon`/`strfmon_l` overflow; Rust std and our dependencies never call `strfmon` (monetary formatting) | 2026-11-11 | fix published |
-| CVE-2026-5435 | libc-bin, libc6 2.41-12+deb13u4+dhi1 | High / MEDIUM | won't-fix | Deprecated resolver printers `ns_printrr*`/`fp_nquery`; name resolution goes through `getaddrinfo`, never these functions | 2026-11-11 | fix published |
+| CVE-2026-19499 | libc-bin, libc6 2.41-12+deb13u4+dhi1 | High / MEDIUM | **fixed** in 2.41-12+deb13u5 | n/a: **resolved in 1.3.1 (L-831)** by the base refresh (`36cada6c…`, libc6 2.41-12+deb13u5+dhi0); rule removed | 2026-11-25 | — |
+| CVE-2026-5435 | libc-bin, libc6 2.41-12+deb13u4+dhi1 | High / MEDIUM | **fixed** in 2.41-12+deb13u5 | n/a: **resolved in 1.3.1 (L-831)** by the base refresh; rule removed | 2026-11-25 | — |
 | CVE-2026-84243 | libc-bin, libc6 2.41-12+deb13u4+dhi1 | High / MEDIUM | won't-fix | gettext path traversal through a crafted `LANGUAGE` value. glibc may translate `strerror` text, but exploiting it needs control of the process environment and writable locale files; whoever sets the container environment already controls the process | 2026-11-11 | fix published, or the image starts taking `LANGUAGE` from untrusted input |
 | CVE-2026-119373 | libsqlite3-0 3.46.1-7+deb13u2+dhi1 | High / HIGH | won't-fix | SQLite FTS5 overflow; searchdump does not link SQLite (it is there for other base-image tooling) | 2026-11-11 | fix published, or SQLite becomes a dependency |
 | CVE-2026-119374 | libsqlite3-0 3.46.1-7+deb13u2+dhi1 | High / HIGH | won't-fix | SQLite FTS5 secure-delete overflow; SQLite not linked | 2026-11-11 | fix published, or SQLite becomes a dependency |
@@ -284,8 +285,8 @@ same packages unless DHI patches them, and its CI `make scan` is the confirming 
 | CVE-2026-60002 | Critical | openssh-client | wont-fix | Client side only, used by `sftp://` to a host the operator names; no sshd in the image; runs as uid 65532 |
 | CVE-2026-59999, CVE-2026-60000, CVE-2026-106553, CVE-2026-106555, CVE-2026-106583 | High | openssh-client | wont-fix | Same |
 | CVE-2026-107778 | High | krb5 libraries | wont-fix | Pulled in for GSSAPI; searchdump's SFTP does not use GSSAPI/Kerberos auth |
-| CVE-2026-112314, CVE-2026-112320, CVE-2026-112321, CVE-2026-112322, CVE-2026-112323, CVE-2026-119079 | High | krb5 libraries | not-fixed | Same |
-| CVE-2026-107364, CVE-2026-112315, CVE-2026-112316, CVE-2026-112317, CVE-2026-112318, CVE-2026-112319, CVE-2026-118380, CVE-2026-71199, CVE-2026-71200 | High | krb5 libraries | (trivy only: affected) | Same |
+| CVE-2026-112314, CVE-2026-112320, CVE-2026-112321, CVE-2026-112322, CVE-2026-112323, CVE-2026-119079 | High | krb5 libraries | **fixed** in 1.21.3-5+deb13u2 | **Resolved in 1.3.1 (L-831)** on dhi-debian (krb5 1.21.3-5+deb13u2+dhi0); dhi-debian rules removed |
+| CVE-2026-107364, CVE-2026-112315, CVE-2026-112316, CVE-2026-112317, CVE-2026-112318, CVE-2026-112319, CVE-2026-118380, CVE-2026-71199, CVE-2026-71200 | High | krb5 libraries | (trivy only: affected) | **Resolved in 1.3.1 (L-831)** on dhi-debian (neither scanner reports them on krb5 deb13u2+dhi0); dhi-debian rules removed |
 
 `make scan` ignores exactly these ids in exactly these packages: grype rules in `docker/grype-ignore.dhi-debian.yaml`
 and `docker/grype-ignore.yaml`, only while the fix state is not-fixed or wont-fix; trivy rules in
@@ -293,6 +294,9 @@ and `docker/grype-ignore.yaml`, only while the fix state is not-fixed or wont-fi
 rules, grype and trivy report none of these ids. Revisit when a fix is published (grype then fails `make scan`).
 
 ### OpenSSL 3.5.7 (L-824)
+
+**Superseded in 1.3.1 (L-831):** the image now carries openssl 3.5.9-1~deb13u1+dhi2, so the 3.5.7-versioned rules
+below no longer match anything and were removed; the same six ids are handled in [OpenSSL 3.5.9 (L-831)](#openssl-359-l-831).
 
 Owner decision 2026-11-20 (Robert, option (a)): six High findings in the dhi-debian image's OpenSSL packages
 (`libssl3t64`, `openssl`, `openssl-provider-legacy`, all **3.5.7-1~deb13u3+dhi0**) are **accepted by Robert 2026-11-20**
@@ -319,6 +323,63 @@ as known and open, in the same way as L-808d / L-810e / L-810i. They come from t
   with them grype passes and trivy drops these six while still listing the other openssl ids (all MEDIUM).
 - **Removal trigger:** once Debian/DHI ship a fixed openssl, refresh the dhi-debian base pin, rebuild and rescan, then
   delete these rules (a different openssl version no longer matches them, so a rebuilt image is scanned in full).
+
+### OpenSSL 3.5.9 (L-831)
+
+1.3.1, 2026-11-25. Owner decisions: Robert t244u-t246u (ship 1.3.1 now; accept the three new OpenSSL ids as an L-824
+addendum; keep SFTP in the images and resolve what can be resolved with it enabled), t247u (the DHI refresh runs in CI).
+
+**dhi-debian** (`libssl3t64`, `openssl`, `openssl-provider-legacy` **3.5.9-1~deb13u1+dhi2**). The refreshed base ships
++dhi1; the Dockerfile now runs `apt-get upgrade` before installing `openssh-client` (as the Alpine build already runs
+`apk upgrade`), which installs +dhi2 from the DHI repo. Its `changelog.Debian.gz` (printed by the `base_refresh` probe)
+backports the upstream fixes for eight of the nine ids. Debian's tracker, which grype and trivy follow, still lists
+trixie (3.5.9-1~deb13u1) and trixie-security as vulnerable, so both scanners keep reporting them.
+
+| CVE | grype / trivy | Status in the image | Note |
+|---|---|---|---|
+| CVE-2026-88823, CVE-2026-95691, CVE-2026-95692, CVE-2026-107493, CVE-2026-107496, CVE-2026-124709 (L-824 ids) | High / MEDIUM (124709: HIGH) | **resolved** by the DHI backport in +dhi2 | scanner false positives until Debian's tracker catches up |
+| CVE-2026-107494, CVE-2026-121482 (new) | High / HIGH, MEDIUM | **resolved** by the DHI backport in +dhi2 | same |
+| CVE-2026-84786 (new) | High (CNA: Low) / MEDIUM | **accepted** (Robert 2026-11-25) | DANE client NULL dereference, fixed upstream in 3.5.10; not in +dhi2. Only programs that use OpenSSL's DANE API with PKIX-TA/EE plus DANE-TA TLSA records are affected; OpenSSH does not use it (SSHFP is separate) and searchdump does not link OpenSSL |
+
+**dhi-alpine** (`libssl3`, `libcrypto3` **3.5.9-r3**, the newest build in `dhi.io/apk/alpine/v3.24` and the Alpine 3.24
+secdb on 2026-11-25): CVE-2026-107493, CVE-2026-107494, CVE-2026-121482, CVE-2026-124709, CVE-2026-84786 (grype High,
+fix state unknown; trivy does not rate them High). **Accepted** by Robert 2026-11-25 until Alpine/DHI ship a fixed
+openssl (upstream 3.5.10). Before 1.3.1 this file listed dhi-alpine as 0 findings; the 1.3.0-dhi-alpine image already
+had these five (on 3.5.9-r2).
+
+- **Why accepted / not reachable:** `searchdump` and `searchdump-multi` use rustls (no `openssl-sys` in Cargo.lock).
+  OpenSSL is in the images for the base OS tools and for the OpenSSH client that `sftp://` runs. The listed QUIC, CRL
+  and DANE code paths are not used by `ssh`, which uses libcrypto for its own SSH ciphers and keys.
+- **Scope of the ignores:** these ids, these packages, this exact version. grype: `docker/grype-ignore.dhi-debian.yaml`
+  (version `3.5.9-1~deb13u1+dhi2`, not-fixed / wont-fix) and the new `docker/grype-ignore.dhi-alpine.yaml` (version
+  `3.5.9-r3`, unknown / not-fixed / wont-fix); trivy: versioned purls in `docker/trivyignore.dhi-debian.yaml` and the
+  new `docker/trivyignore.dhi-alpine.yaml`. Any other openssl build is scanned in full.
+- **Removal trigger:** Debian marks the eight ids fixed (then grype stops matching and the rules are dead; delete them),
+  or a fixed openssl (3.5.10 or a backport of CVE-2026-84786) reaches the DHI Debian or Alpine repos. Rerun
+  `security` with `base_refresh=true`, refresh the pins, rescan, delete the rules.
+
+**What was tried to remove OpenSSL / Kerberos while keeping SFTP (1.3.1):**
+1. *Fixed packages first.* Refreshed every dhi.io pin in CI (`base_refresh` job, dhi-pull login, no credentials outside
+   CI) and added `apt-get upgrade`: this removed the glibc ids (deb13u5), all 15 Kerberos ids (deb13u2) and 8 of the 9
+   OpenSSL ids (+dhi2). A DHI per-package record left in `/var/lib/dpkg/status.d/` by the base would otherwise make
+   scanners report the old +dhi1 too; the Dockerfile drops such stale records.
+2. *Install fewer dependencies.* `openssh-client` is already installed with `--no-install-recommends`. In trixie it
+   hard-depends on `libssl3t64` (libcrypto) and `libgssapi-krb5-2`; GSS-API key exchange moved to the separate
+   `openssh-client-gssapi`, but the client still links libgssapi for GSSAPI authentication, so Kerberos cannot be left
+   out with the Debian package. No other ssh client package in the repos works: Dropbear's client is not compatible with
+   OpenDAL's sftp backend (L-810i), `openssh-client-ssh1` is legacy.
+3. *Drop the OpenSSL CLI.* `openssl` and `openssl-provider-legacy` are part of the dhi-debian base itself, not pulled
+   in by ssh (and `ca-certificates` depends on `openssl`); removing them would not remove `libssl3t64`, which ssh needs,
+   and the CVEs are scanned per source package, so nothing would change.
+4. *Alpine.* `openssh-client-default` (already the krb5-free variant, `!openssh-client-krb5`) needs `so:libcrypto.so.3`;
+   `libssl3` and `libcrypto3` come from the base. There is no OpenSSL-free OpenSSH build in Alpine.
+5. *Not done in a patch release:* building OpenSSH `--without-openssl` (only ed25519 keys and chacha20/AES-CTR from
+   OpenSSH's internal crypto: RSA/ECDSA keys and many servers would stop working), or a pure-Rust SFTP client. Both are
+   1.4 candidates; the SSH-free default image was ruled out by Robert (t246u).
+
+`sftp://` was verified on both rebuilt images by `scripts/sup/image-sftp-smoke.sh` in the `base_refresh` job: local ->
+sftp, sftp -> local (500 documents identical), and a `searchdump-multi` tree copy to sftp, through the image's own `ssh`
+(`OpenSSH_10.0p2 Debian-7+deb13u4+dhi3` and `OpenSSH_10.3p1`, both OpenSSL 3.5.9).
 
 ### Debian 13 public fallback (`make image-public`)
 

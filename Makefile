@@ -42,19 +42,19 @@ CONTAINER ?= $(shell command -v podman >/dev/null 2>&1 && echo podman || echo do
 # Default (L-810c): Docker Hardened Images, Debian 13 / glibc builder -> Debian 13 -dev runtime
 # (shell, apt). BUILDER_* is also the vendoring (scripts/vendor-crates.sh) and repro (scripts/sup/repro.sh) image.
 BUILDER_IMAGE ?= dhi.io/rust
-BUILDER_TAG   ?= 1.99.1-debian13-dev@sha256:be6c6ec91c61ae15b80521052df1c7f60fefd303293563b3dbd9f57e58783809
+BUILDER_TAG   ?= 1.99.1-debian13-dev@sha256:6d78c1696e4745d1e006193ddef94d354094c890a284fa8ad6b954a8777eb63d
 BASE_IMAGE    ?= dhi.io/debian-base
-BASE_TAG      ?= trixie-debian13-dev@sha256:94571f3dc07fbc7166f6f1cbf1fe068a7647198ee2554e6b90d59a68cc8b053c
+BASE_TAG      ?= trixie-debian13-dev@sha256:36cada6ceac36fc775a1ce0597dc7a02b4f97d48163d955a0b382f2a0ae6add0
 # Docker Hardened Images, Debian 13 / glibc builder -> static glibc runtime (no shell; default before L-810c)
 DHI_STATIC_BUILDER_IMAGE ?= dhi.io/rust
-DHI_STATIC_BUILDER_TAG   ?= 1.99.1-debian13-dev@sha256:be6c6ec91c61ae15b80521052df1c7f60fefd303293563b3dbd9f57e58783809
+DHI_STATIC_BUILDER_TAG   ?= 1.99.1-debian13-dev@sha256:6d78c1696e4745d1e006193ddef94d354094c890a284fa8ad6b954a8777eb63d
 DHI_STATIC_BASE_IMAGE    ?= dhi.io/static
-DHI_STATIC_BASE_TAG      ?= 20250419-glibc-debian13@sha256:dcf8da7f5cdeb490d825814561995ce6c6cf931aa4322dae89f4f0170b0fb693
+DHI_STATIC_BASE_TAG      ?= 20250419-glibc-debian13@sha256:133e7708dab3dc8c84080758eb1b99ef63795ff39a8588d038db4d3c2abacfba
 # Docker Hardened Images, Alpine/musl (the default before L-808b; 0 CVEs at L-808b)
 DHI_ALPINE_BUILDER_IMAGE ?= dhi.io/rust
 DHI_ALPINE_BUILDER_TAG   ?= 1.99.0-alpine3.23-dev@sha256:2d4387114840f672c75a8cec9414a300e07b285798382c76a466eafec4686b6e
 DHI_ALPINE_BASE_IMAGE    ?= dhi.io/alpine-base
-DHI_ALPINE_BASE_TAG      ?= 3.24-alpine3.24-dev@sha256:7182e0bc2f186386bb23bc0718508913450ba1876e93cf07e5e3cf263c4dbb63
+DHI_ALPINE_BASE_TAG      ?= 3.24-alpine3.24-dev@sha256:7e00fc0f6f9f84303dc2657aac557bdefe9877a66c388c0521c5794d51056efa
 # Public fallback, not default (same Debian release, so the same glibc)
 PUBLIC_BUILDER_IMAGE ?= docker.io/library/rust
 PUBLIC_BUILDER_TAG   ?= 1.99-trixie@sha256:09027f873d45b8ecd1dc86f1fa13b7a62b875c961f017a0e331267b350430137

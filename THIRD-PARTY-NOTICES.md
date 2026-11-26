@@ -165,7 +165,7 @@ Regenerate this section with `scripts/third-party-notices.py` after a dependency
 | find-msvc-tools | 0.1.15 | MIT OR Apache-2.0 | https://github.com/rust-lang/cc-rs |
 | flate2 | 1.1.10 | MIT OR Apache-2.0 | https://github.com/rust-lang/flate2-rs |
 | foldhash | 0.2.0 | Zlib | https://github.com/orlp/foldhash |
-| form_urlencoded | 1.2.2 | MIT OR Apache-2.0 | https://github.com/servo/rust-url |
+| form_urlencoded | 1.2.3 | MIT OR Apache-2.0 | https://github.com/servo/rust-url |
 | futures | 0.3.34 | MIT OR Apache-2.0 | https://github.com/rust-lang/futures-rs |
 | futures-channel | 0.3.34 | MIT OR Apache-2.0 | https://github.com/rust-lang/futures-rs |
 | futures-core | 0.3.34 | MIT OR Apache-2.0 | https://github.com/rust-lang/futures-rs |
@@ -276,7 +276,7 @@ Regenerate this section with `scripts/third-party-notices.py` after a dependency
 | rustls-native-certs | 0.8.5 | Apache-2.0 OR ISC OR MIT | https://github.com/rustls/rustls-native-certs |
 | rustls-pki-types | 1.15.1 | MIT OR Apache-2.0 | https://github.com/rustls/pki-types |
 | rustls-platform-verifier | 0.7.1 | MIT OR Apache-2.0 | https://github.com/rustls/rustls-platform-verifier |
-| rustls-webpki | 0.103.16 | ISC | https://github.com/rustls/webpki |
+| rustls-webpki | 0.103.17 | ISC | https://github.com/rustls/webpki |
 | rustversion | 1.0.23 | MIT OR Apache-2.0 | https://github.com/dtolnay/rustversion |
 | ryu | 1.0.23 | Apache-2.0 OR BSL-1.0 | https://github.com/dtolnay/ryu |
 | salsa20 | 0.10.2 | MIT OR Apache-2.0 | https://github.com/RustCrypto/stream-ciphers |
@@ -341,14 +341,14 @@ Regenerate this section with `scripts/third-party-notices.py` after a dependency
 | unicode-width | 0.2.3 | MIT OR Apache-2.0 | https://github.com/unicode-rs/unicode-width |
 | unit-prefix | 0.5.2 | MIT | https://codeberg.org/commons-rs/unit-prefix |
 | untrusted | 0.9.0 | ISC | https://github.com/briansmith/untrusted |
-| url | 2.5.8 | MIT OR Apache-2.0 | https://github.com/servo/rust-url |
+| url | 2.5.9 | MIT OR Apache-2.0 | https://github.com/servo/rust-url |
 | utf8_iter | 1.0.4 | Apache-2.0 OR MIT | https://github.com/hsivonen/utf8_iter |
 | utf8parse | 0.2.2 | Apache-2.0 OR MIT | https://github.com/alacritty/vte |
 | uuid | 1.26.1 | Apache-2.0 OR MIT | https://github.com/uuid-rs/uuid |
 | vec-strings | 0.4.8 | MIT | https://github.com/NobodyXu/vec-strings |
 | version_check | 0.9.5 | MIT/Apache-2.0 | https://github.com/SergioBenitez/version_check |
 | want | 0.3.2 | MIT | https://github.com/seanmonstar/want |
-| webpki-roots | 1.0.11 | CDLA-Permissive-2.0 | https://github.com/rustls/webpki-roots |
+| webpki-roots | 1.0.12 | CDLA-Permissive-2.0 | https://github.com/rustls/webpki-roots |
 | writeable | 0.6.4 | Unicode-3.0 | https://github.com/unicode-org/icu4x |
 | xattr | 1.7.0 | MIT OR Apache-2.0 | https://github.com/Stebalien/xattr |
 | yoke | 0.8.4 | Unicode-3.0 | https://github.com/unicode-org/icu4x |

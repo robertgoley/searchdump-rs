@@ -80,8 +80,7 @@
    "tarcieri"
   ],
   "bitflags": [
-   "KodrAus",
-   "rust-lang-owner"
+   "KodrAus"
   ],
   "block-buffer": [
    "github:rustcrypto:utils",
@@ -750,17 +749,12 @@
    "dtolnay"
   ],
   "regex": [
-   "BurntSushi",
-   "github:rust-lang-nursery:regex-owners",
    "rust-lang-owner"
   ],
   "regex-automata": [
-   "BurntSushi",
    "rust-lang-owner"
   ],
   "regex-syntax": [
-   "BurntSushi",
-   "github:rust-lang-nursery:regex-owners",
    "rust-lang-owner"
   ],
   "rend": [
@@ -931,10 +925,7 @@
    "github:servo:cargo-publish"
   ],
   "socket2": [
-   "Thomasdezeeuw",
-   "github:tokio-rs:socket2",
-   "rust-lang-owner",
-   "sfackler"
+   "rust-lang-owner"
   ],
   "sonic-number": [
    "github:cloudwego:volo-team",
@@ -1117,8 +1108,7 @@
    "jwilm"
   ],
   "uuid": [
-   "KodrAus",
-   "rust-lang-owner"
+   "KodrAus"
   ],
   "vec-strings": [
    "NobodyXu"
