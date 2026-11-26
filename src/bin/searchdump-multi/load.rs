@@ -98,12 +98,7 @@ pub(crate) async fn load_one(ctx: &Ctx, cluster: &Cluster, f: &Found) -> Outcome
                 let mut total = 0;
                 for (n, part) in f.data.iter().enumerate() {
                     let c = parse_data_file(&file_name(part)).map_or(Compression::None, |d| d.1);
-                    let mut extra = strings(c.flags());
-                    let size = ctx.plan().load();
-                    extra.extend(merge_data_flags_owned(
-                        &ctx.plan().flags(&size, ctx.runner.server_limits),
-                        &ctx.runner.data_flags,
-                    ));
+                    let mut extra = load_data_args(ctx, c);
                     if f.datastream && !extra.iter().any(|a| a.starts_with("--bulkAction")) {
                         // A data stream only accepts create.
                         extra.push("--bulkAction=create".into());
@@ -214,6 +209,15 @@ pub(crate) fn with_part(e: anyhow::Error, parts: usize, n: usize, part: &Path) -
     } else {
         e
     }
+}
+
+/// The data step's arguments for one part: its codec and the load plan's data flags merged with the
+/// default/user flags.
+pub(crate) fn load_data_args(ctx: &Ctx, c: Compression) -> Vec<String> {
+    let mut extra = strings(c.flags());
+    let size = ctx.plan().load();
+    extra.extend(child_data_flags(ctx.plan(), &size, &ctx.runner));
+    extra
 }
 
 #[cfg(test)]

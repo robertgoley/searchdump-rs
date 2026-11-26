@@ -66,6 +66,16 @@ pub(crate) fn cluster_flags(args: &Args, kind: &str, load: bool) -> Vec<String> 
     v
 }
 
+/// 1.2: a data child's sizing flags from `plan` for `size` (only the flags `runner`'s binary accepts),
+/// followed by the default/user data flags, the later ones winning.
+pub(crate) fn child_data_flags(
+    plan: &sizing::Plan,
+    size: &sizing::IndexSize,
+    runner: &Runner,
+) -> Vec<String> {
+    merge_data_flags_owned(&plan.flags(size, runner.server_limits), &runner.data_flags)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

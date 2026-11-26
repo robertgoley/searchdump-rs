@@ -6,6 +6,75 @@ move verbatim out of dump_one/load_one. usage: phase_b14.py SRC_DIR"""
 import sys, re
 D = sys.argv[1]
 
+TESTS = r'''
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A run context without a cluster: `argv` after the URLs, the data flags as run_local builds them.
+    pub(crate) fn test_ctx(argv: &[&str], server_limits: bool) -> Ctx {
+        let mut v = vec!["m", "--input=http://h:9200", "--output=/tmp/x"];
+        v.extend_from_slice(argv);
+        let args = Args::try_parse_from(v).unwrap();
+        let data_flags = merge_data_flags(
+            if args.no_default_data_flags {
+                &[]
+            } else {
+                DATA_FLAGS
+            },
+            &args.extra,
+        );
+        let runner = Runner {
+            runs: Mutex::new(vec![]),
+            child_env: vec![],
+            child_env_remove: vec![],
+            bin: PathBuf::from("searchdump"),
+            log_dir: std::env::temp_dir(),
+            common: vec![],
+            data_flags,
+            cancelled: Arc::new(AtomicBool::new(false)),
+            cancel: CancellationToken::new(),
+            grace: CHILD_GRACE,
+            stats: server_limits,
+            server_limits,
+        };
+        let sel = Selector::new("^.*$", None, false).unwrap();
+        Ctx::new(args, ClusterTls::default(), Types::default(), sel, runner)
+    }
+
+    fn s(v: &[&str]) -> Vec<String> {
+        v.iter().map(|x| x.to_string()).collect()
+    }
+
+    /// L4-S14: the dump data step's exact argv (codec, splits, --pageBytes, plan flags, user flags).
+    #[test]
+    fn dump_data_args_are_pinned() {
+        let mut e = IndexEntry::default();
+        let c = test_ctx(&["--fileSize=10mb", "--pageBytes=2mb", "--", "--limit=50"], true);
+        let got = dump_data_args(&c, "ix", Compression::Gzip, &mut e);
+        assert_eq!(got, s(&["--fsCompress", "--fileSize=10mb", "--pageBytes=2000000", "--maxBulkBytes=16mb", "--serverLimits=off", "--scrollTime=10m", "--retryAttempts=5", "--retryDelay=2000", "--timeout=300000", "--limit=50"]));
+        assert!(e.sizing.is_some(), "the plan is recorded in the manifest entry");
+        // a non-searchdump child: no --pageBytes, no server-limit flags
+        let c = test_ctx(&["--maxRows=7", "--pageBytes=2mb"], false);
+        let got = dump_data_args(&c, "ix", Compression::Zstd3, &mut e);
+        assert_eq!(got, s(&["--compressionType=zstd", "--compressionLevel=3", "--maxRows=7", "--limit=1000", "--maxBulkBytes=16mb", "--scrollTime=10m", "--retryAttempts=5", "--retryDelay=2000", "--timeout=300000"]));
+        // --noDefaultDataFlags
+        let c = test_ctx(&["--noDefaultDataFlags"], true);
+        let got = dump_data_args(&c, "ix", Compression::None, &mut e);
+        assert_eq!(got, s(&["--serverLimits=off"]));
+    }
+
+    /// L4-S14: the load data step's exact argv (codec and the load plan's flags + user flags).
+    #[test]
+    fn load_data_args_are_pinned() {
+        let c = test_ctx(&["--direction=load"], true);
+        assert_eq!(load_data_args(&c, Compression::Gzip), s(&["--fsCompress", "--limit=1000", "--maxBulkBytes=16mb", "--serverLimits=off", "--scrollTime=10m", "--retryAttempts=5", "--retryDelay=2000", "--timeout=300000"]));
+        let c = test_ctx(&["--direction=load", "--", "--limit=9"], false);
+        assert_eq!(load_data_args(&c, Compression::None), s(&["--maxBulkBytes=16mb", "--scrollTime=10m", "--retryAttempts=5", "--retryDelay=2000", "--timeout=300000", "--limit=9"]));
+    }
+}
+'''
+
 def dedent(block, n):
     out = []
     for l in block.split('\n'):
@@ -83,4 +152,7 @@ pub(crate) fn child_data_flags(
 k = s.index('#[cfg(test)]\nmod tests {')
 s = s[:k] + fn + s[k:]
 open(p, 'w').write(s)
+# argv-pinning tests (values recorded from the moved code, which is verbatim)
+p = f'{D}/dump.rs'
+open(p, 'a').write('\n' + TESTS)
 print('ok')
