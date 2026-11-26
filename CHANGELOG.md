@@ -16,7 +16,8 @@ Headline: limits and multi polish. Branch `release/1.4` (from v1.3.1); not relea
   `rustls-no-provider`: searchdump always hands it its own rustls config (ring), so no aws-lc code is built.
 - Encrypted PKCS#8 `--key` decryption moves to pkcs8 0.11 (RustCrypto 0.11 generation, shared with the S3
   signer), which removes the duplicate sha2/hmac/digest/const-oid/cpufeatures/block-buffer versions. The same key
-  formats (PBES2 with PBKDF2 or scrypt, AES-CBC) decrypt as before.
+  formats decrypt as before (PBES2 with PBKDF2-HMAC-SHA256 or scrypt and AES-128/256-CBC, as `openssl pkcs8
+  -topk8 -v2 aes-256-cbc` writes); the SHA-1 PRF stays unsupported, as in 1.3.
 
 ### Fixed
 

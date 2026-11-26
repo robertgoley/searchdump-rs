@@ -350,6 +350,43 @@ mod tests {
         std::fs::remove_dir_all(d).ok();
     }
 
+    /// L4-004: pkcs8 0.11 still decrypts the PBES2 variants openssl writes: scrypt and
+    /// PBKDF2-HMAC-SHA256, with AES-128/256-CBC. (The PBKDF2-HMAC-SHA1 PRF was never
+    /// supported: pkcs5's `sha1-insecure` feature is off, in 0.7 as in 0.8.)
+    #[cfg(feature = "encrypted-keys")]
+    #[test]
+    fn encrypted_pkcs8_variants_decrypt_after_the_pkcs8_0_11_bump() {
+        let d = tmpdir("variants");
+        let Some(base) = encrypted_key(&d) else {
+            return;
+        };
+        let plain = base.with_file_name("plain.pem");
+        let variants: [&[&str]; 2] = [
+            &["-v2", "aes-128-cbc", "-scrypt"],
+            &["-v2", "aes-128-cbc", "-v2prf", "hmacWithSHA256"],
+        ];
+        for (i, v) in variants.iter().enumerate() {
+            let out = d.join(format!("v{i}.pem"));
+            let mut args = vec!["pkcs8", "-topk8", "-in", plain.to_str().unwrap()];
+            args.extend_from_slice(v);
+            args.extend_from_slice(&["-out", out.to_str().unwrap(), "-passout", "pass:t3st"]);
+            let made = std::process::Command::new("openssl")
+                .args(&args)
+                .stderr(std::process::Stdio::null())
+                .status()
+                .is_ok_and(|s| s.success());
+            if !made {
+                continue; // an openssl without this option
+            }
+            assert!(
+                matches!(load_key(&out, Some("t3st")), Ok(PrivateKeyDer::Pkcs8(_))),
+                "variant {v:?}"
+            );
+            assert!(load_key(&out, Some("nope")).is_err(), "variant {v:?}");
+        }
+        std::fs::remove_dir_all(d).ok();
+    }
+
     #[cfg(not(feature = "encrypted-keys"))]
     #[test]
     fn encrypted_pkcs8_key_without_feature_is_a_clear_error() {
