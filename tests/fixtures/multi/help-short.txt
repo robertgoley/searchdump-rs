@@ -1,0 +1,149 @@
+Dump or load many indices at once with searchdump, selected by regex
+
+Usage: searchdump-multi [OPTIONS] --input <INPUT> --output <OUTPUT> [-- <EXTRA>...]
+
+Arguments:
+  [EXTRA]...  Extra searchdump arguments for every data run; a flag given here replaces the default
+              data flag of the same name (e.g. `-- --limit=200`)
+
+Options:
+      --direction <DIRECTION>
+          dump: cluster -> directory; load: directory -> cluster; copy: directory -> directory
+          [default: dump] [possible values: dump, load, copy]
+      --input <INPUT>
+          dump: cluster base URL (https://host:9200); load/copy: dump directory (a local path or
+          s3://bucket/prefix, b2://bucket/prefix, sftp://user@host/path, fs:///path)
+      --output <OUTPUT>
+          dump/copy: output directory (local path or storage URL as for --input); load: cluster base
+          URL
+      --inputStorageConfig <INPUT_STORAGE_CONFIG>
+          Storage settings and credentials for a storage-URL --input (INI, as searchdump
+          --inputStorageConfig; default $SEARCHDUMP_INPUT_STORAGE_CONFIG)
+      --outputStorageConfig <OUTPUT_STORAGE_CONFIG>
+          The same for a storage-URL --output (default $SEARCHDUMP_OUTPUT_STORAGE_CONFIG)
+      --stagingDir <STAGING_DIR>
+          Local directory a dump to (or load from) a storage URL is staged in. Default: a new
+          directory under $TMPDIR, removed after a successful upload / load. Needs room for the
+          whole dump. Kept after a failed dump, so the run can be finished with --resume
+      --overwrite
+          copy, and the upload of a staged dump: replace objects that already exist at the
+          destination (otherwise any existing one stops the copy before anything is written)
+      --match <MATCH_RE>
+          Regex a name must match (unanchored; use ^...$ for whole names) [default: ^.*$]
+      --matchType <MATCH_TYPE>
+          What --match is tested against (dump), comma separated: index, alias, datastream [default:
+          index] [possible values: index, alias, datastream]
+      --exclude <EXCLUDE>
+          Regex of names to leave out (tested against the same names as --match)
+      --includeHidden
+          Also select hidden/system indices (names starting with '.'); off by default
+      --layout <LAYOUT>
+          Directory layout for each index's files (dump); load finds files in any layout [default:
+          flat] [possible values: flat, index, group]
+      --types <TYPES>
+          Item types, comma separated. Per index: settings, analyzer, mapping, alias, data.
+          Cluster-wide, once per run: policy, component_template, index_template, template, script.
+          `all` selects every type. Default: dump settings,mapping,data (as oslogs.py); load
+          settings,mapping,alias,data plus every cluster-wide file present (a missing file just
+          skips that step)
+      --ignoreType <IGNORE_TYPE>
+          Types to skip (Node multielasticdump --ignoreType), comma separated
+      --includeType <INCLUDE_TYPE>
+          Node compatibility: process only these types (as --types; `index` means settings,mapping)
+      --parallel <PARALLEL>
+          How many indices to process at once [default: 2]
+      --order <ORDER>
+          Order in which indices are started, by name (Node --order) [default: asc] [possible
+          values: asc, desc]
+      --interval <INTERVAL>
+          Minimum milliseconds between starting one index and the next (Node --interval) [default:
+          0]
+      --compression <COMPRESSION>
+          Data-file compression (dump). Load detects it from each file name [default: gzip]
+          [possible values: gzip, zstd1, zstd3, none]
+      --fileSize <FILE_SIZE>
+          Dump: split each data file into parts of about this size (elasticdump --fileSize, e.g.
+          500mb, 2gb). Parts are INDEX.data.split-N.json[.gz|.zst]
+      --maxRows <MAX_ROWS>
+          Dump: split each data file into parts of at most this many records (--maxRows)
+      --lifecycle <LIFECYCLE>
+          Lifecycle settings on load: drop them, or convert ILM to ISM [default: drop] [possible
+          values: drop, convert]
+      --prefix <PREFIX>
+          Load: prepend this to every target index name [default: ""]
+      --suffix <SUFFIX>
+          Load: append this to every target index name [default: ""]
+      --skipExisting
+          Load: skip an index that already exists on the target instead of failing it (cluster-wide
+          items are created only if missing)
+      --resume
+          Dump: skip indices the manifest already records as done (files still present)
+      --insecure
+          Skip TLS certificate verification (also passed to searchdump)
+      --ca <CA>
+          1.4: CA bundle (PEM) for the cluster; passed to searchdump as --input-ca (dump) or
+          --output-ca (load)
+      --cert <CERT>
+          1.4: client certificate chain (PEM) for the cluster (with --key); passed to searchdump as
+          --input-cert / --output-cert, with --tlsAuth
+      --key <KEY>
+          1.4: client private key (PEM) for --cert; passed as --input-key / --output-key
+      --pass <PASS>
+          1.4: passphrase of an encrypted PKCS#8 --key. Shows in `ps` for this process; prefer
+          $SEARCHDUMP_TLS_PASS. Children never get it on their command line, only as
+          $SEARCHDUMP_INPUT_TLS_PASS (dump) / $SEARCHDUMP_OUTPUT_TLS_PASS (load)
+      --httpAuthFile <HTTP_AUTH_FILE>
+          INI file with user= and password= for the cluster (also passed to searchdump)
+      --elasticdumpBin <ELASTICDUMP_BIN>
+          searchdump binary (default: next to this binary, then $SEARCHDUMP_BIN, then PATH)
+      --verifyCounts
+          Count the records of every data file by reading it back (and check the count the
+          searchdump run reported), instead of using that count
+      --logDir <LOG_DIR>
+          Where each child run's output is logged (default: a new temp directory)
+      --noDefaultDataFlags
+          Do not add the data-run defaults (--scrollTime=10m ... and the sizes); implies
+          --serverLimits=off for the data flags
+      --serverLimits <SERVER_LIMITS>
+          1.2: size pages, bulks and workers from the cluster's limits: off (1.1 fixed sizes), auto
+          (default: probe once, page up to 5000 small documents, tighten for small heaps), min (half
+          of auto's budget), check (print the limits and the per-index sizes, exit 0; exit 2 when a
+          flag after -- exceeds them)
+      --pageBytes <PAGE_BYTES>
+          1.4: cap each dump page at about this many bytes (e.g. 8mb): pages are sized from each
+          index's average document within the --serverLimits budget (or alone with off), and every
+          searchdump child gets --pageBytes so a page that still comes back bigger shrinks the next
+          ones. Dump only
+      --dryRun
+          Print the selected indices and the files they map to, then exit
+      --nodeCompat
+          Dump in Node multielasticdump's layout, so `multielasticdump --direction=load` of Node
+          elasticdump 6.x restores it: flat, data as INDEX.json[.gz], parts as
+          INDEX.split-N.json[.gz], every file gzipped or none (gzip or none only), one
+          INDEX.template.json per index, and the manifest and other cluster-wide files kept out of
+          the directory (in --metaDir). Load reads Node-named directories without it
+      --metaDir <META_DIR>
+          Where the manifest and cluster-wide files (`_cluster/`) go. Default: the dump directory,
+          or DIR.meta beside it with --nodeCompat. Load looks in DIR, then DIR.meta
+  -h, --help
+          Print help (see more with '--help')
+  -V, --version
+          Print version
+
+Examples:
+  # every index matching logs-*, gzip, one set of files per index (oslogs.py layout)
+  SEARCHDUMP_INPUT_USERNAME=admin SEARCHDUMP_INPUT_PASSWORD=... \
+    searchdump-multi --direction dump --input https://os:9200 --output /backup --match '^logs-'
+  # break out by month: /backup/2026.10/logs-app-2026.10.31.*
+  searchdump-multi --input https://os:9200 --output /backup --layout group \
+    --match '^logs-.*-(?P<group>\d{4}\.\d{2})\.\d{2}$'
+  # data streams plus the templates and policies they need, 1 GB data parts
+  searchdump-multi --input https://es:9200 --output /backup --matchType datastream \
+    --match '^logs-' --types data,index_template,component_template,policy --fileSize 1gb
+  # load everything back (SEARCHDUMP_OUTPUT_* credentials), 4 indices at a time
+  searchdump-multi --direction load --input /backup --output https://os2:9200 --parallel 4
+
+Extra arguments after `--` are passed to every searchdump data run.
+
+Provided as is, without warranty (MIT license). Verify every backup by restoring it and
+comparing document counts, and test outside production first.

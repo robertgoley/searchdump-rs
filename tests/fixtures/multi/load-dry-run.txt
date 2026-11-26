@@ -1,0 +1,6 @@
+cluster-wide, loaded first: index_template
+4 indices/data streams to load:
+  a -> a (from DIR)
+  b -> b (from DIR/grp)
+  c -> c (from DIR)
+  d -> d (from DIR, 2 data parts)

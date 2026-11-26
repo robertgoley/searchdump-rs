@@ -1,0 +1,9 @@
+2 of 4 indices and data streams selected:
+  logs-a
+    OUT/logs-a.settings.json
+    OUT/logs-a.mapping.json
+    OUT/logs-a.data.split-N.json.gz
+  logs-b
+    OUT/logs-b.settings.json
+    OUT/logs-b.mapping.json
+    OUT/logs-b.data.split-N.json.gz

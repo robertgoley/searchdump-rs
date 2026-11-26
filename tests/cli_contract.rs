@@ -5426,3 +5426,313 @@ async fn l4_002_child_id_tags_log_lines_and_stats() {
         }
     }
 }
+
+// ------------------------------------------------------------------ L4-S00: searchdump-multi
+// safety net for the source split (SPLIT-searchdump-multi.md step 0): help text, exit codes and
+// dry-run listings of the unmodified binary, so every move can be shown not to change them.
+
+fn multi_cmd() -> Command {
+    let mut c = Command::new(env!("CARGO_BIN_EXE_searchdump-multi"));
+    for k in [
+        "SEARCHDUMP_INPUT_USERNAME",
+        "SEARCHDUMP_INPUT_PASSWORD",
+        "SEARCHDUMP_OUTPUT_USERNAME",
+        "SEARCHDUMP_OUTPUT_PASSWORD",
+        "SEARCHDUMP_TLS_PASS",
+        "SEARCHDUMP_INPUT_TLS_PASS",
+        "SEARCHDUMP_OUTPUT_TLS_PASS",
+        "NODE_TLS_REJECT_UNAUTHORIZED",
+        "RUST_LOG",
+    ] {
+        c.env_remove(k);
+    }
+    // clap wraps help at the terminal width; pin it
+    c.env("COLUMNS", "100");
+    c
+}
+
+fn multi_s(v: &[&str]) -> Vec<String> {
+    v.iter().map(|x| x.to_string()).collect()
+}
+
+/// Compare with `tests/fixtures/multi/NAME`; `MULTI_FIXTURES_BLESS=1` (re)writes it instead.
+fn multi_expect(name: &str, got: &str) {
+    let path = format!("{}/tests/fixtures/multi/{name}", env!("CARGO_MANIFEST_DIR"));
+    if std::env::var_os("MULTI_FIXTURES_BLESS").is_some() {
+        std::fs::write(&path, got).unwrap();
+        return;
+    }
+    assert_eq!(got, multi_fixture(name), "differs from {path}");
+}
+
+fn multi_fixture(name: &str) -> String {
+    std::fs::read_to_string(format!(
+        "{}/tests/fixtures/multi/{name}",
+        env!("CARGO_MANIFEST_DIR")
+    ))
+    .unwrap_or_else(|e| panic!("{name}: {e}"))
+}
+
+/// L4-S00a: `--help` and `-h` are byte-identical to the recorded text (clap attributes, doc
+/// comments and `after_help` survive any move).
+#[test]
+fn l4_s00_multi_help_text_is_unchanged() {
+    for (flag, file) in [("--help", "help.txt"), ("-h", "help-short.txt")] {
+        let o = multi_cmd().arg(flag).output().unwrap();
+        assert_eq!(o.status.code(), Some(0));
+        let got = stdout(&o);
+        let want = multi_fixture(file);
+        if got != want {
+            let first = got
+                .lines()
+                .zip(want.lines())
+                .position(|(a, b)| a != b)
+                .unwrap_or(got.lines().count().min(want.lines().count()));
+            panic!(
+                "{flag} differs from tests/fixtures/multi/{file} at line {}:\n got: {:?}\nwant: {:?}",
+                first + 1,
+                got.lines().nth(first),
+                want.lines().nth(first)
+            );
+        }
+    }
+    let o = multi_cmd().arg("--version").output().unwrap();
+    assert_eq!(
+        stdout(&o).trim(),
+        format!("searchdump-multi {}", env!("CARGO_PKG_VERSION"))
+    );
+}
+
+/// L4-S00b: usage errors exit 2 and nothing matched exits 1, each with its exact message, and
+/// without a cluster (a refused port where one is named).
+#[test]
+fn l4_s00_multi_exit_codes_and_messages() {
+    let d = tempfile::tempdir().unwrap();
+    let empty = d.path().join("empty");
+    std::fs::create_dir(&empty).unwrap();
+    let e = empty.to_str().unwrap();
+    let x = d.path().join("x");
+    let x = x.to_str().unwrap();
+    let missing = d.path().join("missing");
+    let missing = missing.to_str().unwrap();
+    let dead = "http://127.0.0.1:1";
+    let dump = |extra: &[&str]| -> Vec<String> {
+        let mut v = vec!["--direction", "dump", "--input", dead, "--output", x];
+        v.extend_from_slice(extra);
+        v.iter().map(|s| s.to_string()).collect()
+    };
+    let cases: Vec<(Vec<String>, i32, String)> = vec![
+        (dump(&["--parallel", "0"]), 2, "searchdump-multi: --parallel must be at least 1".into()),
+        (
+            multi_s(&["--direction", "load", "--input", e, "--output", dead, "--fileSize", "1mb"]),
+            2,
+            "searchdump-multi: --fileSize/--maxRows apply to dumps; load finds split parts on its own".into(),
+        ),
+        (
+            multi_s(&["--direction", "load", "--input", e, "--output", dead, "--pageBytes", "1mb"]),
+            2,
+            "searchdump-multi: --pageBytes applies to dumps (it caps the search pages read from the cluster)".into(),
+        ),
+        (
+            dump(&["--nodeCompat", "--layout", "index"]),
+            2,
+            "searchdump-multi: --nodeCompat needs --layout flat (Node reads one directory, no subdirectories)".into(),
+        ),
+        (
+            dump(&["--nodeCompat", "--compression", "zstd3"]),
+            2,
+            "searchdump-multi: --nodeCompat: Node reads gzip or uncompressed files only, not zstd".into(),
+        ),
+        (
+            dump(&["--nodeCompat", "--maxRows", "5"]),
+            2,
+            "searchdump-multi: --nodeCompat cannot split data: Node multielasticdump 6.x cannot load split parts (it opens INDEX.json or 'undefined' for them); dump without --nodeCompat, or without --fileSize/--maxRows".into(),
+        ),
+        (
+            dump(&["--nodeCompat", "--matchType", "datastream"]),
+            2,
+            "searchdump-multi: --nodeCompat: Node multielasticdump cannot restore data streams (its data runs use the index op); dump them without --nodeCompat".into(),
+        ),
+        (
+            dump(&["--layout", "group"]),
+            2,
+            "searchdump-multi: --layout group needs a capture group in --match, e.g. '^logs-(?P<group>[a-z]+)-'".into(),
+        ),
+        (
+            multi_s(&["--direction", "copy", "--input", dead, "--output", x]),
+            2,
+            "searchdump-multi: --direction copy copies a dump directory between stores; use dump or load for a cluster".into(),
+        ),
+        (
+            multi_s(&["--direction", "copy", "--input", e, "--output", x, "--ca", "x.pem"]),
+            2,
+            "searchdump-multi: --direction copy has no cluster, so --ca/--cert/--key/--pass do not apply; set ca_file= or insecure= in the storage config for an s3:// or b2:// endpoint".into(),
+        ),
+        (
+            multi_s(&["--direction", "load", "--input", missing, "--output", dead]),
+            2,
+            format!("searchdump-multi: dump directory does not exist: {missing}"),
+        ),
+        (
+            multi_s(&["--direction", "load", "--input", e, "--output", dead]),
+            1,
+            format!("nothing in {e} matches --match '^.*$'"),
+        ),
+        (dump(&[]), 2, "searchdump-multi: GET /_cat/indices: error sending request".into()),
+    ];
+    for (args, code, msg) in cases {
+        let o = multi_cmd().args(&args).output().unwrap();
+        let err = stderr(&o);
+        assert_eq!(o.status.code(), Some(code), "{args:?}: {err}");
+        assert!(err.starts_with(&msg), "{args:?}:\n got: {err}\nwant: {msg}");
+        assert!(stdout(&o).is_empty(), "{args:?}: {}", stdout(&o));
+    }
+}
+
+/// L4-S00c: load `--dryRun` over a directory with flat, per-group, Node-named and split files
+/// and a cluster-wide item lists them exactly (stdout), exit 0, nothing contacted.
+#[test]
+fn l4_s00_multi_load_dry_run_listing() {
+    let d = tempfile::tempdir().unwrap();
+    let root = d.path();
+    let w = |rel: &str, body: &str| {
+        let p = root.join(rel);
+        std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+        std::fs::write(p, body).unwrap();
+    };
+    let doc = "{\"_id\":\"1\",\"_source\":{}}\n";
+    w("a.settings.json", r#"{"a":{"settings":{}}}"#);
+    w("a.mapping.json", r#"{"a":{"mappings":{}}}"#);
+    w("a.data.json", doc);
+    w("grp/b.mapping.json", r#"{"b":{"mappings":{}}}"#);
+    w("grp/b.data.json", doc);
+    w("c.json", doc);
+    w("c.settings.json", r#"{"c":{"settings":{}}}"#);
+    w("d.data.split-0.json", doc);
+    w("d.data.split-1.json", doc);
+    w("_cluster/index_template.json", "{}");
+    let o = multi_cmd()
+        .args(["--direction", "load", "--input", root.to_str().unwrap()])
+        .args(["--output", "http://127.0.0.1:1", "--dryRun"])
+        .output()
+        .unwrap();
+    assert_eq!(o.status.code(), Some(0), "{}", stderr(&o));
+    let got = stdout(&o).replace(root.to_str().unwrap(), "DIR");
+    multi_expect("load-dry-run.txt", &got);
+}
+
+/// L4-S00d: dump `--dryRun` against a mock cluster lists every selected index and the files it
+/// would write (stdout), exit 0, and writes nothing.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn l4_s00_multi_dump_dry_run_listing() {
+    use support::router_mock::{Reply, Route, RouterMock};
+    let cat = r#"[{"index":"logs-a","status":"open"},{"index":"logs-b","status":"open"},{"index":"other","status":"open"},{"index":".hidden","status":"open"}]"#;
+    let m = RouterMock::builder()
+        .route(Route::exact("GET", "/").reply(Reply::ok(L2_INFO)))
+        .route(Route::prefix("GET", "/_cat/indices").reply(Reply::ok(cat)))
+        .route(Route::prefix("GET", "/_cat/aliases").reply(Reply::ok("[]")))
+        .route(Route::prefix("GET", "/_data_stream").reply(Reply::ok(r#"{"data_streams":[]}"#)))
+        .fallback(Reply::json(404, r#"{"error":"nope"}"#))
+        .start()
+        .await;
+    let d = tempfile::tempdir().unwrap();
+    let out = d.path().join("out");
+    let url = m.url();
+    let o2 = out.clone();
+    let o = tokio::task::spawn_blocking(move || {
+        multi_cmd()
+            .args([
+                "--direction",
+                "dump",
+                "--input",
+                &url,
+                "--output",
+                o2.to_str().unwrap(),
+            ])
+            .args(["--match", "^logs-", "--fileSize", "10mb", "--dryRun"])
+            .output()
+            .unwrap()
+    })
+    .await
+    .unwrap();
+    assert_eq!(o.status.code(), Some(0), "{}", stderr(&o));
+    let got = stdout(&o).replace(out.to_str().unwrap(), "OUT");
+    multi_expect("dump-dry-run.txt", &got);
+    assert!(!out.exists(), "a dry run writes nothing");
+}
+
+/// L4-S00e: SIGINT to the parent stops the running children and exits 130, naming the
+/// interruption on stderr.
+#[cfg(unix)]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn l4_s00_multi_ctrl_c_exits_130() {
+    use std::os::unix::fs::PermissionsExt;
+    use support::router_mock::{Reply, Route, RouterMock};
+    let m = RouterMock::builder()
+        .route(Route::exact("GET", "/").reply(Reply::ok(L2_INFO)))
+        .route(
+            Route::prefix("GET", "/_cat/indices")
+                .reply(Reply::ok(r#"[{"index":"a","status":"open"}]"#)),
+        )
+        .route(Route::prefix("GET", "/_cat/aliases").reply(Reply::ok("[]")))
+        .route(Route::prefix("GET", "/_data_stream").reply(Reply::ok(r#"{"data_streams":[]}"#)))
+        .fallback(Reply::ok("{}"))
+        .start()
+        .await;
+    let d = tempfile::tempdir().unwrap();
+    // a "searchdump" child that only sleeps
+    let child = d.path().join("slow-child.sh");
+    std::fs::write(&child, "#!/bin/sh\nexec sleep 30\n").unwrap();
+    std::fs::set_permissions(&child, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let logs = d.path().join("logs");
+    let url = m.url();
+    let (dp, l2) = (d.path().to_path_buf(), logs.clone());
+    let o = tokio::task::spawn_blocking(move || {
+        let p = multi_cmd()
+            .args(["--direction", "dump", "--input", &url])
+            .args([
+                "--output",
+                dp.join("out").to_str().unwrap(),
+                "--types",
+                "data",
+            ])
+            .args([
+                "--serverLimits",
+                "off",
+                "--elasticdumpBin",
+                child.to_str().unwrap(),
+            ])
+            .args(["--logDir", l2.to_str().unwrap()])
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        // wait until the child step started (its log file exists)
+        let t0 = std::time::Instant::now();
+        while t0.elapsed() < std::time::Duration::from_secs(20) {
+            if std::fs::read_dir(&l2)
+                .map(|r| r.count() > 0)
+                .unwrap_or(false)
+            {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+        std::thread::sleep(std::time::Duration::from_millis(300));
+        let _ = Command::new("kill")
+            .args(["-INT", &p.id().to_string()])
+            .status();
+        let t1 = std::time::Instant::now();
+        let o = p.wait_with_output().unwrap();
+        assert!(
+            t1.elapsed() < std::time::Duration::from_secs(15),
+            "stopped within the grace time"
+        );
+        o
+    })
+    .await
+    .unwrap();
+    let err = stderr(&o);
+    assert_eq!(o.status.code(), Some(130), "{err}");
+    assert!(err.contains("interrupted: stopping running steps"), "{err}");
+}
