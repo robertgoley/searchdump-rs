@@ -40,8 +40,8 @@ use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result, anyhow, bail};
 use clap::{Parser, ValueEnum};
+use http::Method;
 use regex::Regex;
-use reqwest::Method;
 use searchdump_rs::endpoint::read_auth_file;
 use searchdump_rs::http::gate::RequestGate;
 use searchdump_rs::http::retry::error_chain;
