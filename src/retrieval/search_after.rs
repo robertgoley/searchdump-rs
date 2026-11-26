@@ -53,6 +53,13 @@ pub(crate) async fn run_search_after_slice(
             obj.insert(&"size", n.clone());
         }
         let n = bytes.len() as u64;
+        // L4-003: a page above --pageBytes makes the next ones smaller (this one is kept)
+        super::retrieval_task::shrink_for_page_bytes(
+            ctx,
+            state.slice_id,
+            &mut state.search_body,
+            n,
+        );
         let metadata = process_response_batch(ctx, state, bytes, &SearchType::SearchAfter, n)
             .await
             .map_err(|e| e.into_error())?;

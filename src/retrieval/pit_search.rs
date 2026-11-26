@@ -147,6 +147,16 @@ pub(crate) async fn run_pit_slice(
         }
     };
     let initial_bytes = response_bytes.len() as u64;
+    // L4-003: a page above --pageBytes makes the next ones smaller (this one is kept)
+    if let Some(n) = super::retrieval_task::shrink_for_page_bytes(
+        ctx,
+        state.slice_id,
+        &mut request_body,
+        initial_bytes,
+    ) && let Some(obj) = state.search_body.as_object_mut()
+    {
+        obj.insert(&"size", sonic_rs::json!(n));
+    }
     debug!(
         "Slice {}: Read {} bytes for initial response",
         state.slice_id, initial_bytes
@@ -265,6 +275,15 @@ pub(crate) async fn run_pit_slice(
         };
 
         let batch_bytes = next_response_bytes.len() as u64;
+        if let Some(n) = super::retrieval_task::shrink_for_page_bytes(
+            ctx,
+            state.slice_id,
+            &mut request_body,
+            batch_bytes,
+        ) && let Some(obj) = state.search_body.as_object_mut()
+        {
+            obj.insert(&"size", sonic_rs::json!(n));
+        }
         debug!(
             "Slice {}: Read {} bytes for continuation response",
             state.slice_id, batch_bytes

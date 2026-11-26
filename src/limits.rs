@@ -407,6 +407,17 @@ pub fn page_docs(page_bytes: u64, avg_stored: Option<u64>, max_page: u64) -> u64
     }
 }
 
+/// 1.4 `--pageBytes` (L4-003): the page size for the next pages after a `len`-byte response of
+/// `size` documents came back above `cap` bytes: `size x cap / len` (at least 1, always below
+/// `size`), or `None` when the page fits or is one document already.
+pub fn page_bytes_shrink(size: u64, len: u64, cap: u64) -> Option<u64> {
+    if size <= 1 || cap == 0 || len <= cap {
+        return None;
+    }
+    let smaller = ((size as u128 * cap as u128) / len as u128) as u64;
+    Some(smaller.clamp(1, size - 1))
+}
+
 /// Bytes per bulk request for `workers` bulks in flight (concurrency x parallel), never above
 /// the request cap. 1.3 floor: never below [`BULK_FLOOR_BYTES`] unless the run's whole bulk
 /// budget (from indexing pressure, a configured node-wide limit) split over the workers is
@@ -1098,6 +1109,16 @@ mod tests {
     #[test]
     fn floor_clamps_the_429_page_halving() {
         assert_eq!(halved_page(5000, true), 2500);
+        // L4-003 --pageBytes: proportional, below the old size, at least 1, None when it fits
+        assert_eq!(page_bytes_shrink(1000, 4 << 20, 1 << 20), Some(250));
+        assert_eq!(page_bytes_shrink(1000, 1001 << 10, 1000 << 10), Some(999));
+        assert_eq!(page_bytes_shrink(10, 100 << 20, 1 << 10), Some(1));
+        assert_eq!(page_bytes_shrink(1000, 1 << 20, 1 << 20), None);
+        assert_eq!(page_bytes_shrink(1, 100 << 20, 1 << 10), None);
+        assert_eq!(
+            page_bytes_shrink(u64::MAX, u64::MAX, u64::MAX - 1),
+            Some(u64::MAX - 1)
+        );
         assert_eq!(halved_page(30, true), 15);
         assert_eq!(halved_page(15, true), PAGE_FLOOR_DOCS);
         assert_eq!(halved_page(11, true), PAGE_FLOOR_DOCS);

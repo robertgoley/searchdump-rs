@@ -865,6 +865,7 @@ async fn es_source_options(
         quiet: cli.quiet(),
         retry,
         resume_scroll_id: cli.scroll_id.clone(),
+        page_bytes: cli.page_bytes,
         reconcile_total: cli.size < 0 && cli.offset == 0 && cli.scroll_id.is_none(),
     })
 }
@@ -1346,6 +1347,18 @@ async fn server_limits(
         Endpoint::Es(ep) => Some(ep),
         _ => None,
     };
+    if cli.page_bytes.is_some() {
+        if cli.r#type != DumpType::Data || es_in.is_none() {
+            log::warn!("--pageBytes only applies to dumping data from a cluster; ignored");
+        } else if cli.max_response_mb > 0
+            && cli.page_bytes.unwrap_or(0) > (cli.max_response_mb as u64) << 20
+        {
+            log::warn!(
+                "--pageBytes is above --maxResponseMb={}; a page above that still fails",
+                cli.max_response_mb
+            );
+        }
+    }
     if cli.r#type != DumpType::Data || (es_in.is_none() && es_out.is_none()) {
         if mode == Mode::Check {
             eprintln!("server limits: nothing to size (not a data run against a cluster) [check]");
@@ -1354,7 +1367,31 @@ async fn server_limits(
         return Ok(SizingOutcome::Go);
     }
     if mode == Mode::Off {
-        limits::record(serde_json::json!({"mode": "off", "source": "off"}));
+        let mut record = serde_json::json!({"mode": "off", "source": "off"});
+        // L4-003: --pageBytes still sizes the page from the index's average document (one
+        // read-only `_stats` call, made only because the flag was given)
+        if let (Some(pb), Some(ep)) = (cli.page_bytes, es_in) {
+            let client = config::build_client(
+                cli,
+                ep,
+                Direction::Input,
+                crate::http::gate::RequestGate::new(None, None),
+            )?;
+            let avg = match ep.index.as_deref() {
+                Some(i) => limits::avg_doc_bytes(&client, i).await,
+                None => None,
+            };
+            let (page, word) = page_bytes_page(cli.limit as u64, pb, avg);
+            if !cli.quiet() {
+                eprintln!("server limits: off; {word}");
+            }
+            if page < cli.limit as u64 {
+                cli.limit = page as usize;
+            }
+            record["page_bytes"] = pb.into();
+            record["limit"] = (cli.limit as u64).into();
+        }
+        limits::record(record);
         return Ok(SizingOutcome::Go);
     }
     let probe_one = |ep: &endpoint::EsEndpoint, dir: Direction| {
@@ -1385,6 +1422,7 @@ async fn server_limits(
     let mut fallback = true;
     let mut new_limit: Option<usize> = None;
     let mut new_bulk: Option<u64> = None;
+    let mut pb_word: Option<String> = None;
     // dump side: documents per page from the input's limits
     if let Some(ep) = es_in {
         let (client, l) = probe_one(ep, Direction::Input).await?;
@@ -1403,29 +1441,39 @@ async fn server_limits(
             let lanes = (cli.slices.max(1) as u64).max(1);
             let per_page = b.page_bytes.min(b.inflight_bytes / lanes);
             let fit = limits::page_docs(per_page, avg, u64::MAX);
-            let page = (cli.limit as u64).min(fit);
+            let base = if explicit.limit {
+                cli.limit as u64
+            } else {
+                (cli.limit as u64).min(fit)
+            };
+            // L4-003: --pageBytes lowers the page further (never raises it); below the 1.3
+            // floor too, since the user asked for it
+            let page = match cli.page_bytes {
+                Some(pb) => page_bytes_page(base, pb, avg).0,
+                None => base,
+            };
             let mut line = format!(
-                "page {} docs{}",
-                if explicit.limit {
-                    cli.limit as u64
-                } else {
-                    page
-                },
+                "page {page} docs{}{}",
                 avg.map(|a| format!(
                     " (~{} KB stored each, budget {} MB)",
                     a.div_ceil(1024),
                     per_page >> 20
                 ))
-                .unwrap_or_default()
+                .unwrap_or_default(),
+                match cli.page_bytes {
+                    Some(pb) if page < base => format!(" (--pageBytes {} KB)", pb.div_ceil(1024)),
+                    _ => String::new(),
+                }
             );
-            if explicit.limit && cli.limit as u64 > fit {
+            if explicit.limit && page > fit {
                 too_big.push(format!(
                     "--limit={} needs ~{} MB per page; the input's smallest node allows ~{} MB (about {fit} documents)",
-                    cli.limit,
-                    (cli.limit as u64 * avg.unwrap_or(0) * limits::EXPANSION) >> 20,
+                    page,
+                    (page * avg.unwrap_or(0) * limits::EXPANSION) >> 20,
                     per_page >> 20
                 ));
-            } else if !explicit.limit && page < cli.limit as u64 {
+            }
+            if page < cli.limit as u64 {
                 line.push_str(&format!(" (tightened from {})", cli.limit));
                 if mode != Mode::Check {
                     new_limit = Some(page as usize);
@@ -1443,19 +1491,36 @@ async fn server_limits(
                     cli.max_response_mb
                 ));
             }
+            if let Some(pb) = cli.page_bytes {
+                record.insert("page_bytes".into(), pb.into());
+            }
             words.push(line);
             if mode == Mode::Check
                 && let Some(bm) = limits::budget(&l, Mode::Min, response_cap)
             {
                 let pm =
                     limits::page_docs(bm.page_bytes.min(bm.inflight_bytes / lanes), avg, u64::MAX)
-                        .min(cli.limit as u64);
+                        .min(cli.limit as u64)
+                        .min(page);
                 words.push(format!("(min: page {pm} docs)"));
             }
             record.insert(
                 "limit".into(),
                 (new_limit.unwrap_or(cli.limit) as u64).into(),
             );
+        } else if let Some(pb) = cli.page_bytes {
+            // L4-003: the probe fell back; --pageBytes still sizes the page
+            let avg = match ep.index.as_deref() {
+                Some(i) => limits::avg_doc_bytes(&client, i).await,
+                None => None,
+            };
+            let (page, word) = page_bytes_page(cli.limit as u64, pb, avg);
+            pb_word = Some(word);
+            if page < cli.limit as u64 && mode != Mode::Check {
+                new_limit = Some(page as usize);
+            }
+            record.insert("page_bytes".into(), pb.into());
+            record.insert("limit".into(), page.into());
         }
         record.insert("input".into(), limits::to_json(&l, mode, b.as_ref()));
     }
@@ -1523,11 +1588,14 @@ async fn server_limits(
     if new_bulk.is_some() {
         cli.server_bulk_bytes = new_bulk;
     }
-    let tail = if fallback {
+    let mut tail = if fallback {
         "fixed 1.1 defaults".to_string()
     } else {
         words.join(", ")
     };
+    if let Some(w) = pb_word {
+        tail.push_str(&format!("; {w}"));
+    }
     eprintln_unless_quiet(
         cli,
         mode,
@@ -1550,6 +1618,37 @@ async fn server_limits(
     } else {
         SizingOutcome::Go
     })
+}
+
+/// L4-003 `--pageBytes`: the page (documents) for a `pb`-byte cap given the index's average
+/// stored document size, never above `limit`, and the words that say so. With the size unknown
+/// (no single index, `_stats` refused) the page stays and later pages shrink at run time.
+fn page_bytes_page(limit: u64, pb: u64, avg: Option<u64>) -> (u64, String) {
+    match avg {
+        Some(a) if a > 0 => {
+            let page = limits::page_docs(pb, Some(a), limit.max(1));
+            (
+                page,
+                format!(
+                    "--pageBytes {} KB: page {page} docs (~{} KB stored each){}",
+                    pb.div_ceil(1024),
+                    a.div_ceil(1024),
+                    if page < limit {
+                        format!(" (tightened from {limit})")
+                    } else {
+                        String::new()
+                    }
+                ),
+            )
+        }
+        _ => (
+            limit,
+            format!(
+                "--pageBytes {} KB: average document size unknown, page {limit} docs until a page comes back bigger",
+                pb.div_ceil(1024)
+            ),
+        ),
+    }
 }
 
 fn eprintln_unless_quiet(cli: &Cli, mode: limits::Mode, line: &str) {

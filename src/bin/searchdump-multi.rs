@@ -174,6 +174,8 @@ pub mod sizing {
         pub page_cap: u64,
         /// Bulk bytes per load worker.
         pub bulk_bytes: u64,
+        /// 1.4 `--pageBytes` (L4-003): the user's page byte cap, if any.
+        pub page_bytes: Option<u64>,
     }
 
     /// One index's sizes.
@@ -228,6 +230,7 @@ pub mod sizing {
                 fit_parallel: parallel,
                 page_cap: 0,
                 bulk_bytes: OFF_BULK,
+                page_bytes: None,
             };
             let Some(b) = budget else {
                 // a fallback on AWS OpenSearch Service still keeps bulks at the 10 MiB floor
@@ -253,26 +256,50 @@ pub mod sizing {
             plan
         }
 
+        /// 1.4 `--pageBytes` (L4-003): cap every dump page at `pb` bytes too. With a budget the
+        /// page cap becomes the smaller of the two (below the 1.3 floor as well: the user asked
+        /// for it); without one (`off`, a fallback) each index's page is cut to fit `pb`.
+        pub fn with_page_bytes(mut self, pb: Option<u64>) -> Self {
+            self.page_bytes = pb;
+            if let (Some(p), Some(_)) = (pb, self.budget) {
+                self.page_cap = self.page_cap.min(p);
+            }
+            self
+        }
+
         /// Sizes for a dump of one index.
         pub fn dump(&self, s: Option<Stats>) -> IndexSize {
             match self.budget {
                 None => {
-                    let limit = avg(s).map_or(OFF_LIMIT, page_limit_for);
+                    let fixed = avg(s).map_or(OFF_LIMIT, page_limit_for);
+                    let limit = match self.page_bytes {
+                        Some(p) if !self.no_defaults => limits::page_docs(p, avg(s), fixed),
+                        _ => fixed,
+                    };
                     IndexSize {
                         limit,
                         max_bulk_bytes: OFF_BULK,
-                        reason: if self.limits.is_some() {
+                        reason: if limit < fixed {
+                            "page-bytes"
+                        } else if self.limits.is_some() {
                             "fallback"
                         } else {
                             "off"
                         },
-                        page_bytes: 0,
+                        page_bytes: if limit < fixed {
+                            page_estimate(limit, s)
+                        } else {
+                            0
+                        },
                     }
                 }
                 Some(b) => {
                     let limit = limits::page_docs(self.page_cap, avg(s), limits::MULTI_MAX_PAGE);
                     let reason = if limit >= limits::MULTI_MAX_PAGE {
                         "default"
+                    } else if self.page_bytes == Some(self.page_cap) && self.page_cap < b.page_bytes
+                    {
+                        "page-bytes"
                     } else if self.page_cap < b.page_bytes {
                         "budget"
                     } else {
@@ -688,6 +715,12 @@ pub struct Args {
     /// when a flag after -- exceeds them)
     #[arg(long = "serverLimits", value_parser = searchdump_rs::limits::parse_mode)]
     pub server_limits: Option<searchdump_rs::limits::Mode>,
+    /// 1.4: cap each dump page at about this many bytes (e.g. 8mb): pages are sized from each
+    /// index's average document within the --serverLimits budget (or alone with off), and
+    /// every searchdump child gets --pageBytes so a page that still comes back bigger shrinks
+    /// the next ones. Dump only
+    #[arg(long = "pageBytes", value_parser = searchdump_rs::cli::parse_page_bytes)]
+    pub page_bytes: Option<u64>,
     /// Print the selected indices and the files they map to, then exit
     #[arg(long = "dryRun", alias = "dry-run")]
     pub dry_run: bool,
@@ -2490,7 +2523,8 @@ async fn plan_sizes(
         }
     }
     let per: Vec<Option<sizing::Stats>> = targets.iter().map(|t| stats.get(t).copied()).collect();
-    let plan = sizing::Plan::new(mode, no_defaults, probed, ctx.args.parallel, &per);
+    let plan = sizing::Plan::new(mode, no_defaults, probed, ctx.args.parallel, &per)
+        .with_page_bytes(ctx.args.page_bytes);
     eprintln!("{}", plan.line());
     let json = match &plan.limits {
         Some(l) => limits::to_json(l, mode, plan.budget.as_ref()),
@@ -2681,6 +2715,13 @@ async fn dump_one(
                 }
                 if let Some(n) = ctx.args.max_rows {
                     extra.push(format!("--maxRows={n}"));
+                }
+                // L4-003: the child keeps the --pageBytes cap at run time (a page that comes
+                // back bigger than the estimate shrinks the next ones); Node cannot
+                if let Some(p) = ctx.args.page_bytes
+                    && ctx.runner.server_limits
+                {
+                    extra.push(format!("--pageBytes={p}"));
                 }
                 // 1.2: this index's sizes from the parent's plan (one stats call for all
                 // indices, no per-index probe); the user's flags after `--` still win.
@@ -3137,9 +3178,13 @@ async fn run(mut args: Args) -> Result<i32> {
                     "--direction copy has no cluster, so --ca/--cert/--key/--pass do not apply; set ca_file= or insecure= in the storage config for an s3:// or b2:// endpoint"
                 );
             }
-            if args.node_compat || args.file_size.is_some() || args.max_rows.is_some() {
+            if args.node_compat
+                || args.file_size.is_some()
+                || args.max_rows.is_some()
+                || args.page_bytes.is_some()
+            {
                 bail!(
-                    "--direction copy copies the files as they are (format, compression and split parts kept); --nodeCompat, --fileSize and --maxRows do not apply"
+                    "--direction copy copies the files as they are (format, compression and split parts kept); --nodeCompat, --fileSize, --maxRows and --pageBytes do not apply"
                 );
             }
             #[cfg(feature = "opendal")]
@@ -3264,6 +3309,9 @@ fn staging_dir(args: &Args) -> Result<(PathBuf, bool)> {
 async fn run_local(args: Args) -> Result<i32> {
     if args.direction == Direction::Load && (args.file_size.is_some() || args.max_rows.is_some()) {
         bail!("--fileSize/--maxRows apply to dumps; load finds split parts on its own");
+    }
+    if args.direction != Direction::Dump && args.page_bytes.is_some() {
+        bail!("--pageBytes applies to dumps (it caps the search pages read from the cluster)");
     }
     if args.node_compat {
         if args.direction == Direction::Load {
@@ -3392,6 +3440,12 @@ async fn run_local(args: Args) -> Result<i32> {
         bail!(
             "a key passphrase is passed to searchdump through ${}, which {} does not read; use searchdump, or an unencrypted key",
             searchdump_rs::config::tls_pass_env(side),
+            bin.display()
+        );
+    }
+    if args.page_bytes.is_some() && !server_limits {
+        eprintln!(
+            "warning: {} does not take --pageBytes; it only sizes the pages from the index statistics",
             bin.display()
         );
     }
@@ -4142,6 +4196,42 @@ mod tests {
         assert_eq!(
             Plan::new(Mode::Auto, false, Some(lim(256 << 20)), 1, &[big]).fit_parallel,
             1
+        );
+        // L4-003 --pageBytes: the smaller of it and the budget; 4 MB of 400-byte documents
+        // (x3 expansion) is 3495 per page, ~80 KB ones 17; below the 1.3 floor too
+        let pb = Plan::new(Mode::Auto, false, Some(lim(1 << 30)), 8, &[small, big])
+            .with_page_bytes(Some(4 << 20));
+        assert_eq!(pb.dump(small).limit, (4u64 << 20) / (400 * 3));
+        assert_eq!(pb.dump(small).reason, "page-bytes");
+        assert_eq!(pb.dump(big).limit, (4u64 << 20) / (80 * 1024 * 3));
+        let tiny = Plan::new(Mode::Auto, false, Some(lim(1 << 30)), 8, &[small])
+            .with_page_bytes(Some(100_000));
+        assert_eq!(tiny.dump(small).limit, 83);
+        // a cap above the budget changes nothing
+        let wide = Plan::new(Mode::Auto, false, Some(lim(1 << 30)), 8, &[small, big])
+            .with_page_bytes(Some(1 << 40));
+        assert_eq!(wide.dump(small), roomy.dump(small));
+        assert_eq!(wide.dump(big), roomy.dump(big));
+        // off and a fallback: each index cut to fit, never above the 1.1 page
+        let off = Plan::new(Mode::Off, false, None, 8, &[]).with_page_bytes(Some(1 << 20));
+        assert_eq!(off.dump(small).limit, 873);
+        assert_eq!(off.dump(small).reason, "page-bytes");
+        assert_eq!(off.dump(big).limit, 4);
+        assert_eq!(
+            off.dump(None).limit,
+            super::sizing::OFF_LIMIT,
+            "size unknown"
+        );
+        assert_eq!(off.dump(None).reason, "off");
+        let off_wide = Plan::new(Mode::Off, false, None, 8, &[]).with_page_bytes(Some(1 << 30));
+        assert_eq!(off_wide.dump(small).limit, 1000);
+        assert_eq!(off_wide.dump(small).reason, "off");
+        // --noDefaultDataFlags: no sizing at all (the child still gets --pageBytes)
+        let nd = Plan::new(Mode::Off, true, None, 8, &[]).with_page_bytes(Some(1 << 20));
+        assert!(
+            nd.flags(&nd.dump(small), true)
+                .iter()
+                .all(|f| !f.starts_with("--limit"))
         );
     }
 

@@ -383,3 +383,174 @@ async fn xv_data_stream_restores_into_the_stream_with_create() {
     c.ok("DELETE", &format!("_index_template/{stream}"), None)
         .await;
 }
+
+/// L4-003 `--pageBytes`: 120 documents of ~3 KB (incompressible) against a 48 KB cap. searchdump
+/// sizes the first page from the index's average stored document (scroll and search_after,
+/// `--serverLimits` auto and off) and keeps later pages under the cap; searchdump-multi records
+/// the `page-bytes` sizing, passes `--pageBytes` to the data child, and every document arrives.
+#[tokio::test]
+async fn l4_003_page_bytes_caps_dump_pages() {
+    let c = Cluster::from_env();
+    let index = unique("pagebytes");
+    c.delete_index(&index).await;
+    c.ok(
+        "PUT",
+        &index,
+        Some(json!({"settings": {"number_of_shards": 1, "number_of_replicas": 0}})),
+    )
+    .await;
+    let mut nd = String::new();
+    let mut x: u64 = 0x9E37_79B9_7F4A_7C15;
+    for i in 0..120u64 {
+        let mut pad = String::with_capacity(3000);
+        while pad.len() < 3000 {
+            // xorshift: incompressible, so stored size ~ source size
+            x ^= x << 13;
+            x ^= x >> 7;
+            x ^= x << 17;
+            pad.push_str(&format!("{x:016x}"));
+        }
+        nd.push_str(&json!({"index": {"_index": &index, "_id": i.to_string()}}).to_string());
+        nd.push('\n');
+        nd.push_str(&json!({"n": i, "pad": pad}).to_string());
+        nd.push('\n');
+    }
+    c.bulk_raw(nd).await;
+    c.ok("POST", &format!("{index}/_flush"), None).await;
+    let cap: u64 = 48 * 1024;
+    for (label, extra) in [
+        ("scroll-auto", vec![]),
+        ("scroll-off", vec!["--serverLimits", "off"]),
+        (
+            "search-after",
+            vec![
+                "--searchAfter",
+                "--searchBody",
+                r#"{"query":{"match_all":{}},"sort":[{"n":"asc"}]}"#,
+            ],
+        ),
+    ] {
+        let out = tmp_path("pagebytes", "json");
+        let mut a = s(&[
+            "--input",
+            &c.url_with_auth(&index),
+            "--output",
+            out.to_str().unwrap(),
+        ]);
+        a.extend(c.tls_args("input"));
+        a.extend(s(&[
+            "--pageBytes",
+            &cap.to_string(),
+            "--limit",
+            "100",
+            "--debug",
+        ]));
+        a.extend(s(&extra));
+        let o = run_loud(a).await;
+        let err = String::from_utf8_lossy(&o.stderr).into_owned();
+        assert!(
+            o.status.success(),
+            "{label}: {}",
+            err.lines().rev().take(30).collect::<Vec<_>>().join("\n")
+        );
+        assert_eq!(lines(&out).len(), 120, "{label}");
+        let first = err
+            .lines()
+            .find(|l| l.contains("--pageBytes") && l.contains(" docs"))
+            .unwrap_or_else(|| {
+                panic!(
+                    "{label}: no sizing line: {:?}",
+                    err.lines()
+                        .filter(|l| l.contains("limits") || l.contains("pageBytes"))
+                        .collect::<Vec<_>>()
+                )
+            });
+        // 48 KB / (~3 KB x 3) = 5 documents (stored size varies a little)
+        let page: u64 = first
+            .split("page ")
+            .nth(1)
+            .and_then(|r| r.split(' ').next())
+            .and_then(|n| n.parse().ok())
+            .unwrap_or_else(|| panic!("{label}: {first}"));
+        assert!((2..=8).contains(&page), "{label}: {first}");
+        // every page read after the first is under the cap
+        let reads: Vec<u64> = err
+            .lines()
+            .filter_map(|l| l.split("Read ").nth(1))
+            .filter_map(|r| r.split(' ').next()?.parse().ok())
+            .collect();
+        if label == "search-after" {
+            // no byte lines on this path: every page asks for at most the sized page
+            let pages: Vec<u64> = err
+                .lines()
+                .filter_map(|l| l.split("search_after page with ").nth(1))
+                .filter_map(|r| r.split(' ').next()?.parse().ok())
+                .collect();
+            assert!(pages.len() >= 120 / page as usize, "{label}: {pages:?}");
+            assert!(pages.iter().all(|&n| n <= page), "{label}: {pages:?}");
+        } else {
+            assert!(!reads.is_empty(), "{label}: no read lines");
+            assert!(
+                reads.iter().skip(1).all(|&n| n <= cap),
+                "{label}: {reads:?}"
+            );
+        }
+        let _ = std::fs::remove_file(&out);
+    }
+
+    // searchdump-multi: sizing recorded, flag passed to the data child
+    let dir = tmp_path("pagebytes_multi", "d");
+    let logs = tmp_path("pagebytes_multi_logs", "d");
+    let mut a = s(&[
+        "--direction",
+        "dump",
+        "--input",
+        &c.url_with_auth(""),
+        "--output",
+        dir.to_str().unwrap(),
+        "--match",
+        &format!("^{index}$"),
+        "--logDir",
+        logs.to_str().unwrap(),
+        "--pageBytes",
+        &cap.to_string(),
+    ]);
+    a.extend(c.tls_args("input"));
+    let o = tokio::task::spawn_blocking(move || {
+        std::process::Command::new(env!("CARGO_BIN_EXE_searchdump-multi"))
+            .args(&a)
+            .env("SEARCHDUMP_BIN", bin())
+            .output()
+            .unwrap()
+    })
+    .await
+    .unwrap();
+    let err = String::from_utf8_lossy(&o.stderr).into_owned();
+    assert!(o.status.success(), "{err}");
+    let manifest: Value =
+        serde_json::from_str(&std::fs::read_to_string(dir.join("multielasticdump.json")).unwrap())
+            .unwrap();
+    let sizing = &manifest["indices"][&index]["sizing"];
+    assert_eq!(sizing["reason"], "page-bytes", "{manifest}");
+    let limit = sizing["limit"].as_u64().unwrap();
+    assert!((2..=8).contains(&limit), "{sizing}");
+    let log = std::fs::read_to_string(logs.join(format!("{index}.data.log"))).unwrap_or_default();
+    assert!(
+        !log.contains("above --pageBytes") || log.contains("asking for"),
+        "{log}"
+    );
+    let data: Vec<String> = std::fs::read_dir(&dir)
+        .unwrap()
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| {
+            p.to_string_lossy().contains(".data")
+                || p.to_string_lossy().ends_with(".json") && p.to_string_lossy().contains(&index)
+        })
+        .map(|p| p.display().to_string())
+        .collect();
+    assert!(!data.is_empty(), "{data:?}");
+    c.delete_index(&index).await;
+    let _ = std::fs::remove_dir_all(&dir);
+    let _ = std::fs::remove_dir_all(&logs);
+}

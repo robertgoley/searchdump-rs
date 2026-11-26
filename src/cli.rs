@@ -104,6 +104,26 @@ fn parse_non_zero_usize(value: &str) -> Result<usize, String> {
     Ok(parsed)
 }
 
+/// `--pageBytes` (1.4, L4-003): a size such as `8mb`, `512kb` or a plain byte count (units as
+/// in `--maxBulkBytes`: `kb` = 1000, `kib` = 1024); at least 1000 bytes. `0` is refused (leave
+/// the flag out for no cap).
+pub fn parse_page_bytes(value: &str) -> Result<u64, String> {
+    let v = value.trim();
+    let bytes = match v.parse::<u64>() {
+        Ok(n) => n,
+        Err(_) => v
+            .parse::<bytesize::ByteSize>()
+            .map(|b| b.as_u64())
+            .map_err(|_| format!("'{value}' is not a size (for example 8mb, 512kb or 1048576)"))?,
+    };
+    if bytes < 1000 {
+        return Err(format!(
+            "'{value}' is below 1kb; a page is at least one document (leave --pageBytes out for no cap)"
+        ));
+    }
+    Ok(bytes)
+}
+
 fn parse_type(value: &str) -> Result<DumpType, String> {
     DumpType::parse(value)
 }
@@ -451,6 +471,14 @@ pub struct Cli {
     /// seconds, so a stalled server cannot hang the run forever (0 = never)
     #[arg(long = "idleTimeout", default_value_t = 300)]
     pub idle_timeout_secs: u64,
+
+    /// Extension (1.4): cap each dump page (search response) at about this many bytes, e.g. 8mb.
+    /// Pages are sized from the index's average document size at the start (with
+    /// --serverLimits auto/min the smaller of this and the cluster's page budget; with off too),
+    /// and a page that still comes back bigger shrinks the next pages (search_after/PIT) or
+    /// restarts the scroll with a smaller page. Never raises --limit
+    #[arg(long = "pageBytes", value_parser = parse_page_bytes)]
+    pub page_bytes: Option<u64>,
 
     /// Extension: largest HTTP response body read into memory, in MB (0 = unlimited); a
     /// bigger page fails with a hint to lower --limit instead of exhausting memory

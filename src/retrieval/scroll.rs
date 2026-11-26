@@ -1,6 +1,6 @@
 use anyhow::{Result, anyhow};
 use log::{debug, info};
-use sonic_rs::{Value, json};
+use sonic_rs::{JsonValueTrait, Value, json};
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::cli::SearchType;
@@ -108,25 +108,48 @@ pub(crate) async fn run_scroll_slice(
         .await
         .map_err(resume_failure)?
     } else {
-        // 1.2-1c: a circuit-breaker 429 halves the page (the scroll's size is fixed by this
-        // request, so every continuation page is the smaller size too).
-        send_page_halving(
-            ctx,
-            slice_id,
-            "initial search",
-            RetryMode::Idempotent,
-            &mut state.search_body,
-            move |body| {
-                if initial_attempted.swap(true, Ordering::Relaxed) {
-                    debug!(
-                        "Slice {}: retrying initial search; a previous attempt whose response was lost may strand a scroll context until its TTL expires",
-                        slice_id
-                    );
-                }
-                ctx.scroll_search(scroll_ttl, body)
-            },
-        )
-        .await?
+        loop {
+            initial_attempted.store(false, Ordering::Relaxed);
+            // 1.2-1c: a circuit-breaker 429 halves the page (the scroll's size is fixed by this
+            // request, so every continuation page is the smaller size too).
+            let bytes = send_page_halving(
+                ctx,
+                slice_id,
+                "initial search",
+                RetryMode::Idempotent,
+                &mut state.search_body,
+                move |body| {
+                    if initial_attempted.swap(true, Ordering::Relaxed) {
+                        debug!(
+                            "Slice {}: retrying initial search; a previous attempt whose response was lost may strand a scroll context until its TTL expires",
+                            slice_id
+                        );
+                    }
+                    ctx.scroll_search(scroll_ttl, body)
+                },
+            )
+            .await?;
+            // L4-003: a scroll keeps the first page's size, so a first page above --pageBytes
+            // is dropped unread, its scroll cleared, and the scroll started again smaller
+            let len = bytes.len() as u64;
+            let Some(smaller) = super::retrieval_task::shrink_for_page_bytes(
+                ctx,
+                slice_id,
+                &mut state.search_body,
+                len,
+            ) else {
+                break bytes;
+            };
+            debug!("Slice {slice_id}: restarting the scroll with {smaller} documents per page");
+            if let Ok(id) = sonic_rs::get(&*bytes, ["_scroll_id"])
+                && let Some(id) = id.as_str()
+            {
+                cleanup_search_context(&ctx.client, &SearchType::Scroll, id, slice_id).await;
+            }
+            if ctx.cancel.is_cancelled() {
+                return Err(anyhow::Error::new(DumpCancelled));
+            }
+        }
     };
     let initial_bytes = response_bytes.len() as u64;
     debug!(

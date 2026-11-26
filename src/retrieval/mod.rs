@@ -182,6 +182,8 @@ pub struct EsSourceOptions {
     pub retry: RetryPolicy,
     /// `--scrollId`
     pub resume_scroll_id: Option<String>,
+    /// 1.4 `--pageBytes`: shrink later pages when a response comes back above this.
+    pub page_bytes: Option<u64>,
     /// Compare the documents retrieved with the server's exact `hits.total` at the end
     /// (false with `--size`/`--offset` or `--scrollId`, where fewer documents are expected).
     pub reconcile_total: bool,
@@ -525,6 +527,7 @@ pub async fn dump_data(
         cancel: cancel.clone(),
         retry,
         resume_scroll_id: opts.resume_scroll_id.as_deref().map(Arc::<str>::from),
+        page_bytes: opts.page_bytes,
     };
 
     debug!(

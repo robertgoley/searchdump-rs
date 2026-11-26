@@ -32,6 +32,8 @@ pub(crate) struct RetrievalContext {
     pub(crate) retry: RetryPolicy,
     /// `--scrollId`: resume this scroll instead of running an initial search.
     pub(crate) resume_scroll_id: Option<std::sync::Arc<str>>,
+    /// 1.4 `--pageBytes` (L4-003): a page response above this shrinks the next pages.
+    pub(crate) page_bytes: Option<u64>,
 }
 
 impl RetrievalContext {

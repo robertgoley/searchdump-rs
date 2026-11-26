@@ -104,6 +104,30 @@ where
     }
 }
 
+/// 1.4 `--pageBytes` (L4-003): after a `len`-byte page of `body["size"]` documents came back
+/// above the cap, set the size of `body` for the next pages proportionally smaller (never
+/// larger again in this run) and return it; `None` when there is no cap or the page fit.
+pub(crate) fn shrink_for_page_bytes(
+    ctx: &RetrievalContext,
+    slice_id: usize,
+    body: &mut Value,
+    len: u64,
+) -> Option<u64> {
+    let cap = ctx.page_bytes?;
+    let size = body["size"].as_u64()?;
+    let smaller = crate::limits::page_bytes_shrink(size, len, cap)?;
+    // a warning like the 429 halving: it changes the run's page for good (and repeats at most
+    // a few times, as the page only ever gets smaller)
+    log::warn!(
+        "Slice {slice_id}: a page of {size} documents was {} KB, above --pageBytes {} KB; asking for {smaller} documents per page from now on",
+        len.div_ceil(1024),
+        cap.div_ceil(1024)
+    );
+    body.as_object_mut()?
+        .insert(&"size", sonic_rs::json!(smaller));
+    Some(smaller)
+}
+
 /// Default PIT sort when the user supplied none: `["_shard_doc"]` on
 /// Elasticsearch, `[{"_doc":"asc"},{"_id":"asc"}]` on OpenSearch (which
 /// rejects `_shard_doc` and loses documents with a `_doc`-only sort).
@@ -411,6 +435,7 @@ mod tests {
             cancel: tokio_util::sync::CancellationToken::new(),
             retry: super::RetryPolicy::none(),
             resume_scroll_id: None,
+            page_bytes: None,
         }
     }
 

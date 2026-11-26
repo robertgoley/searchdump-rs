@@ -6838,3 +6838,259 @@ async fn l2_003_scroll_breaker_429_halves_the_page() {
     let searches = count(&m.requests(), "POST", "/idx/_search");
     assert_eq!(searches, 2, "one refused, one at half size");
 }
+
+// ------------------------------------------------------------------ L4-003 --pageBytes
+
+fn fat_hit(id: &str, sort: Option<u64>) -> String {
+    let pad = "x".repeat(400);
+    match sort {
+        Some(n) => format!(
+            r#"{{"_index":"idx","_id":"{id}","_score":null,"_source":{{"pad":"{pad}"}},"sort":[{n}]}}"#
+        ),
+        None => hit(id, &format!(r#"{{"pad":"{pad}"}}"#)),
+    }
+}
+
+fn search_sizes(m: &RouterMock) -> Vec<u64> {
+    m.requests()
+        .iter()
+        .filter(|r| r.method == "POST" && r.path.starts_with("/idx/_search"))
+        .filter_map(|r| serde_json::from_slice::<serde_json::Value>(&r.body).ok())
+        .filter_map(|b| b["size"].as_u64())
+        .collect()
+}
+
+/// L4-003: a scroll keeps its first page's size, so a first page above --pageBytes is dropped
+/// unread, its scroll context cleared, and the scroll started again with a proportionally
+/// smaller page; every document comes from the restarted scroll exactly once. With
+/// `--serverLimits off` and no index stats (404) the start-up line says the size is unknown.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn l4_003_page_bytes_restarts_a_too_big_scroll_smaller() {
+    let dir = tempfile::tempdir().unwrap();
+    let out = dir.path().join("out.json");
+    let fat: Vec<String> = (0..8).map(|i| fat_hit(&format!("big{i}"), None)).collect();
+    let small: Vec<String> = (0..4)
+        .map(|i| hit(&format!("h{i}"), r#"{"f":1}"#))
+        .collect();
+    let m = RouterMock::builder()
+        .route(Route::exact("GET", "/").reply(Reply::ok(INFO)))
+        .route(
+            Route::prefix("POST", "/idx/_search")
+                .body_contains("\"size\":8")
+                .reply(Reply::ok(page("fat-scroll", &fat, 12))),
+        )
+        .route(Route::prefix("POST", "/idx/_search").reply(Reply::ok(page("s1", &small, 4))))
+        .route(Route::exact("POST", "/_search/scroll").reply(Reply::ok(page("s1", &[], 4))))
+        .route(Route::prefix("DELETE", "/_search/scroll").reply(Reply::ok(CLEARED)))
+        .fallback(Reply::json(404, r#"{"error":"nope"}"#))
+        .start()
+        .await;
+    let o = run_async(
+        s(&[
+            "--input",
+            &format!("{}/idx", m.url()),
+            "--output",
+            out.to_str().unwrap(),
+            "--limit",
+            "8",
+            "--pageBytes",
+            "1kb",
+            "--serverLimits",
+            "off",
+        ]),
+        vec![],
+    )
+    .await;
+    let e = stderr(&o);
+    assert_eq!(o.status.code(), Some(0), "{e}");
+    assert!(
+        e.contains("--pageBytes 1 KB: average document size unknown"),
+        "{e}"
+    );
+    assert!(e.contains("above --pageBytes 1 KB"), "{e}");
+    let sizes = search_sizes(&m);
+    assert_eq!(sizes.len(), 2, "{sizes:?}");
+    assert_eq!(sizes[0], 8);
+    assert!(sizes[1] >= 1 && sizes[1] < 8, "{sizes:?}");
+    let cleared: Vec<String> = m
+        .requests()
+        .iter()
+        .filter(|r| r.method == "DELETE")
+        .map(|r| r.body_str())
+        .collect();
+    assert!(
+        cleared.iter().any(|b| b.contains("fat-scroll")),
+        "{cleared:?}"
+    );
+    let written = std::fs::read_to_string(&out).unwrap();
+    assert_eq!(written.lines().count(), 4, "{written}");
+    assert!(!written.contains("big"), "the dropped page is not written");
+}
+
+/// L4-003: with search_after a page above --pageBytes is kept and the next pages ask for a
+/// proportionally smaller size (never larger again); the dump has every document once.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn l4_003_page_bytes_shrinks_later_search_after_pages() {
+    let dir = tempfile::tempdir().unwrap();
+    let out = dir.path().join("out.json");
+    let first: Vec<String> = (0..4).map(|i| fat_hit(&format!("a{i}"), Some(i))).collect();
+    let rest = vec![fat_hit("a4", Some(4))];
+    let m = RouterMock::builder()
+        .route(Route::exact("GET", "/").reply(Reply::ok(INFO)))
+        .route(
+            Route::prefix("POST", "/idx/_search")
+                .body_contains("search_after")
+                .replies([Reply::ok(page("x", &rest, 5)), Reply::ok(page("x", &[], 5))]),
+        )
+        .route(Route::prefix("POST", "/idx/_search").reply(Reply::ok(page("x", &first, 5))))
+        .fallback(Reply::json(404, r#"{"error":"nope"}"#))
+        .start()
+        .await;
+    let o = run_async(
+        s(&[
+            "--input",
+            &format!("{}/idx", m.url()),
+            "--output",
+            out.to_str().unwrap(),
+            "--limit",
+            "4",
+            "--pageBytes",
+            "1kb",
+            "--searchAfter",
+            "--searchBody",
+            r#"{"query":{"match_all":{}},"sort":[{"n":"asc"}]}"#,
+        ]),
+        vec![],
+    )
+    .await;
+    let e = stderr(&o);
+    assert_eq!(o.status.code(), Some(0), "{e}");
+    assert!(e.contains("above --pageBytes 1 KB"), "{e}");
+    let sizes = search_sizes(&m);
+    assert_eq!(sizes[0], 4, "{sizes:?}");
+    assert!(
+        sizes.len() >= 2 && sizes[1..].iter().all(|&n| (1..4).contains(&n)),
+        "{sizes:?}"
+    );
+    let written = std::fs::read_to_string(&out).unwrap();
+    assert_eq!(written.lines().count(), 5, "{written}");
+}
+
+/// L4-003: --pageBytes alone does nothing to a page that fits, and is refused below 1 KB.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn l4_003_page_bytes_that_fits_changes_nothing_and_tiny_values_are_refused() {
+    let dir = tempfile::tempdir().unwrap();
+    let out = dir.path().join("out.json");
+    let small: Vec<String> = (0..4)
+        .map(|i| hit(&format!("h{i}"), r#"{"f":1}"#))
+        .collect();
+    let m = RouterMock::builder()
+        .route(Route::exact("GET", "/").reply(Reply::ok(INFO)))
+        .route(Route::prefix("POST", "/idx/_search").reply(Reply::ok(page("s1", &small, 4))))
+        .route(Route::exact("POST", "/_search/scroll").reply(Reply::ok(page("s1", &[], 4))))
+        .route(Route::prefix("DELETE", "/_search/scroll").reply(Reply::ok(CLEARED)))
+        .fallback(Reply::json(404, r#"{"error":"nope"}"#))
+        .start()
+        .await;
+    let o = run_async(
+        s(&[
+            "--input",
+            &format!("{}/idx", m.url()),
+            "--output",
+            out.to_str().unwrap(),
+            "--pageBytes",
+            "8mb",
+        ]),
+        vec![],
+    )
+    .await;
+    let e = stderr(&o);
+    assert_eq!(o.status.code(), Some(0), "{e}");
+    assert!(!e.contains("above --pageBytes"), "{e}");
+    assert_eq!(search_sizes(&m), vec![100], "the default --limit");
+    for bad in ["0", "512", "lots"] {
+        let o = run_async(
+            s(&[
+                "--input",
+                &format!("{}/idx", m.url()),
+                "--output",
+                "$",
+                "--pageBytes",
+                bad,
+            ]),
+            vec![],
+        )
+        .await;
+        assert_eq!(o.status.code(), Some(2), "{bad}: {}", stderr(&o));
+    }
+}
+
+/// L4-003: at the start the page is sized from the index's average stored document (here
+/// 10 000 bytes, so 300 000 page bytes / (10 000 x 3 expansion) = 10 documents), with
+/// `--serverLimits off`, with `auto` under a roomy probed budget (the smaller of the two wins)
+/// and when the probe falls back; an explicit --limit is lowered too, never raised.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn l4_003_page_bytes_sizes_the_first_page_from_the_average_document() {
+    let fx = |n: &str| {
+        std::fs::read_to_string(format!(
+            "{}/tests/fixtures/server-limits/{n}",
+            env!("CARGO_MANIFEST_DIR")
+        ))
+        .unwrap()
+    };
+    let stats =
+        r#"{"_all":{"primaries":{"docs":{"count":100},"store":{"size_in_bytes":1000000}}}}"#;
+    for (label, extra, probed, want) in [
+        ("off", vec!["--serverLimits", "off"], false, 10u64),
+        ("auto", vec![], true, 10),
+        ("auto-fallback", vec![], false, 10),
+        ("explicit-limit", vec!["--limit", "50"], true, 10),
+        ("limit-below", vec!["--limit", "5"], true, 5),
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        let out = dir.path().join("out.json");
+        let small: Vec<String> = (0..3)
+            .map(|i| hit(&format!("h{i}"), r#"{"f":1}"#))
+            .collect();
+        let mut b = RouterMock::builder()
+            .serve_probes()
+            .route(Route::exact("GET", "/").reply(Reply::ok(INFO)))
+            .route(Route::prefix("GET", "/idx/_stats").reply(Reply::ok(stats)));
+        if probed {
+            b = b
+                .route(
+                    Route::prefix("GET", "/_nodes/stats")
+                        .reply(Reply::ok(fx("es710-1024m.nodes-stats.json"))),
+                )
+                .route(
+                    Route::prefix("GET", "/_nodes/settings")
+                        .reply(Reply::ok(fx("es710-1024m.nodes-settings.json"))),
+                );
+        }
+        let m = b
+            .route(Route::prefix("POST", "/idx/_search").reply(Reply::ok(page("s1", &small, 3))))
+            .route(Route::exact("POST", "/_search/scroll").reply(Reply::ok(page("s1", &[], 3))))
+            .route(Route::prefix("DELETE", "/_search/scroll").reply(Reply::ok(CLEARED)))
+            .fallback(Reply::json(404, r#"{"error":"nope"}"#))
+            .start()
+            .await;
+        let mut args = s(&[
+            "--input",
+            &format!("{}/idx", m.url()),
+            "--output",
+            out.to_str().unwrap(),
+            "--pageBytes",
+            "300000",
+        ]);
+        args.extend(s(&extra));
+        let o = run_async(args, vec![]).await;
+        let e = stderr(&o);
+        assert_eq!(o.status.code(), Some(0), "{label}: {e}");
+        assert_eq!(search_sizes(&m), vec![want], "{label}: {e}");
+        if want == 10 {
+            assert!(e.contains("page 10 docs"), "{label}: {e}");
+        }
+        assert!(!e.contains("needs ~"), "{label}: no too-big warning: {e}");
+        assert_eq!(std::fs::read_to_string(&out).unwrap().lines().count(), 3);
+    }
+}

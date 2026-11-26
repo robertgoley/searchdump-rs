@@ -36,6 +36,13 @@ Headline: limits and multi polish. Branch `release/1.4` (from v1.3.1); not relea
   uuid noted mid-run and at the end), in the manifest (`children` per index) and in the new
   `LOGDIR/children.json` (id, index, step, log, pid, start, seconds, status, exit, target index).
 
+- `--pageBytes=SIZE` (C9) for `searchdump` and `searchdump-multi`: caps each dump page by bytes. The first page
+  is sized from the index's average stored document (with `--serverLimits auto`/`min` the smaller of it and the
+  cluster's page budget, also with `off`); a page that still comes back bigger makes the later pages smaller in
+  proportion (`--searchAfter`/PIT), or restarts a scroll whose first page was too big with a smaller page (its
+  context cleared). Never raises `--limit`. multi sizes each index with it (manifest `sizing.reason` `page-bytes`)
+  and passes it to searchdump data children; load and copy refuse it.
+
 ### Fixed
 
 - A huge `--idleTimeout`, `--requestTimeout` or `--timeout` (for example `--idleTimeout 9223372036854775807`)
