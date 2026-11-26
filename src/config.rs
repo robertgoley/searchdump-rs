@@ -123,8 +123,17 @@ pub fn tls_for(cli: &Cli, dir: Direction, env: &dyn Fn(&str) -> Option<String>) 
 pub fn request_timeout(cli: &Cli) -> Option<Duration> {
     match cli.request_timeout_secs {
         Some(0) | None => None,
-        Some(s) => Some(Duration::from_secs(s)),
+        Some(s) => Some(clamp_timeout(Duration::from_secs(s))),
     }
+}
+
+/// L4-004: the longest timeout handed to the HTTP client (about 100 years, i.e. "never").
+/// reqwest 0.13 adds timeouts to `Instant::now()`, which panics on overflow, so a huge
+/// `--idleTimeout`/`--requestTimeout`/`--timeout` (TST-BRK-CLI L-638) is capped here.
+pub const MAX_TIMEOUT: Duration = Duration::from_secs(100 * 365 * 24 * 3600);
+
+fn clamp_timeout(d: Duration) -> Duration {
+    d.min(MAX_TIMEOUT)
 }
 
 /// The longest silence on a connection while connecting, waiting for or reading a response
@@ -133,8 +142,9 @@ pub fn request_timeout(cli: &Cli) -> Option<Duration> {
 /// (default 300; 0 disables).
 pub fn idle_timeout(cli: &Cli) -> Option<Duration> {
     match cli.timeout {
-        Some(ms) if ms > 0 => Some(Duration::from_millis(ms)),
-        _ => (cli.idle_timeout_secs > 0).then(|| Duration::from_secs(cli.idle_timeout_secs)),
+        Some(ms) if ms > 0 => Some(clamp_timeout(Duration::from_millis(ms))),
+        _ => (cli.idle_timeout_secs > 0)
+            .then(|| clamp_timeout(Duration::from_secs(cli.idle_timeout_secs))),
     }
 }
 
@@ -369,5 +379,21 @@ mod tests {
             idle_timeout(&cli(&["--timeout", "0", "--idleTimeout", "7"])),
             Some(Duration::from_secs(7))
         );
+    }
+
+    #[test]
+    fn huge_timeouts_are_capped_not_overflowed() {
+        // L4-004: reqwest 0.13 adds these to Instant::now(); u64::MAX seconds would panic.
+        let huge = u64::MAX.to_string();
+        assert_eq!(
+            idle_timeout(&cli(&["--idleTimeout", &huge])),
+            Some(MAX_TIMEOUT)
+        );
+        assert_eq!(
+            request_timeout(&cli(&["--requestTimeout", &huge])),
+            Some(MAX_TIMEOUT)
+        );
+        assert_eq!(idle_timeout(&cli(&["--timeout", &huge])), Some(MAX_TIMEOUT));
+        assert!(std::time::Instant::now().checked_add(MAX_TIMEOUT).is_some());
     }
 }

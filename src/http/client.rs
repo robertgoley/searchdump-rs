@@ -329,7 +329,7 @@ impl EsClient {
 
         let mut builder = reqwest::Client::builder()
             .default_headers(headers)
-            .use_preconfigured_tls(tls)
+            .tls_backend_preconfigured(tls)
             .gzip(opts.compress)
             // never follow redirects: a redirect could carry credentials or data to another
             // host, and API calls must reach the cluster that was named (TST-BRK-NET-012)

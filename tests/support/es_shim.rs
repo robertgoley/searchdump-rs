@@ -33,9 +33,12 @@ pub mod http {
                 Self(pool.0)
             }
             pub fn build(self) -> anyhow::Result<Transport> {
-                let client = reqwest::Client::builder()
-                    .danger_accept_invalid_certs(true)
-                    .build()?;
+                let client = {
+                    searchdump_rs::http::tls::install_default_provider();
+                    reqwest::Client::builder()
+                }
+                .danger_accept_invalid_certs(true)
+                .build()?;
                 Ok(Transport {
                     base: self.0.as_str().trim_end_matches('/').to_string(),
                     client,

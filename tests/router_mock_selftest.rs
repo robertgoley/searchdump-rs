@@ -47,7 +47,10 @@ async fn routes_match_method_path_query_and_body_and_record_everything() {
         )
         .start()
         .await;
-    let c = reqwest::Client::new();
+    let c = {
+        searchdump_rs::http::tls::install_default_provider();
+        reqwest::Client::new()
+    };
     let u = m.url();
     assert_eq!(
         c.get(format!("{u}/"))
@@ -138,7 +141,10 @@ async fn keep_alive_reuses_one_connection() {
         .route(Route::any().reply(Reply::ok("{}")))
         .start()
         .await;
-    let c = reqwest::Client::new();
+    let c = {
+        searchdump_rs::http::tls::install_default_provider();
+        reqwest::Client::new()
+    };
     for _ in 0..5 {
         c.get(format!("{}/", m.url()))
             .send()
@@ -155,7 +161,10 @@ async fn keep_alive_reuses_one_connection() {
 #[tokio::test]
 async fn concurrent_connections_are_served_in_parallel() {
     let m = one(Fault::Delay(Duration::from_millis(300)), "{}").await;
-    let c = reqwest::Client::new();
+    let c = {
+        searchdump_rs::http::tls::install_default_provider();
+        reqwest::Client::new()
+    };
     let t = Instant::now();
     let tasks: Vec<_> = (0..8)
         .map(|_| tokio::spawn(c.get(format!("{}/", m.url())).send()))
@@ -262,7 +271,7 @@ async fn wrong_content_length() {
     let m = one(Fault::WrongContentLength(10), r#"{"a":1}"#).await;
     let out = String::from_utf8_lossy(&raw(&m, GET).await.unwrap()).into_owned();
     assert!(out.contains("Content-Length: 17\r\n"), "{out}");
-    let r = reqwest::get(format!("{}/", m.url())).await.unwrap();
+    let r = tls_get(format!("{}/", m.url())).await.unwrap();
     assert!(r.text().await.is_err(), "short body must be an error");
 }
 
@@ -271,7 +280,7 @@ async fn bad_chunk_framing() {
     let m = one(Fault::BadChunk, r#"{"a":1}"#).await;
     let out = String::from_utf8_lossy(&raw(&m, GET).await.unwrap()).into_owned();
     assert!(out.contains("Transfer-Encoding: chunked") && out.contains("\r\n\r\nzz\r\n"));
-    let r = reqwest::get(format!("{}/", m.url())).await;
+    let r = tls_get(format!("{}/", m.url())).await;
     assert!(r.is_err() || r.unwrap().text().await.is_err());
 }
 
@@ -280,14 +289,17 @@ async fn gzip_header_with_plain_body() {
     let m = one(Fault::GzipPlainBody, r#"{"a":1}"#).await;
     let out = String::from_utf8_lossy(&raw(&m, GET).await.unwrap()).into_owned();
     assert!(out.contains("Content-Encoding: gzip") && out.ends_with(r#"{"a":1}"#));
-    let r = reqwest::Client::builder()
-        .gzip(true)
-        .build()
-        .unwrap()
-        .get(format!("{}/", m.url()))
-        .send()
-        .await
-        .unwrap();
+    let r = {
+        searchdump_rs::http::tls::install_default_provider();
+        reqwest::Client::builder()
+    }
+    .gzip(true)
+    .build()
+    .unwrap()
+    .get(format!("{}/", m.url()))
+    .send()
+    .await
+    .unwrap();
     assert!(
         r.text().await.is_err(),
         "plain body under gzip header must fail to decode"
@@ -301,14 +313,17 @@ async fn real_gzip_and_valid_chunking_round_trip() {
         .route(Route::any().reply(Reply::ok(big.clone()).gzipped().chunked()))
         .start()
         .await;
-    let r = reqwest::Client::builder()
-        .gzip(true)
-        .build()
-        .unwrap()
-        .get(format!("{}/", m.url()))
-        .send()
-        .await
-        .unwrap();
+    let r = {
+        searchdump_rs::http::tls::install_default_provider();
+        reqwest::Client::builder()
+    }
+    .gzip(true)
+    .build()
+    .unwrap()
+    .get(format!("{}/", m.url()))
+    .send()
+    .await
+    .unwrap();
     assert_eq!(r.text().await.unwrap(), big);
 }
 
@@ -318,7 +333,7 @@ async fn html_bodies() {
         .route(Route::any().reply(Reply::html(502, "<html><body>Bad Gateway</body></html>")))
         .start()
         .await;
-    let r = reqwest::get(format!("{}/", m.url())).await.unwrap();
+    let r = tls_get(format!("{}/", m.url())).await.unwrap();
     assert_eq!(r.status(), 502);
     assert!(
         r.headers()["content-type"]
@@ -335,7 +350,7 @@ async fn redirects() {
         .route(Route::exact("GET", "/new").reply(Reply::ok("moved")))
         .start()
         .await;
-    let r = reqwest::get(format!("{}/old", m.url())).await.unwrap();
+    let r = tls_get(format!("{}/old", m.url())).await.unwrap();
     assert_eq!(r.text().await.unwrap(), "moved");
     let paths: Vec<_> = m.requests().iter().map(|r| r.path.clone()).collect();
     assert_eq!(paths, ["/old", "/new"]);
@@ -364,4 +379,10 @@ fn chaos_seed_parses_and_replays() {
     });
     let mut r = Rng::new(1);
     assert!((0..1000).all(|_| r.below(10) < 10));
+}
+
+/// L4-004: reqwest is built without a default crypto provider; install ring first.
+async fn tls_get(url: String) -> reqwest::Result<reqwest::Response> {
+    searchdump_rs::http::tls::install_default_provider();
+    reqwest::get(url).await
 }

@@ -5,6 +5,24 @@ a version with a hyphen (`1.0.0-beta1`) is a pre-release. The release workflow
 (`.github/workflows/release.yml`) uses the section for a version as the release notes of its draft
 GitHub release.
 
+## 1.4.0 (unreleased)
+
+Headline: limits and multi polish. Branch `release/1.4` (from v1.3.1); not released.
+
+### Security
+
+- One HTTP client version: the cluster side moves from reqwest 0.12 to 0.13, the version OpenDAL's storage path
+  already used, so reqwest 0.12, base64 0.22, quinn and h2 leave the dependency tree. reqwest is built with
+  `rustls-no-provider`: searchdump always hands it its own rustls config (ring), so no aws-lc code is built.
+- Encrypted PKCS#8 `--key` decryption moves to pkcs8 0.11 (RustCrypto 0.11 generation, shared with the S3
+  signer), which removes the duplicate sha2/hmac/digest/const-oid/cpufeatures/block-buffer versions. The same key
+  formats (PBES2 with PBKDF2 or scrypt, AES-CBC) decrypt as before.
+
+### Fixed
+
+- A huge `--idleTimeout`, `--requestTimeout` or `--timeout` (for example `--idleTimeout 9223372036854775807`)
+  is capped at about 100 years instead of panicking when the HTTP client adds it to the current time.
+
 ## 1.3.1
 
 Release date: 2026-11-25 (tag `v1.3.1`). Security patch release; no behaviour changes in `searchdump` or

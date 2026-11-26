@@ -183,6 +183,8 @@ fn percent_decode(s: &str) -> String {
 }
 
 fn client(c: &Common) -> Result<reqwest::Client> {
+    // reqwest is built without a default crypto provider (L-004): use ring, like searchdump.
+    let _ = rustls::crypto::ring::default_provider().install_default();
     let mut b = reqwest::Client::builder()
         .no_proxy()
         .timeout(std::time::Duration::from_secs(300));

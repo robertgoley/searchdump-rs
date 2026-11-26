@@ -5557,16 +5557,19 @@ async fn l650_scroll_id_resumes_exactly_where_the_cursor_is() {
 
     // the documented recipe: open the scroll yourself, keep its first page, --scrollId the rest
     let (src, cur) = l650_cursor_source(n, 10, Duration::from_millis(1)).await;
-    let first: serde_json::Value = reqwest::Client::new()
-        .post(format!("{}/idx/_search?scroll=5m", src.url()))
-        .header("content-type", "application/json")
-        .body(r#"{"size":10}"#)
-        .send()
-        .await
-        .unwrap()
-        .json()
-        .await
-        .unwrap();
+    let first: serde_json::Value = {
+        searchdump_rs::http::tls::install_default_provider();
+        reqwest::Client::new()
+    }
+    .post(format!("{}/idx/_search?scroll=5m", src.url()))
+    .header("content-type", "application/json")
+    .body(r#"{"size":10}"#)
+    .send()
+    .await
+    .unwrap()
+    .json()
+    .await
+    .unwrap();
     let sid = first["_scroll_id"].as_str().unwrap().to_string();
     let mut got: Vec<(u64, serde_json::Value)> = first["hits"]["hits"]
         .as_array()

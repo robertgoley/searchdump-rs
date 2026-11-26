@@ -45,24 +45,16 @@ multiple-versions = "deny"
 wildcards = "deny"
 allow-wildcard-paths = true
 skip = [
-    # hyper-util uses base64 0.23; reqwest and our code use 0.22.
-    { crate = "base64@0.22.1", reason = "reqwest 0.12 / our code; hyper-util moved to 0.23" },
     # rust-ini -> ordered-multimap pins hashbrown 0.14.
     { crate = "hashbrown@0.14.5", reason = "rust-ini -> ordered-multimap 0.7" },
-    # const-random-macro (via rust-ini -> dlv-list) still on getrandom 0.2.
-    { crate = "getrandom@0.2.17", reason = "rust-ini -> dlv-list -> const-random" },
-    # L-809a/L-809d: opendal 0.59 (the OpenDAL storage path) brings its own HTTP client and the
-    # RustCrypto 0.11 generation (reqsign for S3 SigV4); our side stays on reqwest 0.12 and
-    # the 0.10 RustCrypto stack of pkcs8 (encrypted --key). Pure Rust, rustls/ring only.
-    { crate = "reqwest@0.13.5", reason = "opendal-http-transport-reqwest 0.59 (L-809a); ours is 0.12" },
-    { crate = "sha2@0.11.0", reason = "reqsign (opendal S3 SigV4); pkcs5 uses 0.10" },
-    { crate = "hmac@0.13.0", reason = "reqsign (opendal S3 SigV4); pbkdf2 uses 0.12" },
-    { crate = "digest@0.11.3", reason = "reqsign (opendal S3 SigV4); RustCrypto 0.10 stack uses 0.10" },
-    { crate = "crypto-common@0.2.2", reason = "RustCrypto 0.11 stack via reqsign (L-809a)" },
-    { crate = "block-buffer@0.12.1", reason = "RustCrypto 0.11 stack via reqsign (L-809a)" },
-    { crate = "const-oid@0.10.3", reason = "RustCrypto 0.11 stack via reqsign (L-809a)" },
-    { crate = "cpufeatures@0.3.1", reason = "RustCrypto 0.11 stack via reqsign (L-809a); aes uses 0.2" },
-    { crate = "getrandom@0.4.3", reason = "tempfile via openssh (opendal sftp, L-809a); ahash uses 0.3" },
+    # const-random-macro (via rust-ini -> dlv-list) and ring still on getrandom 0.2.
+    { crate = "getrandom@0.2.17", reason = "rust-ini -> dlv-list -> const-random; ring" },
+    # L4-004: reqwest is one version (0.13, shared with OpenDAL) and pkcs8 0.11 moved the
+    # encrypted --key stack to RustCrypto 0.11, so the reqwest/base64/sha2/hmac/const-oid/
+    # cpufeatures/block-buffer duplicates are gone. What is left:
+    { crate = "digest@0.10.7", reason = "crc-fast (opendal-service-s3 checksums); everything else is on digest 0.11" },
+    { crate = "crypto-common@0.1.7", reason = "digest 0.10 via crc-fast (opendal-service-s3)" },
+    { crate = "getrandom@0.4.3", reason = "uuid (opendal-core); tempfile/ahash use 0.3" },
     { crate = "syn@2.0.119", reason = "derive_destructure2 (openssh-sftp-client, L-809a); clap_derive uses syn 3" },
 ]
 # Crates we never want in the graph: OpenSSL / native TLS, libgit2, other HTTP

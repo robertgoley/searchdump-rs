@@ -657,7 +657,7 @@ mod op {
         if spec.flag("insecure")? {
             log::warn!("{spec}: TLS certificate verification is OFF (insecure=true)");
         }
-        let client = reqwest013::Client::builder()
+        let client = reqwest::Client::builder()
             .tls_backend_preconfigured(tls)
             .build()
             .map_err(|e| anyhow!("{spec}: HTTP client: {e}"))?;

@@ -341,7 +341,10 @@ pub mod toxiproxy {
                 .filter(|s| !s.is_empty())?;
             Some(Toxiproxy {
                 api: api.trim_end_matches('/').into(),
-                client: reqwest::Client::new(),
+                client: {
+                    searchdump_rs::http::tls::install_default_provider();
+                    reqwest::Client::new()
+                },
             })
         }
 

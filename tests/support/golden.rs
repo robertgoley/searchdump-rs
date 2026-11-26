@@ -346,10 +346,13 @@ impl Recorder {
         let _ = base.set_username("");
         let _ = base.set_password(None);
         let base = base.as_str().trim_end_matches('/').to_string();
-        let client = reqwest::Client::builder()
-            .danger_accept_invalid_certs(true)
-            .build()
-            .unwrap();
+        let client = {
+            searchdump_rs::http::tls::install_default_provider();
+            reqwest::Client::builder()
+        }
+        .danger_accept_invalid_certs(true)
+        .build()
+        .unwrap();
         let norm = Arc::new(Normaliser::default());
         let log = Arc::new(Mutex::new(Vec::new()));
         let seq = Arc::new(std::sync::atomic::AtomicUsize::new(0));

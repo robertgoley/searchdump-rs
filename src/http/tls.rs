@@ -175,7 +175,7 @@ fn decrypt_pkcs8(path: &Path, text: &str, pass: &str) -> Result<PrivateKeyDer<'s
     if label != "ENCRYPTED PRIVATE KEY" {
         bail!("Unexpected PEM label '{label}' in '{}'", path.display());
     }
-    let info = pkcs8::EncryptedPrivateKeyInfo::try_from(doc.as_bytes())
+    let info = pkcs8::EncryptedPrivateKeyInfoRef::try_from(doc.as_bytes())
         .map_err(|e| anyhow!("Invalid encrypted PKCS#8 key '{}': {e}", path.display()))?;
     let decrypted = info.decrypt(pass).map_err(|_| {
         anyhow!(

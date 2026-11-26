@@ -86,10 +86,13 @@ impl Cluster {
     }
 
     fn new(url: &str, user: Option<String>, pass: Option<String>, engine: Engine) -> Self {
-        let client = reqwest::Client::builder()
-            .danger_accept_invalid_certs(true)
-            .build()
-            .expect("harness client");
+        let client = {
+            searchdump_rs::http::tls::install_default_provider();
+            reqwest::Client::builder()
+        }
+        .danger_accept_invalid_certs(true)
+        .build()
+        .expect("harness client");
         Self {
             url: url.trim_end_matches('/').to_string(),
             client,

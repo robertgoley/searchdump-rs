@@ -43,9 +43,12 @@ tokio = { version = "1", features = [
 ] }
 # Thin HTTP client: full control over endpoints (OpenSearch vs Elasticsearch
 # PIT APIs), per-direction headers/params, gzip request bodies and TLS.
-reqwest = { version = "0.12", default-features = false, features = [
+# L4-004: one reqwest (0.13, the version OpenDAL's transport uses) for the cluster side and the
+# OpenDAL storage path. `rustls-no-provider`: we always hand reqwest our own rustls config
+# (ring provider, our roots / --ca / --insecure), so rustls' aws-lc provider is never built.
+reqwest = { version = "0.13", default-features = false, features = [
     "gzip",
-    "rustls-tls-manual-roots",
+    "rustls-no-provider",
 ] }
 rustls = { version = "0.23", default-features = false, features = [
     "ring",
@@ -56,7 +59,7 @@ rustls = { version = "0.23", default-features = false, features = [
 rustls-native-certs = "0.8"
 webpki-roots = "1"
 # Only to decrypt `--key` files in encrypted PKCS#8 form (feature `encrypted-keys`, on by default).
-pkcs8 = { version = "0.10", features = ["encryption", "pem", "std"], optional = true }
+pkcs8 = { version = "0.11", features = ["encryption", "pem", "std"], optional = true }
 clap = { version = "4.4", features = ["derive", "wrap_help"] }
 # `sanitize`: no SIMD over-read past the end of a string when serialising (L-505: ASan in
 # the bulk_encode_doc fuzz target flagged the deliberate same-page tail read in release builds).
@@ -90,9 +93,6 @@ mimalloc = { version = "0.1", default-features = false, optional = true }
 # Second, separate write/read path for s3://, b2://, sftp://, fs:// URLs (feature `opendal`).
 # Pinned exactly (L-809d: 0.59.5, rust-version 1.91); upgrades go through the supply-chain gates.
 futures = { version = "0.3", default-features = false, features = ["std"], optional = true }
-# OpenDAL's own HTTP client version, given our rustls config (same CA/--insecure handling and
-# ring provider as the cluster side).
-reqwest013 = { package = "reqwest", version = "0.13", default-features = false, features = ["rustls-no-provider"], optional = true }
 # The reqwest transport, constructed per operator with our client (default features would also
 # pull rustls' aws-lc provider; the no-provider feature keeps ring only).
 opendal-http-transport-reqwest = { version = "=0.59.5", default-features = false, optional = true }
@@ -102,7 +102,9 @@ opendal = { version = "=0.59.5", default-features = false, features = ["http-tra
 mimalloc = { version = "0.1", default-features = false }
 
 [dev-dependencies]
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+# Test clients get the same ring provider (tests call `support::tls::install_ring()` or build
+# through searchdump's own client), so the dev build has no aws-lc either.
+reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider", "json"] }
 tokio = { version = "1", features = ["full", "test-util"] }
 serde_json = "1.0"
 lipsum = "0.9"
@@ -113,7 +115,7 @@ proptest = { version = "1", default-features = false, features = ["std"] }
 default = ["encrypted-keys", "opendal", "opendal-sftp"]
 # OpenDAL storage path (L-809a): s3:// (incl. MinIO/RustFS, SSE-C), b2://, fs:// / file:// for
 # --input/--output. `opendal-sftp` adds sftp:// (needs the OpenSSH `ssh` client at run time).
-opendal = ["dep:opendal", "dep:opendal-http-transport-reqwest", "dep:futures", "dep:reqwest013", "opendal/services-s3", "opendal/services-b2", "opendal/services-fs"]
+opendal = ["dep:opendal", "dep:opendal-http-transport-reqwest", "dep:futures", "opendal/services-s3", "opendal/services-b2", "opendal/services-fs"]
 opendal-sftp = ["opendal", "opendal/services-sftp"]
 # Decrypt encrypted PKCS#8 client keys (`--key` + `--pass`). Pulls in the RustCrypto
 # aes/scrypt/pbkdf2/sha2 stack; `--no-default-features` builds leave it out (SUP-023).
