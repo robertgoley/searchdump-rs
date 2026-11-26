@@ -13,7 +13,7 @@ t265u: save progress so another agent can finish). Times are America/New_York.
   (5186 lines, 29 unit tests).
 - Commit ids continue the 1.4 numbering: `L4-008` = split step 0, `L4-009` = step 1, ... (one commit per step or group).
 
-## 2. Status (updated 2026-11-26 01:40)
+## 2. Status (updated 2026-11-26 02:20)
 
 | step | commit | state |
 |---|---|---|
@@ -29,23 +29,19 @@ t265u: save progress so another agent can finish). Times are America/New_York.
 | 8 child/{mod,stats,probe,runner}.rs | 448b90b L4-017 | done, gate OK |
 | 9 ctx.rs, planner.rs | 4cda2b8 L4-018 | done, gate OK |
 | 10 dump.rs, load.rs, storage.rs, run_local/mod.rs | 619867c L4-019 | done, gate OK (phase A complete) |
-| 11 run_local/setup.rs + `Ctx::new` | – | **in progress** (below) |
-| 12 run_local/dump_plan.rs + dry_run::print_dump_plan | – | script ready: `phase_b12.py` |
-| 13 run_local/load_plan.rs + print_load_plan + report.rs | – | script ready: `phase_b13.py` |
-| 14 child data-arg builder | – | script ready: `phase_b14.py` (argv-pinning tests still to add) |
-| 15 visibility + explicit imports | – | script ready: `phase_c15.py` |
+| 11 run_local/setup.rs + `Ctx::new` | b0d36f8 L4-021 | done, gate OK (+2 tests) |
+| 12 run_local/dump_plan.rs + dry_run::print_dump_plan | 669082d L4-022 | done, gate OK (+1 test) |
+| 13 run_local/load_plan.rs + print_load_plan + report.rs | 6d73cd5 L4-023 | done, gate OK (+2 tests) |
+| 14 child data-arg builder | 28e9244 L4-024 | done, gate OK (+2 argv-pinning tests; 36 multi tests); phase B complete |
+| 15 visibility + explicit imports | – | next; script ready: `phase_c15.py` |
 | 16 module docs, 17 docs/CHANGELOG, final verification, push, CI | – | |
 
 Phase A steps 3-10 were run by `steps.sh 4 10 13` (regenerate, G-fast gate, commit only on GATE OK with 29 multi tests).
 
-**Step 11 in progress (uncommitted in the worktree):** `python3 project/plan/split-1.4/phase_b11.py src/bin/searchdump-multi && cargo fmt`
-was applied on 619867c: new `run_local/setup.rs` (`validate_local`, `run_types`, `selector`, `warn_url_credentials`,
-`log_dir`, `cluster_tls`, `Interrupt::install`, `build_runner` + 2 new unit tests), `Ctx::new` in `ctx.rs`, and
-`run_local` calls them in the old order. clippy `-D warnings` clean, the new tests pass; the G-fast gate was
-interrupted. To finish: run the gate (expect 31 multi tests), then commit `ctx.rs`, `run_local/mod.rs`,
-`run_local/setup.rs`. If unsure, `git checkout src/bin/searchdump-multi && rm src/bin/searchdump-multi/run_local/setup.rs`
-and re-run `phase_b11.py` (reproducible). Steps 12-15: run `phase_b1N.py src/bin/searchdump-multi` / `phase_c15.py`
-in order on the previous step's commit, then `cargo fmt`, gate, commit.
+Phase B deviations: `dump_plan::start`/`load_plan::start` take `&mut JoinSet`/`&mut early` and return `Option<i32>`
+(early exit code) instead of the plan's `Flow` enum (same behaviour, less churn); `spawn_dumps`/`spawn_loads` were
+not split out (the spawn loops stay in `start`; a separate fn would take 8 arguments); `Interrupt` and
+`cluster_tls` are in `setup.rs`. Every phase B step is reproducible: `phase_b1N.py` on the previous commit + `cargo fmt`.
 
 ## 3. How steps 3-10 are produced (mechanical, reproducible)
 
