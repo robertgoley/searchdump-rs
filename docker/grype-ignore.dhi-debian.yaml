@@ -28,33 +28,11 @@ ignore:
     package:
       name: '^ncurses-term$'
       type: deb
-  # CVE-2026-5435
-  - vulnerability: CVE-2026-5435
-    fix-state: wont-fix
-    package:
-      name: '^libc-bin$'
-      type: deb
-  - vulnerability: CVE-2026-5435
-    fix-state: wont-fix
-    package:
-      name: '^libc6$'
-      type: deb
   # CVE-2026-9538
   - vulnerability: CVE-2026-9538
     fix-state: wont-fix
     package:
       name: '^perl-base$'
-      type: deb
-  # CVE-2026-19499
-  - vulnerability: CVE-2026-19499
-    fix-state: wont-fix
-    package:
-      name: '^libc-bin$'
-      type: deb
-  - vulnerability: CVE-2026-19499
-    fix-state: wont-fix
-    package:
-      name: '^libc6$'
       type: deb
   # CVE-2026-24882
   - vulnerability: CVE-2026-24882
@@ -367,822 +345,332 @@ ignore:
     package:
       name: '^libkrb5support0$'
       type: deb
-  - vulnerability: CVE-2026-112314
-    fix-state: not-fixed
-    package:
-      name: '^libgssapi-krb5-2$'
-      type: deb
-  - vulnerability: CVE-2026-112314
-    fix-state: wont-fix
-    package:
-      name: '^libgssapi-krb5-2$'
-      type: deb
-  - vulnerability: CVE-2026-112314
-    fix-state: not-fixed
-    package:
-      name: '^libk5crypto3$'
-      type: deb
-  - vulnerability: CVE-2026-112314
-    fix-state: wont-fix
-    package:
-      name: '^libk5crypto3$'
-      type: deb
-  - vulnerability: CVE-2026-112314
-    fix-state: not-fixed
-    package:
-      name: '^libkrb5-3$'
-      type: deb
-  - vulnerability: CVE-2026-112314
-    fix-state: wont-fix
-    package:
-      name: '^libkrb5-3$'
-      type: deb
-  - vulnerability: CVE-2026-112314
-    fix-state: not-fixed
-    package:
-      name: '^libkrb5support0$'
-      type: deb
-  - vulnerability: CVE-2026-112314
-    fix-state: wont-fix
-    package:
-      name: '^libkrb5support0$'
-      type: deb
-  - vulnerability: CVE-2026-112320
-    fix-state: not-fixed
-    package:
-      name: '^libgssapi-krb5-2$'
-      type: deb
-  - vulnerability: CVE-2026-112320
-    fix-state: wont-fix
-    package:
-      name: '^libgssapi-krb5-2$'
-      type: deb
-  - vulnerability: CVE-2026-112320
-    fix-state: not-fixed
-    package:
-      name: '^libk5crypto3$'
-      type: deb
-  - vulnerability: CVE-2026-112320
-    fix-state: wont-fix
-    package:
-      name: '^libk5crypto3$'
-      type: deb
-  - vulnerability: CVE-2026-112320
-    fix-state: not-fixed
-    package:
-      name: '^libkrb5-3$'
-      type: deb
-  - vulnerability: CVE-2026-112320
-    fix-state: wont-fix
-    package:
-      name: '^libkrb5-3$'
-      type: deb
-  - vulnerability: CVE-2026-112320
-    fix-state: not-fixed
-    package:
-      name: '^libkrb5support0$'
-      type: deb
-  - vulnerability: CVE-2026-112320
-    fix-state: wont-fix
-    package:
-      name: '^libkrb5support0$'
-      type: deb
-  - vulnerability: CVE-2026-112321
-    fix-state: not-fixed
-    package:
-      name: '^libgssapi-krb5-2$'
-      type: deb
-  - vulnerability: CVE-2026-112321
-    fix-state: wont-fix
-    package:
-      name: '^libgssapi-krb5-2$'
-      type: deb
-  - vulnerability: CVE-2026-112321
-    fix-state: not-fixed
-    package:
-      name: '^libk5crypto3$'
-      type: deb
-  - vulnerability: CVE-2026-112321
-    fix-state: wont-fix
-    package:
-      name: '^libk5crypto3$'
-      type: deb
-  - vulnerability: CVE-2026-112321
-    fix-state: not-fixed
-    package:
-      name: '^libkrb5-3$'
-      type: deb
-  - vulnerability: CVE-2026-112321
-    fix-state: wont-fix
-    package:
-      name: '^libkrb5-3$'
-      type: deb
-  - vulnerability: CVE-2026-112321
-    fix-state: not-fixed
-    package:
-      name: '^libkrb5support0$'
-      type: deb
-  - vulnerability: CVE-2026-112321
-    fix-state: wont-fix
-    package:
-      name: '^libkrb5support0$'
-      type: deb
-  - vulnerability: CVE-2026-112322
-    fix-state: not-fixed
-    package:
-      name: '^libgssapi-krb5-2$'
-      type: deb
-  - vulnerability: CVE-2026-112322
-    fix-state: wont-fix
-    package:
-      name: '^libgssapi-krb5-2$'
-      type: deb
-  - vulnerability: CVE-2026-112322
-    fix-state: not-fixed
-    package:
-      name: '^libk5crypto3$'
-      type: deb
-  - vulnerability: CVE-2026-112322
-    fix-state: wont-fix
-    package:
-      name: '^libk5crypto3$'
-      type: deb
-  - vulnerability: CVE-2026-112322
-    fix-state: not-fixed
-    package:
-      name: '^libkrb5-3$'
-      type: deb
-  - vulnerability: CVE-2026-112322
-    fix-state: wont-fix
-    package:
-      name: '^libkrb5-3$'
-      type: deb
-  - vulnerability: CVE-2026-112322
-    fix-state: not-fixed
-    package:
-      name: '^libkrb5support0$'
-      type: deb
-  - vulnerability: CVE-2026-112322
-    fix-state: wont-fix
-    package:
-      name: '^libkrb5support0$'
-      type: deb
-  - vulnerability: CVE-2026-112323
-    fix-state: not-fixed
-    package:
-      name: '^libgssapi-krb5-2$'
-      type: deb
-  - vulnerability: CVE-2026-112323
-    fix-state: wont-fix
-    package:
-      name: '^libgssapi-krb5-2$'
-      type: deb
-  - vulnerability: CVE-2026-112323
-    fix-state: not-fixed
-    package:
-      name: '^libk5crypto3$'
-      type: deb
-  - vulnerability: CVE-2026-112323
-    fix-state: wont-fix
-    package:
-      name: '^libk5crypto3$'
-      type: deb
-  - vulnerability: CVE-2026-112323
-    fix-state: not-fixed
-    package:
-      name: '^libkrb5-3$'
-      type: deb
-  - vulnerability: CVE-2026-112323
-    fix-state: wont-fix
-    package:
-      name: '^libkrb5-3$'
-      type: deb
-  - vulnerability: CVE-2026-112323
-    fix-state: not-fixed
-    package:
-      name: '^libkrb5support0$'
-      type: deb
-  - vulnerability: CVE-2026-112323
-    fix-state: wont-fix
-    package:
-      name: '^libkrb5support0$'
-      type: deb
-  - vulnerability: CVE-2026-119079
-    fix-state: not-fixed
-    package:
-      name: '^libgssapi-krb5-2$'
-      type: deb
-  - vulnerability: CVE-2026-119079
-    fix-state: wont-fix
-    package:
-      name: '^libgssapi-krb5-2$'
-      type: deb
-  - vulnerability: CVE-2026-119079
-    fix-state: not-fixed
-    package:
-      name: '^libk5crypto3$'
-      type: deb
-  - vulnerability: CVE-2026-119079
-    fix-state: wont-fix
-    package:
-      name: '^libk5crypto3$'
-      type: deb
-  - vulnerability: CVE-2026-119079
-    fix-state: not-fixed
-    package:
-      name: '^libkrb5-3$'
-      type: deb
-  - vulnerability: CVE-2026-119079
-    fix-state: wont-fix
-    package:
-      name: '^libkrb5-3$'
-      type: deb
-  - vulnerability: CVE-2026-119079
-    fix-state: not-fixed
-    package:
-      name: '^libkrb5support0$'
-      type: deb
-  - vulnerability: CVE-2026-119079
-    fix-state: wont-fix
-    package:
-      name: '^libkrb5support0$'
-      type: deb
-  - vulnerability: CVE-2026-107364
-    fix-state: not-fixed
-    package:
-      name: '^libgssapi-krb5-2$'
-      type: deb
-  - vulnerability: CVE-2026-107364
-    fix-state: wont-fix
-    package:
-      name: '^libgssapi-krb5-2$'
-      type: deb
-  - vulnerability: CVE-2026-107364
-    fix-state: not-fixed
-    package:
-      name: '^libk5crypto3$'
-      type: deb
-  - vulnerability: CVE-2026-107364
-    fix-state: wont-fix
-    package:
-      name: '^libk5crypto3$'
-      type: deb
-  - vulnerability: CVE-2026-107364
-    fix-state: not-fixed
-    package:
-      name: '^libkrb5-3$'
-      type: deb
-  - vulnerability: CVE-2026-107364
-    fix-state: wont-fix
-    package:
-      name: '^libkrb5-3$'
-      type: deb
-  - vulnerability: CVE-2026-107364
-    fix-state: not-fixed
-    package:
-      name: '^libkrb5support0$'
-      type: deb
-  - vulnerability: CVE-2026-107364
-    fix-state: wont-fix
-    package:
-      name: '^libkrb5support0$'
-      type: deb
-  - vulnerability: CVE-2026-112315
-    fix-state: not-fixed
-    package:
-      name: '^libgssapi-krb5-2$'
-      type: deb
-  - vulnerability: CVE-2026-112315
-    fix-state: wont-fix
-    package:
-      name: '^libgssapi-krb5-2$'
-      type: deb
-  - vulnerability: CVE-2026-112315
-    fix-state: not-fixed
-    package:
-      name: '^libk5crypto3$'
-      type: deb
-  - vulnerability: CVE-2026-112315
-    fix-state: wont-fix
-    package:
-      name: '^libk5crypto3$'
-      type: deb
-  - vulnerability: CVE-2026-112315
-    fix-state: not-fixed
-    package:
-      name: '^libkrb5-3$'
-      type: deb
-  - vulnerability: CVE-2026-112315
-    fix-state: wont-fix
-    package:
-      name: '^libkrb5-3$'
-      type: deb
-  - vulnerability: CVE-2026-112315
-    fix-state: not-fixed
-    package:
-      name: '^libkrb5support0$'
-      type: deb
-  - vulnerability: CVE-2026-112315
-    fix-state: wont-fix
-    package:
-      name: '^libkrb5support0$'
-      type: deb
-  - vulnerability: CVE-2026-112316
-    fix-state: not-fixed
-    package:
-      name: '^libgssapi-krb5-2$'
-      type: deb
-  - vulnerability: CVE-2026-112316
-    fix-state: wont-fix
-    package:
-      name: '^libgssapi-krb5-2$'
-      type: deb
-  - vulnerability: CVE-2026-112316
-    fix-state: not-fixed
-    package:
-      name: '^libk5crypto3$'
-      type: deb
-  - vulnerability: CVE-2026-112316
-    fix-state: wont-fix
-    package:
-      name: '^libk5crypto3$'
-      type: deb
-  - vulnerability: CVE-2026-112316
-    fix-state: not-fixed
-    package:
-      name: '^libkrb5-3$'
-      type: deb
-  - vulnerability: CVE-2026-112316
-    fix-state: wont-fix
-    package:
-      name: '^libkrb5-3$'
-      type: deb
-  - vulnerability: CVE-2026-112316
-    fix-state: not-fixed
-    package:
-      name: '^libkrb5support0$'
-      type: deb
-  - vulnerability: CVE-2026-112316
-    fix-state: wont-fix
-    package:
-      name: '^libkrb5support0$'
-      type: deb
-  - vulnerability: CVE-2026-112317
-    fix-state: not-fixed
-    package:
-      name: '^libgssapi-krb5-2$'
-      type: deb
-  - vulnerability: CVE-2026-112317
-    fix-state: wont-fix
-    package:
-      name: '^libgssapi-krb5-2$'
-      type: deb
-  - vulnerability: CVE-2026-112317
-    fix-state: not-fixed
-    package:
-      name: '^libk5crypto3$'
-      type: deb
-  - vulnerability: CVE-2026-112317
-    fix-state: wont-fix
-    package:
-      name: '^libk5crypto3$'
-      type: deb
-  - vulnerability: CVE-2026-112317
-    fix-state: not-fixed
-    package:
-      name: '^libkrb5-3$'
-      type: deb
-  - vulnerability: CVE-2026-112317
-    fix-state: wont-fix
-    package:
-      name: '^libkrb5-3$'
-      type: deb
-  - vulnerability: CVE-2026-112317
-    fix-state: not-fixed
-    package:
-      name: '^libkrb5support0$'
-      type: deb
-  - vulnerability: CVE-2026-112317
-    fix-state: wont-fix
-    package:
-      name: '^libkrb5support0$'
-      type: deb
-  - vulnerability: CVE-2026-112318
-    fix-state: not-fixed
-    package:
-      name: '^libgssapi-krb5-2$'
-      type: deb
-  - vulnerability: CVE-2026-112318
-    fix-state: wont-fix
-    package:
-      name: '^libgssapi-krb5-2$'
-      type: deb
-  - vulnerability: CVE-2026-112318
-    fix-state: not-fixed
-    package:
-      name: '^libk5crypto3$'
-      type: deb
-  - vulnerability: CVE-2026-112318
-    fix-state: wont-fix
-    package:
-      name: '^libk5crypto3$'
-      type: deb
-  - vulnerability: CVE-2026-112318
-    fix-state: not-fixed
-    package:
-      name: '^libkrb5-3$'
-      type: deb
-  - vulnerability: CVE-2026-112318
-    fix-state: wont-fix
-    package:
-      name: '^libkrb5-3$'
-      type: deb
-  - vulnerability: CVE-2026-112318
-    fix-state: not-fixed
-    package:
-      name: '^libkrb5support0$'
-      type: deb
-  - vulnerability: CVE-2026-112318
-    fix-state: wont-fix
-    package:
-      name: '^libkrb5support0$'
-      type: deb
-  - vulnerability: CVE-2026-112319
-    fix-state: not-fixed
-    package:
-      name: '^libgssapi-krb5-2$'
-      type: deb
-  - vulnerability: CVE-2026-112319
-    fix-state: wont-fix
-    package:
-      name: '^libgssapi-krb5-2$'
-      type: deb
-  - vulnerability: CVE-2026-112319
-    fix-state: not-fixed
-    package:
-      name: '^libk5crypto3$'
-      type: deb
-  - vulnerability: CVE-2026-112319
-    fix-state: wont-fix
-    package:
-      name: '^libk5crypto3$'
-      type: deb
-  - vulnerability: CVE-2026-112319
-    fix-state: not-fixed
-    package:
-      name: '^libkrb5-3$'
-      type: deb
-  - vulnerability: CVE-2026-112319
-    fix-state: wont-fix
-    package:
-      name: '^libkrb5-3$'
-      type: deb
-  - vulnerability: CVE-2026-112319
-    fix-state: not-fixed
-    package:
-      name: '^libkrb5support0$'
-      type: deb
-  - vulnerability: CVE-2026-112319
-    fix-state: wont-fix
-    package:
-      name: '^libkrb5support0$'
-      type: deb
-  - vulnerability: CVE-2026-118380
-    fix-state: not-fixed
-    package:
-      name: '^libgssapi-krb5-2$'
-      type: deb
-  - vulnerability: CVE-2026-118380
-    fix-state: wont-fix
-    package:
-      name: '^libgssapi-krb5-2$'
-      type: deb
-  - vulnerability: CVE-2026-118380
-    fix-state: not-fixed
-    package:
-      name: '^libk5crypto3$'
-      type: deb
-  - vulnerability: CVE-2026-118380
-    fix-state: wont-fix
-    package:
-      name: '^libk5crypto3$'
-      type: deb
-  - vulnerability: CVE-2026-118380
-    fix-state: not-fixed
-    package:
-      name: '^libkrb5-3$'
-      type: deb
-  - vulnerability: CVE-2026-118380
-    fix-state: wont-fix
-    package:
-      name: '^libkrb5-3$'
-      type: deb
-  - vulnerability: CVE-2026-118380
-    fix-state: not-fixed
-    package:
-      name: '^libkrb5support0$'
-      type: deb
-  - vulnerability: CVE-2026-118380
-    fix-state: wont-fix
-    package:
-      name: '^libkrb5support0$'
-      type: deb
-  - vulnerability: CVE-2026-71199
-    fix-state: not-fixed
-    package:
-      name: '^libgssapi-krb5-2$'
-      type: deb
-  - vulnerability: CVE-2026-71199
-    fix-state: wont-fix
-    package:
-      name: '^libgssapi-krb5-2$'
-      type: deb
-  - vulnerability: CVE-2026-71199
-    fix-state: not-fixed
-    package:
-      name: '^libk5crypto3$'
-      type: deb
-  - vulnerability: CVE-2026-71199
-    fix-state: wont-fix
-    package:
-      name: '^libk5crypto3$'
-      type: deb
-  - vulnerability: CVE-2026-71199
-    fix-state: not-fixed
-    package:
-      name: '^libkrb5-3$'
-      type: deb
-  - vulnerability: CVE-2026-71199
-    fix-state: wont-fix
-    package:
-      name: '^libkrb5-3$'
-      type: deb
-  - vulnerability: CVE-2026-71199
-    fix-state: not-fixed
-    package:
-      name: '^libkrb5support0$'
-      type: deb
-  - vulnerability: CVE-2026-71199
-    fix-state: wont-fix
-    package:
-      name: '^libkrb5support0$'
-      type: deb
-  - vulnerability: CVE-2026-71200
-    fix-state: not-fixed
-    package:
-      name: '^libgssapi-krb5-2$'
-      type: deb
-  - vulnerability: CVE-2026-71200
-    fix-state: wont-fix
-    package:
-      name: '^libgssapi-krb5-2$'
-      type: deb
-  - vulnerability: CVE-2026-71200
-    fix-state: not-fixed
-    package:
-      name: '^libk5crypto3$'
-      type: deb
-  - vulnerability: CVE-2026-71200
-    fix-state: wont-fix
-    package:
-      name: '^libk5crypto3$'
-      type: deb
-  - vulnerability: CVE-2026-71200
-    fix-state: not-fixed
-    package:
-      name: '^libkrb5-3$'
-      type: deb
-  - vulnerability: CVE-2026-71200
-    fix-state: wont-fix
-    package:
-      name: '^libkrb5-3$'
-      type: deb
-  - vulnerability: CVE-2026-71200
-    fix-state: not-fixed
-    package:
-      name: '^libkrb5support0$'
-      type: deb
-  - vulnerability: CVE-2026-71200
-    fix-state: wont-fix
-    package:
-      name: '^libkrb5support0$'
-      type: deb
-  # L-824 (owner decision 2026-11-20, Robert): OpenSSL 3.5.7 High CVEs (OpenSSL advisory 2026-11-10), unfixed in
-  # Debian trixie and sid; accepted for this exact package version only while grype reports not-fixed / wont-fix.
-  # Remove once Debian/DHI ship a fixed openssl and the base pin is refreshed; see SECURITY-CVE.md "OpenSSL 3.5.7 (L-824)".
+  # L-831 (1.3.1, 2026-11-25): openssl 3.5.9-1~deb13u1+dhi2, installed by the Dockerfile's apt-get upgrade from the DHI
+  # repo. Its changelog backports the upstream fixes for the eight ids below (DHI, 2026-11-25), but Debian's tracker, which
+  # grype and trivy follow, still lists trixie as vulnerable, so the scanners keep reporting them. Scoped to this exact
+  # version and to not-fixed / wont-fix; see SECURITY-CVE.md "OpenSSL 3.5.9 (L-831)". CVE-2026-84786 (DANE client NULL
+  # dereference) is NOT in +dhi2: accepted by Robert 2026-11-25 (L-824 addendum) until a fixed openssl ships.
   - vulnerability: CVE-2026-88823
     fix-state: not-fixed
     package:
       name: '^libssl3t64$'
-      version: '3.5.7-1~deb13u3+dhi0'
+      version: '3.5.9-1~deb13u1+dhi2'
       type: deb
   - vulnerability: CVE-2026-88823
     fix-state: wont-fix
     package:
       name: '^libssl3t64$'
-      version: '3.5.7-1~deb13u3+dhi0'
+      version: '3.5.9-1~deb13u1+dhi2'
       type: deb
   - vulnerability: CVE-2026-88823
     fix-state: not-fixed
     package:
       name: '^openssl$'
-      version: '3.5.7-1~deb13u3+dhi0'
+      version: '3.5.9-1~deb13u1+dhi2'
       type: deb
   - vulnerability: CVE-2026-88823
     fix-state: wont-fix
     package:
       name: '^openssl$'
-      version: '3.5.7-1~deb13u3+dhi0'
+      version: '3.5.9-1~deb13u1+dhi2'
       type: deb
   - vulnerability: CVE-2026-88823
     fix-state: not-fixed
     package:
       name: '^openssl-provider-legacy$'
-      version: '3.5.7-1~deb13u3+dhi0'
+      version: '3.5.9-1~deb13u1+dhi2'
       type: deb
   - vulnerability: CVE-2026-88823
     fix-state: wont-fix
     package:
       name: '^openssl-provider-legacy$'
-      version: '3.5.7-1~deb13u3+dhi0'
+      version: '3.5.9-1~deb13u1+dhi2'
       type: deb
   - vulnerability: CVE-2026-95691
     fix-state: not-fixed
     package:
       name: '^libssl3t64$'
-      version: '3.5.7-1~deb13u3+dhi0'
+      version: '3.5.9-1~deb13u1+dhi2'
       type: deb
   - vulnerability: CVE-2026-95691
     fix-state: wont-fix
     package:
       name: '^libssl3t64$'
-      version: '3.5.7-1~deb13u3+dhi0'
+      version: '3.5.9-1~deb13u1+dhi2'
       type: deb
   - vulnerability: CVE-2026-95691
     fix-state: not-fixed
     package:
       name: '^openssl$'
-      version: '3.5.7-1~deb13u3+dhi0'
+      version: '3.5.9-1~deb13u1+dhi2'
       type: deb
   - vulnerability: CVE-2026-95691
     fix-state: wont-fix
     package:
       name: '^openssl$'
-      version: '3.5.7-1~deb13u3+dhi0'
+      version: '3.5.9-1~deb13u1+dhi2'
       type: deb
   - vulnerability: CVE-2026-95691
     fix-state: not-fixed
     package:
       name: '^openssl-provider-legacy$'
-      version: '3.5.7-1~deb13u3+dhi0'
+      version: '3.5.9-1~deb13u1+dhi2'
       type: deb
   - vulnerability: CVE-2026-95691
     fix-state: wont-fix
     package:
       name: '^openssl-provider-legacy$'
-      version: '3.5.7-1~deb13u3+dhi0'
+      version: '3.5.9-1~deb13u1+dhi2'
       type: deb
   - vulnerability: CVE-2026-95692
     fix-state: not-fixed
     package:
       name: '^libssl3t64$'
-      version: '3.5.7-1~deb13u3+dhi0'
+      version: '3.5.9-1~deb13u1+dhi2'
       type: deb
   - vulnerability: CVE-2026-95692
     fix-state: wont-fix
     package:
       name: '^libssl3t64$'
-      version: '3.5.7-1~deb13u3+dhi0'
+      version: '3.5.9-1~deb13u1+dhi2'
       type: deb
   - vulnerability: CVE-2026-95692
     fix-state: not-fixed
     package:
       name: '^openssl$'
-      version: '3.5.7-1~deb13u3+dhi0'
+      version: '3.5.9-1~deb13u1+dhi2'
       type: deb
   - vulnerability: CVE-2026-95692
     fix-state: wont-fix
     package:
       name: '^openssl$'
-      version: '3.5.7-1~deb13u3+dhi0'
+      version: '3.5.9-1~deb13u1+dhi2'
       type: deb
   - vulnerability: CVE-2026-95692
     fix-state: not-fixed
     package:
       name: '^openssl-provider-legacy$'
-      version: '3.5.7-1~deb13u3+dhi0'
+      version: '3.5.9-1~deb13u1+dhi2'
       type: deb
   - vulnerability: CVE-2026-95692
     fix-state: wont-fix
     package:
       name: '^openssl-provider-legacy$'
-      version: '3.5.7-1~deb13u3+dhi0'
+      version: '3.5.9-1~deb13u1+dhi2'
       type: deb
   - vulnerability: CVE-2026-107493
     fix-state: not-fixed
     package:
       name: '^libssl3t64$'
-      version: '3.5.7-1~deb13u3+dhi0'
+      version: '3.5.9-1~deb13u1+dhi2'
       type: deb
   - vulnerability: CVE-2026-107493
     fix-state: wont-fix
     package:
       name: '^libssl3t64$'
-      version: '3.5.7-1~deb13u3+dhi0'
+      version: '3.5.9-1~deb13u1+dhi2'
       type: deb
   - vulnerability: CVE-2026-107493
     fix-state: not-fixed
     package:
       name: '^openssl$'
-      version: '3.5.7-1~deb13u3+dhi0'
+      version: '3.5.9-1~deb13u1+dhi2'
       type: deb
   - vulnerability: CVE-2026-107493
     fix-state: wont-fix
     package:
       name: '^openssl$'
-      version: '3.5.7-1~deb13u3+dhi0'
+      version: '3.5.9-1~deb13u1+dhi2'
       type: deb
   - vulnerability: CVE-2026-107493
     fix-state: not-fixed
     package:
       name: '^openssl-provider-legacy$'
-      version: '3.5.7-1~deb13u3+dhi0'
+      version: '3.5.9-1~deb13u1+dhi2'
       type: deb
   - vulnerability: CVE-2026-107493
     fix-state: wont-fix
     package:
       name: '^openssl-provider-legacy$'
-      version: '3.5.7-1~deb13u3+dhi0'
+      version: '3.5.9-1~deb13u1+dhi2'
+      type: deb
+  - vulnerability: CVE-2026-107494
+    fix-state: not-fixed
+    package:
+      name: '^libssl3t64$'
+      version: '3.5.9-1~deb13u1+dhi2'
+      type: deb
+  - vulnerability: CVE-2026-107494
+    fix-state: wont-fix
+    package:
+      name: '^libssl3t64$'
+      version: '3.5.9-1~deb13u1+dhi2'
+      type: deb
+  - vulnerability: CVE-2026-107494
+    fix-state: not-fixed
+    package:
+      name: '^openssl$'
+      version: '3.5.9-1~deb13u1+dhi2'
+      type: deb
+  - vulnerability: CVE-2026-107494
+    fix-state: wont-fix
+    package:
+      name: '^openssl$'
+      version: '3.5.9-1~deb13u1+dhi2'
+      type: deb
+  - vulnerability: CVE-2026-107494
+    fix-state: not-fixed
+    package:
+      name: '^openssl-provider-legacy$'
+      version: '3.5.9-1~deb13u1+dhi2'
+      type: deb
+  - vulnerability: CVE-2026-107494
+    fix-state: wont-fix
+    package:
+      name: '^openssl-provider-legacy$'
+      version: '3.5.9-1~deb13u1+dhi2'
       type: deb
   - vulnerability: CVE-2026-107496
     fix-state: not-fixed
     package:
       name: '^libssl3t64$'
-      version: '3.5.7-1~deb13u3+dhi0'
+      version: '3.5.9-1~deb13u1+dhi2'
       type: deb
   - vulnerability: CVE-2026-107496
     fix-state: wont-fix
     package:
       name: '^libssl3t64$'
-      version: '3.5.7-1~deb13u3+dhi0'
+      version: '3.5.9-1~deb13u1+dhi2'
       type: deb
   - vulnerability: CVE-2026-107496
     fix-state: not-fixed
     package:
       name: '^openssl$'
-      version: '3.5.7-1~deb13u3+dhi0'
+      version: '3.5.9-1~deb13u1+dhi2'
       type: deb
   - vulnerability: CVE-2026-107496
     fix-state: wont-fix
     package:
       name: '^openssl$'
-      version: '3.5.7-1~deb13u3+dhi0'
+      version: '3.5.9-1~deb13u1+dhi2'
       type: deb
   - vulnerability: CVE-2026-107496
     fix-state: not-fixed
     package:
       name: '^openssl-provider-legacy$'
-      version: '3.5.7-1~deb13u3+dhi0'
+      version: '3.5.9-1~deb13u1+dhi2'
       type: deb
   - vulnerability: CVE-2026-107496
     fix-state: wont-fix
     package:
       name: '^openssl-provider-legacy$'
-      version: '3.5.7-1~deb13u3+dhi0'
+      version: '3.5.9-1~deb13u1+dhi2'
+      type: deb
+  - vulnerability: CVE-2026-121482
+    fix-state: not-fixed
+    package:
+      name: '^libssl3t64$'
+      version: '3.5.9-1~deb13u1+dhi2'
+      type: deb
+  - vulnerability: CVE-2026-121482
+    fix-state: wont-fix
+    package:
+      name: '^libssl3t64$'
+      version: '3.5.9-1~deb13u1+dhi2'
+      type: deb
+  - vulnerability: CVE-2026-121482
+    fix-state: not-fixed
+    package:
+      name: '^openssl$'
+      version: '3.5.9-1~deb13u1+dhi2'
+      type: deb
+  - vulnerability: CVE-2026-121482
+    fix-state: wont-fix
+    package:
+      name: '^openssl$'
+      version: '3.5.9-1~deb13u1+dhi2'
+      type: deb
+  - vulnerability: CVE-2026-121482
+    fix-state: not-fixed
+    package:
+      name: '^openssl-provider-legacy$'
+      version: '3.5.9-1~deb13u1+dhi2'
+      type: deb
+  - vulnerability: CVE-2026-121482
+    fix-state: wont-fix
+    package:
+      name: '^openssl-provider-legacy$'
+      version: '3.5.9-1~deb13u1+dhi2'
       type: deb
   - vulnerability: CVE-2026-124709
     fix-state: not-fixed
     package:
       name: '^libssl3t64$'
-      version: '3.5.7-1~deb13u3+dhi0'
+      version: '3.5.9-1~deb13u1+dhi2'
       type: deb
   - vulnerability: CVE-2026-124709
     fix-state: wont-fix
     package:
       name: '^libssl3t64$'
-      version: '3.5.7-1~deb13u3+dhi0'
+      version: '3.5.9-1~deb13u1+dhi2'
       type: deb
   - vulnerability: CVE-2026-124709
     fix-state: not-fixed
     package:
       name: '^openssl$'
-      version: '3.5.7-1~deb13u3+dhi0'
+      version: '3.5.9-1~deb13u1+dhi2'
       type: deb
   - vulnerability: CVE-2026-124709
     fix-state: wont-fix
     package:
       name: '^openssl$'
-      version: '3.5.7-1~deb13u3+dhi0'
+      version: '3.5.9-1~deb13u1+dhi2'
       type: deb
   - vulnerability: CVE-2026-124709
     fix-state: not-fixed
     package:
       name: '^openssl-provider-legacy$'
-      version: '3.5.7-1~deb13u3+dhi0'
+      version: '3.5.9-1~deb13u1+dhi2'
       type: deb
   - vulnerability: CVE-2026-124709
     fix-state: wont-fix
     package:
       name: '^openssl-provider-legacy$'
-      version: '3.5.7-1~deb13u3+dhi0'
+      version: '3.5.9-1~deb13u1+dhi2'
+      type: deb
+  - vulnerability: CVE-2026-84786
+    fix-state: not-fixed
+    package:
+      name: '^libssl3t64$'
+      version: '3.5.9-1~deb13u1+dhi2'
+      type: deb
+  - vulnerability: CVE-2026-84786
+    fix-state: wont-fix
+    package:
+      name: '^libssl3t64$'
+      version: '3.5.9-1~deb13u1+dhi2'
+      type: deb
+  - vulnerability: CVE-2026-84786
+    fix-state: not-fixed
+    package:
+      name: '^openssl$'
+      version: '3.5.9-1~deb13u1+dhi2'
+      type: deb
+  - vulnerability: CVE-2026-84786
+    fix-state: wont-fix
+    package:
+      name: '^openssl$'
+      version: '3.5.9-1~deb13u1+dhi2'
+      type: deb
+  - vulnerability: CVE-2026-84786
+    fix-state: not-fixed
+    package:
+      name: '^openssl-provider-legacy$'
+      version: '3.5.9-1~deb13u1+dhi2'
+      type: deb
+  - vulnerability: CVE-2026-84786
+    fix-state: wont-fix
+    package:
+      name: '^openssl-provider-legacy$'
+      version: '3.5.9-1~deb13u1+dhi2'
       type: deb

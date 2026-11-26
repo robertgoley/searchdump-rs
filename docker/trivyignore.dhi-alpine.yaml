@@ -1,0 +1,30 @@
+# L-831 (1.3.1, owner decision 2026-11-25): trivy ignore rules for the dhi-alpine image only (`make scan` passes
+# this file with --ignorefile when IMAGE_VARIANT=dhi-alpine). Same ids as docker/grype-ignore.dhi-alpine.yaml, scoped
+# to libssl3/libcrypto3 at 3.5.9-r3 (versioned purls). trivy 0.76.1 rated none of them HIGH on 2026-11-25; the
+# entries keep the two scanners consistent if its rating changes. See SECURITY-CVE.md "OpenSSL 3.5.9 (L-831)".
+vulnerabilities:
+  - id: CVE-2026-107493
+    purls:
+      - pkg:apk/alpine/libssl3@3.5.9-r3
+      - pkg:apk/alpine/libcrypto3@3.5.9-r3
+    statement: "no fixed Alpine/DHI openssl yet (upstream 3.5.10); accepted by Robert 2026-11-25 until a fixed build ships, see SECURITY-CVE.md (L-831)"
+  - id: CVE-2026-107494
+    purls:
+      - pkg:apk/alpine/libssl3@3.5.9-r3
+      - pkg:apk/alpine/libcrypto3@3.5.9-r3
+    statement: "no fixed Alpine/DHI openssl yet (upstream 3.5.10); accepted by Robert 2026-11-25 until a fixed build ships, see SECURITY-CVE.md (L-831)"
+  - id: CVE-2026-121482
+    purls:
+      - pkg:apk/alpine/libssl3@3.5.9-r3
+      - pkg:apk/alpine/libcrypto3@3.5.9-r3
+    statement: "no fixed Alpine/DHI openssl yet (upstream 3.5.10); accepted by Robert 2026-11-25 until a fixed build ships, see SECURITY-CVE.md (L-831)"
+  - id: CVE-2026-124709
+    purls:
+      - pkg:apk/alpine/libssl3@3.5.9-r3
+      - pkg:apk/alpine/libcrypto3@3.5.9-r3
+    statement: "no fixed Alpine/DHI openssl yet (upstream 3.5.10); accepted by Robert 2026-11-25 until a fixed build ships, see SECURITY-CVE.md (L-831)"
+  - id: CVE-2026-84786
+    purls:
+      - pkg:apk/alpine/libssl3@3.5.9-r3
+      - pkg:apk/alpine/libcrypto3@3.5.9-r3
+    statement: "no fixed Alpine/DHI openssl yet (upstream 3.5.10); accepted by Robert 2026-11-25 until a fixed build ships, see SECURITY-CVE.md (L-831)"

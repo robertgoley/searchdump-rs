@@ -109,146 +109,59 @@ vulnerabilities:
       - pkg:deb/debian/libkrb5-3
       - pkg:deb/debian/libkrb5support0
     statement: "no fix upstream; accepted for sftp:// (ssh client only, no sshd, no GSSAPI use), see SECURITY-CVE.md (L-810i)"
-  - id: CVE-2026-112314
-    purls:
-      - pkg:deb/debian/libgssapi-krb5-2
-      - pkg:deb/debian/libk5crypto3
-      - pkg:deb/debian/libkrb5-3
-      - pkg:deb/debian/libkrb5support0
-    statement: "no fix upstream; accepted for sftp:// (ssh client only, no sshd, no GSSAPI use), see SECURITY-CVE.md (L-810i)"
-  - id: CVE-2026-112320
-    purls:
-      - pkg:deb/debian/libgssapi-krb5-2
-      - pkg:deb/debian/libk5crypto3
-      - pkg:deb/debian/libkrb5-3
-      - pkg:deb/debian/libkrb5support0
-    statement: "no fix upstream; accepted for sftp:// (ssh client only, no sshd, no GSSAPI use), see SECURITY-CVE.md (L-810i)"
-  - id: CVE-2026-112321
-    purls:
-      - pkg:deb/debian/libgssapi-krb5-2
-      - pkg:deb/debian/libk5crypto3
-      - pkg:deb/debian/libkrb5-3
-      - pkg:deb/debian/libkrb5support0
-    statement: "no fix upstream; accepted for sftp:// (ssh client only, no sshd, no GSSAPI use), see SECURITY-CVE.md (L-810i)"
-  - id: CVE-2026-112322
-    purls:
-      - pkg:deb/debian/libgssapi-krb5-2
-      - pkg:deb/debian/libk5crypto3
-      - pkg:deb/debian/libkrb5-3
-      - pkg:deb/debian/libkrb5support0
-    statement: "no fix upstream; accepted for sftp:// (ssh client only, no sshd, no GSSAPI use), see SECURITY-CVE.md (L-810i)"
-  - id: CVE-2026-112323
-    purls:
-      - pkg:deb/debian/libgssapi-krb5-2
-      - pkg:deb/debian/libk5crypto3
-      - pkg:deb/debian/libkrb5-3
-      - pkg:deb/debian/libkrb5support0
-    statement: "no fix upstream; accepted for sftp:// (ssh client only, no sshd, no GSSAPI use), see SECURITY-CVE.md (L-810i)"
-  - id: CVE-2026-119079
-    purls:
-      - pkg:deb/debian/libgssapi-krb5-2
-      - pkg:deb/debian/libk5crypto3
-      - pkg:deb/debian/libkrb5-3
-      - pkg:deb/debian/libkrb5support0
-    statement: "no fix upstream; accepted for sftp:// (ssh client only, no sshd, no GSSAPI use), see SECURITY-CVE.md (L-810i)"
-  - id: CVE-2026-107364
-    purls:
-      - pkg:deb/debian/libgssapi-krb5-2
-      - pkg:deb/debian/libk5crypto3
-      - pkg:deb/debian/libkrb5-3
-      - pkg:deb/debian/libkrb5support0
-    statement: "no fix upstream; accepted for sftp:// (ssh client only, no sshd, no GSSAPI use), see SECURITY-CVE.md (L-810i)"
-  - id: CVE-2026-112315
-    purls:
-      - pkg:deb/debian/libgssapi-krb5-2
-      - pkg:deb/debian/libk5crypto3
-      - pkg:deb/debian/libkrb5-3
-      - pkg:deb/debian/libkrb5support0
-    statement: "no fix upstream; accepted for sftp:// (ssh client only, no sshd, no GSSAPI use), see SECURITY-CVE.md (L-810i)"
-  - id: CVE-2026-112316
-    purls:
-      - pkg:deb/debian/libgssapi-krb5-2
-      - pkg:deb/debian/libk5crypto3
-      - pkg:deb/debian/libkrb5-3
-      - pkg:deb/debian/libkrb5support0
-    statement: "no fix upstream; accepted for sftp:// (ssh client only, no sshd, no GSSAPI use), see SECURITY-CVE.md (L-810i)"
-  - id: CVE-2026-112317
-    purls:
-      - pkg:deb/debian/libgssapi-krb5-2
-      - pkg:deb/debian/libk5crypto3
-      - pkg:deb/debian/libkrb5-3
-      - pkg:deb/debian/libkrb5support0
-    statement: "no fix upstream; accepted for sftp:// (ssh client only, no sshd, no GSSAPI use), see SECURITY-CVE.md (L-810i)"
-  - id: CVE-2026-112318
-    purls:
-      - pkg:deb/debian/libgssapi-krb5-2
-      - pkg:deb/debian/libk5crypto3
-      - pkg:deb/debian/libkrb5-3
-      - pkg:deb/debian/libkrb5support0
-    statement: "no fix upstream; accepted for sftp:// (ssh client only, no sshd, no GSSAPI use), see SECURITY-CVE.md (L-810i)"
-  - id: CVE-2026-112319
-    purls:
-      - pkg:deb/debian/libgssapi-krb5-2
-      - pkg:deb/debian/libk5crypto3
-      - pkg:deb/debian/libkrb5-3
-      - pkg:deb/debian/libkrb5support0
-    statement: "no fix upstream; accepted for sftp:// (ssh client only, no sshd, no GSSAPI use), see SECURITY-CVE.md (L-810i)"
-  - id: CVE-2026-118380
-    purls:
-      - pkg:deb/debian/libgssapi-krb5-2
-      - pkg:deb/debian/libk5crypto3
-      - pkg:deb/debian/libkrb5-3
-      - pkg:deb/debian/libkrb5support0
-    statement: "no fix upstream; accepted for sftp:// (ssh client only, no sshd, no GSSAPI use), see SECURITY-CVE.md (L-810i)"
-  - id: CVE-2026-71199
-    purls:
-      - pkg:deb/debian/libgssapi-krb5-2
-      - pkg:deb/debian/libk5crypto3
-      - pkg:deb/debian/libkrb5-3
-      - pkg:deb/debian/libkrb5support0
-    statement: "no fix upstream; accepted for sftp:// (ssh client only, no sshd, no GSSAPI use), see SECURITY-CVE.md (L-810i)"
-  - id: CVE-2026-71200
-    purls:
-      - pkg:deb/debian/libgssapi-krb5-2
-      - pkg:deb/debian/libk5crypto3
-      - pkg:deb/debian/libkrb5-3
-      - pkg:deb/debian/libkrb5support0
-    statement: "no fix upstream; accepted for sftp:// (ssh client only, no sshd, no GSSAPI use), see SECURITY-CVE.md (L-810i)"
-  # L-824 (owner decision 2026-11-20, Robert): OpenSSL 3.5.7 High CVEs, unfixed in Debian trixie/sid. Scoped to
-  # the exact package version (purl with version), so a rebuilt base with another openssl no longer matches.
+  # L-831 (1.3.1, 2026-11-25): openssl 3.5.9-1~deb13u1+dhi2 (DHI backports for eight ids; CVE-2026-84786 accepted).
+  # Versioned purls, so another openssl build is scanned in full. See SECURITY-CVE.md "OpenSSL 3.5.9 (L-831)".
   - id: CVE-2026-88823
     purls:
-      - pkg:deb/debian/libssl3t64@3.5.7-1~deb13u3%2Bdhi0
-      - pkg:deb/debian/openssl@3.5.7-1~deb13u3%2Bdhi0
-      - pkg:deb/debian/openssl-provider-legacy@3.5.7-1~deb13u3%2Bdhi0
-    statement: "no fix upstream (Debian trixie/sid unfixed); accepted by Robert 2026-11-20 until a fixed openssl ships, see SECURITY-CVE.md (L-824)"
+      - pkg:deb/debian/libssl3t64@3.5.9-1~deb13u1%2Bdhi2
+      - pkg:deb/debian/openssl@3.5.9-1~deb13u1%2Bdhi2
+      - pkg:deb/debian/openssl-provider-legacy@3.5.9-1~deb13u1%2Bdhi2
+    statement: "fixed by the DHI backport in openssl 3.5.9-1~deb13u1+dhi2 (package changelog); Debian tracker not updated, see SECURITY-CVE.md (L-831)"
   - id: CVE-2026-95691
     purls:
-      - pkg:deb/debian/libssl3t64@3.5.7-1~deb13u3%2Bdhi0
-      - pkg:deb/debian/openssl@3.5.7-1~deb13u3%2Bdhi0
-      - pkg:deb/debian/openssl-provider-legacy@3.5.7-1~deb13u3%2Bdhi0
-    statement: "no fix upstream (Debian trixie/sid unfixed); accepted by Robert 2026-11-20 until a fixed openssl ships, see SECURITY-CVE.md (L-824)"
+      - pkg:deb/debian/libssl3t64@3.5.9-1~deb13u1%2Bdhi2
+      - pkg:deb/debian/openssl@3.5.9-1~deb13u1%2Bdhi2
+      - pkg:deb/debian/openssl-provider-legacy@3.5.9-1~deb13u1%2Bdhi2
+    statement: "fixed by the DHI backport in openssl 3.5.9-1~deb13u1+dhi2 (package changelog); Debian tracker not updated, see SECURITY-CVE.md (L-831)"
   - id: CVE-2026-95692
     purls:
-      - pkg:deb/debian/libssl3t64@3.5.7-1~deb13u3%2Bdhi0
-      - pkg:deb/debian/openssl@3.5.7-1~deb13u3%2Bdhi0
-      - pkg:deb/debian/openssl-provider-legacy@3.5.7-1~deb13u3%2Bdhi0
-    statement: "no fix upstream (Debian trixie/sid unfixed); accepted by Robert 2026-11-20 until a fixed openssl ships, see SECURITY-CVE.md (L-824)"
+      - pkg:deb/debian/libssl3t64@3.5.9-1~deb13u1%2Bdhi2
+      - pkg:deb/debian/openssl@3.5.9-1~deb13u1%2Bdhi2
+      - pkg:deb/debian/openssl-provider-legacy@3.5.9-1~deb13u1%2Bdhi2
+    statement: "fixed by the DHI backport in openssl 3.5.9-1~deb13u1+dhi2 (package changelog); Debian tracker not updated, see SECURITY-CVE.md (L-831)"
   - id: CVE-2026-107493
     purls:
-      - pkg:deb/debian/libssl3t64@3.5.7-1~deb13u3%2Bdhi0
-      - pkg:deb/debian/openssl@3.5.7-1~deb13u3%2Bdhi0
-      - pkg:deb/debian/openssl-provider-legacy@3.5.7-1~deb13u3%2Bdhi0
-    statement: "no fix upstream (Debian trixie/sid unfixed); accepted by Robert 2026-11-20 until a fixed openssl ships, see SECURITY-CVE.md (L-824)"
+      - pkg:deb/debian/libssl3t64@3.5.9-1~deb13u1%2Bdhi2
+      - pkg:deb/debian/openssl@3.5.9-1~deb13u1%2Bdhi2
+      - pkg:deb/debian/openssl-provider-legacy@3.5.9-1~deb13u1%2Bdhi2
+    statement: "fixed by the DHI backport in openssl 3.5.9-1~deb13u1+dhi2 (package changelog); Debian tracker not updated, see SECURITY-CVE.md (L-831)"
+  - id: CVE-2026-107494
+    purls:
+      - pkg:deb/debian/libssl3t64@3.5.9-1~deb13u1%2Bdhi2
+      - pkg:deb/debian/openssl@3.5.9-1~deb13u1%2Bdhi2
+      - pkg:deb/debian/openssl-provider-legacy@3.5.9-1~deb13u1%2Bdhi2
+    statement: "fixed by the DHI backport in openssl 3.5.9-1~deb13u1+dhi2 (package changelog); Debian tracker not updated, see SECURITY-CVE.md (L-831)"
   - id: CVE-2026-107496
     purls:
-      - pkg:deb/debian/libssl3t64@3.5.7-1~deb13u3%2Bdhi0
-      - pkg:deb/debian/openssl@3.5.7-1~deb13u3%2Bdhi0
-      - pkg:deb/debian/openssl-provider-legacy@3.5.7-1~deb13u3%2Bdhi0
-    statement: "no fix upstream (Debian trixie/sid unfixed); accepted by Robert 2026-11-20 until a fixed openssl ships, see SECURITY-CVE.md (L-824)"
+      - pkg:deb/debian/libssl3t64@3.5.9-1~deb13u1%2Bdhi2
+      - pkg:deb/debian/openssl@3.5.9-1~deb13u1%2Bdhi2
+      - pkg:deb/debian/openssl-provider-legacy@3.5.9-1~deb13u1%2Bdhi2
+    statement: "fixed by the DHI backport in openssl 3.5.9-1~deb13u1+dhi2 (package changelog); Debian tracker not updated, see SECURITY-CVE.md (L-831)"
+  - id: CVE-2026-121482
+    purls:
+      - pkg:deb/debian/libssl3t64@3.5.9-1~deb13u1%2Bdhi2
+      - pkg:deb/debian/openssl@3.5.9-1~deb13u1%2Bdhi2
+      - pkg:deb/debian/openssl-provider-legacy@3.5.9-1~deb13u1%2Bdhi2
+    statement: "fixed by the DHI backport in openssl 3.5.9-1~deb13u1+dhi2 (package changelog); Debian tracker not updated, see SECURITY-CVE.md (L-831)"
   - id: CVE-2026-124709
     purls:
-      - pkg:deb/debian/libssl3t64@3.5.7-1~deb13u3%2Bdhi0
-      - pkg:deb/debian/openssl@3.5.7-1~deb13u3%2Bdhi0
-      - pkg:deb/debian/openssl-provider-legacy@3.5.7-1~deb13u3%2Bdhi0
-    statement: "no fix upstream (Debian trixie/sid unfixed); accepted by Robert 2026-11-20 until a fixed openssl ships, see SECURITY-CVE.md (L-824)"
+      - pkg:deb/debian/libssl3t64@3.5.9-1~deb13u1%2Bdhi2
+      - pkg:deb/debian/openssl@3.5.9-1~deb13u1%2Bdhi2
+      - pkg:deb/debian/openssl-provider-legacy@3.5.9-1~deb13u1%2Bdhi2
+    statement: "fixed by the DHI backport in openssl 3.5.9-1~deb13u1+dhi2 (package changelog); Debian tracker not updated, see SECURITY-CVE.md (L-831)"
+  - id: CVE-2026-84786
+    purls:
+      - pkg:deb/debian/libssl3t64@3.5.9-1~deb13u1%2Bdhi2
+      - pkg:deb/debian/openssl@3.5.9-1~deb13u1%2Bdhi2
+      - pkg:deb/debian/openssl-provider-legacy@3.5.9-1~deb13u1%2Bdhi2
+    statement: "no fixed openssl yet (upstream 3.5.10); accepted by Robert 2026-11-25 (L-824 addendum), see SECURITY-CVE.md (L-831)"

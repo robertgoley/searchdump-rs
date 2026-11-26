@@ -115,7 +115,9 @@ COPY --from=builder /out/searchdump-multi /usr/local/bin/searchdump-multi
 COPY --from=builder /out/root/usr/share/doc/searchdump-rs/ /usr/share/doc/searchdump-rs/
 # - Package upgrade first (L-831, 1.3.1): `apt-get upgrade` on Debian, like `apk upgrade` on Alpine, so
 #   package fixes that DHI publishes after the pinned base digest (e.g. openssl +dhiN rebuilds) are in the image.
-#   The upgraded openssl's maintainer script (openssl.postinst) is deleted like the L-810j ones below.
+#   The upgraded openssl's maintainer script (openssl.postinst) is deleted like the L-810j ones below, and a DHI
+#   per-package record in /var/lib/dpkg/status.d/ whose package apt has since upgraded is removed (it still names the
+#   old version, so SBOMs and scanners would report both versions).
 # - OpenSSH client (L-810i, owner decision 2026-11-14): OpenDAL's sftp:// backend runs the system
 #   `ssh` binary (Dropbear's client is not compatible). Alpine: openssh-client-default (ssh only,
 #   no keysign); Debian: openssh-client without recommends, apt lists removed, and the setuid bit
@@ -137,6 +139,12 @@ RUN --mount=type=bind,from=builder,source=/out/ca-certificates.crt,target=/tmp/c
       && apt-get update \
       && apt-get -y --no-install-recommends upgrade \
       && apt-get install -y --no-install-recommends openssh-client \
+      && for f in /var/lib/dpkg/status.d/*; do \
+           case "$f" in *.md5sums) continue ;; esac; [ -f "$f" ] || continue; \
+           p=$(sed -n 's/^Package: //p' "$f" | head -n 1); v=$(sed -n 's/^Version: //p' "$f" | head -n 1); \
+           cur=$(dpkg-query -W -f='${Version}' "$p" 2>/dev/null || true); \
+           if [ -n "$cur" ] && [ "$cur" != "$v" ]; then rm -f "$f" "$f.md5sums"; fi; \
+         done \
       && apt-get clean \
       && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*.deb /var/log/apt /var/log/dpkg.log \
       && if [ -e /usr/lib/openssh/ssh-keysign ]; then chmod u-s /usr/lib/openssh/ssh-keysign; fi \

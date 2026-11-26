@@ -925,10 +925,7 @@
    "github:servo:cargo-publish"
   ],
   "socket2": [
-   "Thomasdezeeuw",
-   "github:tokio-rs:socket2",
-   "rust-lang-owner",
-   "sfackler"
+   "rust-lang-owner"
   ],
   "sonic-number": [
    "github:cloudwego:volo-team",
