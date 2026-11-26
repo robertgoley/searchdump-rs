@@ -115,6 +115,7 @@ COPY --from=builder /out/searchdump-multi /usr/local/bin/searchdump-multi
 COPY --from=builder /out/root/usr/share/doc/searchdump-rs/ /usr/share/doc/searchdump-rs/
 # - Package upgrade first (L-831, 1.3.1): `apt-get upgrade` on Debian, like `apk upgrade` on Alpine, so
 #   package fixes that DHI publishes after the pinned base digest (e.g. openssl +dhiN rebuilds) are in the image.
+#   The upgraded openssl's maintainer script (openssl.postinst) is deleted like the L-810j ones below.
 # - OpenSSH client (L-810i, owner decision 2026-11-14): OpenDAL's sftp:// backend runs the system
 #   `ssh` binary (Dropbear's client is not compatible). Alpine: openssh-client-default (ssh only,
 #   no keysign); Debian: openssh-client without recommends, apt lists removed, and the setuid bit
@@ -147,7 +148,8 @@ RUN --mount=type=bind,from=builder,source=/out/ca-certificates.crt,target=/tmp/c
            /usr/sbin/invoke-rc.d /usr/share/doc/adduser/examples/adduser.local \
            /var/lib/dpkg/info/init-system-helpers.postinst /var/lib/dpkg/info/login.defs.postinst \
            /var/lib/dpkg/info/passwd.preinst /var/lib/dpkg/info/passwd.postinst \
-           /var/lib/dpkg/info/passwd.prerm /var/lib/dpkg/info/passwd.postrm; \
+           /var/lib/dpkg/info/passwd.prerm /var/lib/dpkg/info/passwd.postrm \
+           /var/lib/dpkg/info/openssl.postinst; \
     fi \
  && ssh -V \
  && ln -s searchdump /usr/local/bin/elasticdump \

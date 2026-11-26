@@ -192,7 +192,7 @@ jobs:
             echo "# upgradable"; apt list --upgradable 2>/dev/null
             echo "# DHI changelog of the newest libssl3t64 / libkrb5-3 / openssh-client"
             apt-get install -y -qq --no-install-recommends libssl3t64 openssh-client >/dev/null 2>&1 || true
-            for p in libssl3t64 libkrb5-3 openssh-client; do echo "## $p"; zcat "/usr/share/doc/$p/changelog.Debian.gz" 2>/dev/null | head -40; done' > base-refresh/probe-dhi-debian.txt 2>&1 || true
+            for p in libssl3t64 libkrb5-3 openssh-client; do echo "## $p"; zcat "/usr/share/doc/$p/changelog.Debian.gz" 2>/dev/null | sed -n "1,/^ -- [^D]/p"; done' > base-refresh/probe-dhi-debian.txt 2>&1 || true
           podman run --rm --user 0 --entrypoint /bin/sh "dhi.io/alpine-base:$DHI_ALPINE_BASE_NEW" -c '
             apk update -q >/dev/null
             echo "# installed"; apk list -I 2>/dev/null | grep -E "^(musl|libssl3|libcrypto3|zstd-libs|krb5)" || true
@@ -206,9 +206,12 @@ jobs:
           make image CONTAINER=podman BASE_TAG="$BASE_NEW"
           make image-dhi-alpine CONTAINER=podman DHI_ALPINE_BASE_TAG="$DHI_ALPINE_BASE_NEW"
           for v in dhi-debian dhi-alpine; do
+            img=$(make -s print CONTAINER=podman IMAGE_VARIANT="$v" | sed -n 's/.*VARIANT_IMAGE=\([^ ]*\).*/\1/p')
             make test-image CONTAINER=podman IMAGE_VARIANT="$v"
+            # sftp:// through the image's own OpenSSH client (L-831)
+            scripts/sup/image-sftp-smoke.sh "$img" 2>&1 | tee "base-refresh/sftp-$v.txt"
             make save CONTAINER=podman IMAGE_VARIANT="$v"
-            podman run --rm --entrypoint /bin/sh "$(make -s print CONTAINER=podman IMAGE_VARIANT=$v | sed -n 's/.*VARIANT_IMAGE=\([^ ]*\).*/\1/p')" \
+            podman run --rm --entrypoint /bin/sh "$img" \
               -c 'if command -v dpkg-query >/dev/null; then dpkg-query -W libc6 libssl3t64 openssl libkrb5-3 libgssapi-krb5-2 libzstd1 openssh-client; else apk info -v 2>/dev/null | grep -E "^(musl|libssl3|libcrypto3|openssh|zstd)"; fi' \
               > "base-refresh/packages-$v.txt" || true
             grype docker-archive:image.tar -o json --file "base-refresh/grype-$v-noignore.json"
@@ -217,7 +220,7 @@ jobs:
             tign=$(ls docker/trivyignore."$v".yaml 2>/dev/null || true)
             trivy image --input image.tar --severity HIGH,CRITICAL --format json --output "base-refresh/trivy-$v-noignore.json"
             trivy image --input image.tar --severity HIGH,CRITICAL ${tign:+--ignorefile "$tign"} --output "base-refresh/trivy-$v-ignored.txt"
-            { echo "## $v"; echo '```'; cat "base-refresh/packages-$v.txt"; echo; grep -E 'High|Critical' "base-refresh/grype-$v-ignored.txt" || echo "grype: no High/Critical after ignore rules"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+            { echo "## $v"; echo '```'; cat "base-refresh/packages-$v.txt" "base-refresh/sftp-$v.txt"; echo; grep -E 'High|Critical' "base-refresh/grype-$v-ignored.txt" || echo "grype: no High/Critical after ignore rules"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
           done
       - if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
