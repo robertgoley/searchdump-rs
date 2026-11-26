@@ -13,28 +13,39 @@ t265u: save progress so another agent can finish). Times are America/New_York.
   (5186 lines, 29 unit tests).
 - Commit ids continue the 1.4 numbering: `L4-008` = split step 0, `L4-009` = step 1, ... (one commit per step or group).
 
-## 2. Status (updated 2026-11-26 00:55)
+## 2. Status (updated 2026-11-26 01:40)
 
 | step | commit | state |
 |---|---|---|
 | 0 safety net (tests only) | 1a5f6df L4-008 | done, gate OK |
 | 1 `git mv` -> `searchdump-multi/main.rs` | aeac554 L4-009 | done, gate OK (100 % rename) |
 | 2 `reqwest::Method` -> `http::Method` | 05d8801 L4-010 | done, gate OK |
-| tooling + this handoff | L4-011 | `project/plan/split-1.4/` (generator, gates) |
-| 3 cli.rs | – | next |
-| 4 sizing.rs, flags.rs | – | |
-| 5 selection.rs, types.rs | – | |
-| 6 files.rs, manifest.rs, discover.rs | – | |
-| 7 tls.rs, cluster.rs | – | (ConnOptions seam: see section 5) |
-| 8 child/{mod,stats,probe,runner}.rs | – | |
-| 9 ctx.rs, planner.rs | – | |
-| 10 dump.rs, load.rs, storage.rs, run_local/mod.rs | – | generated state compile-checked: `cargo clippy --bin searchdump-multi --tests -D warnings` clean |
-| 11-14 phase B (decompose run_local, data-arg builder) | – | not started |
-| 15-17 phase C (visibility, module docs, docs/CHANGELOG) | – | not started |
-| final verification, HANDOFF-1.4 row, push, CI | – | |
+| tooling + this handoff | f76faa5 L4-011 | `project/plan/split-1.4/` |
+| 3 cli.rs | c4fa29a L4-012 | done, gate OK |
+| 4 sizing.rs, flags.rs | 37b9e3f L4-013 | done, gate OK |
+| 5 selection.rs, types.rs | 7c701be L4-014 | done, gate OK |
+| 6 files.rs, manifest.rs, discover.rs | 6c1ca1b L4-015 | done, gate OK |
+| 7 tls.rs, cluster.rs | 55dd3b9 L4-016 | done, gate OK (ConnOptions seam not added: section 5) |
+| 8 child/{mod,stats,probe,runner}.rs | 448b90b L4-017 | done, gate OK |
+| 9 ctx.rs, planner.rs | 4cda2b8 L4-018 | done, gate OK |
+| 10 dump.rs, load.rs, storage.rs, run_local/mod.rs | 619867c L4-019 | done, gate OK (phase A complete) |
+| 11 run_local/setup.rs + `Ctx::new` | – | **in progress** (below) |
+| 12 run_local/dump_plan.rs + dry_run::print_dump_plan | – | script ready: `phase_b12.py` |
+| 13 run_local/load_plan.rs + print_load_plan + report.rs | – | script ready: `phase_b13.py` |
+| 14 child data-arg builder | – | script ready: `phase_b14.py` (argv-pinning tests still to add) |
+| 15 visibility + explicit imports | – | script ready: `phase_c15.py` |
+| 16 module docs, 17 docs/CHANGELOG, final verification, push, CI | – | |
 
-No step is half-done in the worktree: everything up to step 2 is committed; steps 3-10 are produced by the
-generator (section 3) and only need running, gating and committing one by one.
+Phase A steps 3-10 were run by `steps.sh 4 10 13` (regenerate, G-fast gate, commit only on GATE OK with 29 multi tests).
+
+**Step 11 in progress (uncommitted in the worktree):** `python3 project/plan/split-1.4/phase_b11.py src/bin/searchdump-multi && cargo fmt`
+was applied on 619867c: new `run_local/setup.rs` (`validate_local`, `run_types`, `selector`, `warn_url_credentials`,
+`log_dir`, `cluster_tls`, `Interrupt::install`, `build_runner` + 2 new unit tests), `Ctx::new` in `ctx.rs`, and
+`run_local` calls them in the old order. clippy `-D warnings` clean, the new tests pass; the G-fast gate was
+interrupted. To finish: run the gate (expect 31 multi tests), then commit `ctx.rs`, `run_local/mod.rs`,
+`run_local/setup.rs`. If unsure, `git checkout src/bin/searchdump-multi && rm src/bin/searchdump-multi/run_local/setup.rs`
+and re-run `phase_b11.py` (reproducible). Steps 12-15: run `phase_b1N.py src/bin/searchdump-multi` / `phase_c15.py`
+in order on the previous step's commit, then `cargo fmt`, gate, commit.
 
 ## 3. How steps 3-10 are produced (mechanical, reproducible)
 
