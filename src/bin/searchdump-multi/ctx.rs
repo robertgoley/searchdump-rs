@@ -29,6 +29,29 @@ pub(crate) struct Ctx {
 }
 
 impl Ctx {
+    /// The run context: `--interval` pacing and the meta directory are derived from `args`.
+    pub(crate) fn new(
+        args: Args,
+        tls: ClusterTls,
+        types: Types,
+        sel: Selector,
+        runner: Runner,
+    ) -> Ctx {
+        let pacer = Pacer::new(Duration::from_millis(args.interval));
+        let meta = meta_dir(&args);
+        Ctx {
+            meta,
+            tls,
+            args,
+            types,
+            sel,
+            runner,
+            pacer,
+            plan: Default::default(),
+            index_stats: Default::default(),
+        }
+    }
+
     pub(crate) fn plan(&self) -> &sizing::Plan {
         self.plan.get_or_init(|| {
             sizing::Plan::new(

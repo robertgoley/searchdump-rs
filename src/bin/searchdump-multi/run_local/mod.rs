@@ -2,183 +2,18 @@
 
 use crate::*;
 
+mod setup;
+
 pub(crate) async fn run_local(args: Args) -> Result<i32> {
-    if args.direction == Direction::Load && (args.file_size.is_some() || args.max_rows.is_some()) {
-        bail!("--fileSize/--maxRows apply to dumps; load finds split parts on its own");
-    }
-    if args.direction != Direction::Dump && args.page_bytes.is_some() {
-        bail!("--pageBytes applies to dumps (it caps the search pages read from the cluster)");
-    }
-    if args.node_compat {
-        if args.direction == Direction::Load {
-            bail!("--nodeCompat applies to dumps; load reads Node-named directories on its own");
-        }
-        if args.layout != Layout::Flat {
-            bail!("--nodeCompat needs --layout flat (Node reads one directory, no subdirectories)");
-        }
-        if !matches!(args.compression, Compression::Gzip | Compression::None) {
-            bail!("--nodeCompat: Node reads gzip or uncompressed files only, not zstd");
-        }
-        if args.splits() {
-            bail!(
-                "--nodeCompat cannot split data: Node multielasticdump 6.x cannot load split parts (it opens INDEX.json or 'undefined' for them); dump without --nodeCompat, or without --fileSize/--maxRows"
-            );
-        }
-        if args.match_type.contains(&MatchType::Datastream) {
-            bail!(
-                "--nodeCompat: Node multielasticdump cannot restore data streams (its data runs use the index op); dump them without --nodeCompat"
-            );
-        }
-    }
-    let mut default_types: Vec<String> = match args.direction {
-        // Node dumps (and by default loads) the legacy templates with every index.
-        Direction::Dump if args.node_compat => vec!["settings", "mapping", "template", "data"],
-        Direction::Dump => vec!["settings", "mapping", "data"],
-        Direction::Load => vec!["settings", "analyzer", "mapping", "alias", "data"],
-        Direction::Copy => unreachable!("copy is handled before run_local"),
-    }
-    .into_iter()
-    .map(String::from)
-    .collect();
-    if args.direction == Direction::Load {
-        default_types.extend(CLUSTER_TYPES.iter().map(|s| s.to_string()));
-    }
-    let (want, ignore) = node_type_flags(&args, &default_types);
-    let types = resolve_types(&want, &ignore)?;
-    let mut types = types;
-    if args.node_compat {
-        if let Some(i) = types.cluster.iter().position(|k| *k == "template") {
-            // Node keeps the legacy templates in INDEX.template.json, loaded before the index.
-            types.cluster.remove(i);
-            types.index.insert(0, "template");
-        } else {
-            eprintln!(
-                "warning: no template type: Node's multielasticdump load stops on the missing INDEX.template.json unless run with --ignoreTemplate=true"
-            );
-        }
-        for k in ["settings", "mapping", "data"] {
-            if !types.index.contains(&k) {
-                eprintln!(
-                    "warning: no {k} type: Node's multielasticdump load stops on the missing files unless run with --ignore{}=true",
-                    match k {
-                        "settings" => "Settings",
-                        "mapping" => "Mapping",
-                        _ => "Data",
-                    }
-                );
-            }
-        }
-    }
-    let sel = Selector::new(&args.match_re, args.exclude.as_deref(), args.include_hidden)?;
-    if args.layout == Layout::Group && !sel.has_group() {
-        bail!("--layout group needs a capture group in --match, e.g. '^logs-(?P<group>[a-z]+)-'");
-    }
-    let creds_in = |u: &str| {
-        Url::parse(u)
-            .map(|u| u.password().is_some())
-            .unwrap_or(false)
-    };
-    if creds_in(&args.input) || creds_in(&args.output) {
-        eprintln!(
-            "warning: a password in the URL is passed to every searchdump run and shows in `ps`; prefer SEARCHDUMP_*_PASSWORD or --httpAuthFile"
-        );
-    }
-    let log_dir = match &args.log_dir {
-        Some(d) => d.clone(),
-        None => std::env::temp_dir().join(format!(
-            "searchdump-multi-{}-{}",
-            std::process::id(),
-            chrono_stamp()
-        )),
-    };
-    // L4-001: the cluster's TLS settings, for the parent and every child
-    let side = if args.direction == Direction::Dump {
-        Side::Input
-    } else {
-        Side::Output
-    };
-    let tls = ClusterTls::resolve(&args, side, &|k| std::env::var(k).ok())?;
-    if tls.node_insecure {
-        // the same words searchdump prints
-        eprintln!(
-            "warning: NODE_TLS_REJECT_UNAUTHORIZED=0: TLS certificate verification is disabled"
-        );
-    }
-    if let Some(p) = &tls.pass {
-        searchdump_rs::secrets::register(&p.0);
-    }
-    let mut common = tls.child_flags(side);
-    if let Some(f) = &args.http_auth_file {
-        common.push(format!("--httpAuthFile={f}"));
-    }
-    let data_flags = merge_data_flags(
-        if args.no_default_data_flags {
-            &[]
-        } else {
-            DATA_FLAGS
-        },
-        &args.extra,
-    );
-    let cancelled = Arc::new(AtomicBool::new(false));
-    let cancel = CancellationToken::new();
-    {
-        let c = cancelled.clone();
-        let token = cancel.clone();
-        tokio::spawn(async move {
-            if tokio::signal::ctrl_c().await.is_ok() {
-                eprintln!(
-                    "interrupted: stopping running steps (SIGTERM, SIGKILL after {}s), starting no new ones",
-                    CHILD_GRACE.as_secs()
-                );
-                c.store(true, Ordering::SeqCst);
-                token.cancel();
-            }
-        });
-    }
-    let bin = find_bin(args.elasticdump_bin.as_deref());
-    let stats = takes_stats_file(&bin) && accepts_stats_file(&bin);
-    let server_limits = takes_stats_file(&bin) && accepts_server_limits(&bin);
-    if tls.pass.is_some() && !takes_stats_file(&bin) {
-        bail!(
-            "a key passphrase is passed to searchdump through ${}, which {} does not read; use searchdump, or an unencrypted key",
-            searchdump_rs::config::tls_pass_env(side),
-            bin.display()
-        );
-    }
-    if args.page_bytes.is_some() && !server_limits {
-        eprintln!(
-            "warning: {} does not take --pageBytes; it only sizes the pages from the index statistics",
-            bin.display()
-        );
-    }
-    let (child_env, child_env_remove) = tls.child_env(side);
-    let runner = Runner {
-        runs: Mutex::new(vec![]),
-        child_env,
-        child_env_remove,
-        bin,
-        log_dir: log_dir.clone(),
-        common,
-        data_flags,
-        cancelled: cancelled.clone(),
-        cancel: cancel.clone(),
-        grace: CHILD_GRACE,
-        stats,
-        server_limits,
-    };
-    let pacer = Pacer::new(Duration::from_millis(args.interval));
-    let meta = meta_dir(&args);
-    let ctx = Arc::new(Ctx {
-        meta,
-        tls,
-        args,
-        types,
-        sel,
-        runner,
-        pacer,
-        plan: Default::default(),
-        index_stats: Default::default(),
-    });
+    setup::validate_local(&args)?;
+    let types = setup::run_types(&args)?;
+    let sel = setup::selector(&args)?;
+    setup::warn_url_credentials(&args);
+    let log_dir = setup::log_dir(&args);
+    let (side, tls) = setup::cluster_tls(&args)?;
+    let interrupt = setup::Interrupt::install();
+    let runner = setup::build_runner(&args, &tls, side, &log_dir, &interrupt)?;
+    let ctx = Arc::new(Ctx::new(args, tls, types, sel, runner));
     let started = Instant::now();
     let sem = Arc::new(tokio::sync::Semaphore::new(ctx.args.parallel));
     let mut set = tokio::task::JoinSet::new();
@@ -552,7 +387,7 @@ pub(crate) async fn run_local(args: Args) -> Result<i32> {
             format!(": {}", failed.join(", "))
         }
     );
-    if cancelled.load(Ordering::SeqCst) {
+    if interrupt.cancelled() {
         return Ok(130);
     }
     Ok(if failed.is_empty() { 0 } else { 1 })
