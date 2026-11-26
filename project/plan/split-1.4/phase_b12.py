@@ -8,6 +8,66 @@ D = sys.argv[1]
 p = f'{D}/run_local/mod.rs'
 s = open(p).read()
 
+TESTS = r'''
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn entry(types: &[&str]) -> IndexEntry {
+        IndexEntry {
+            dir: "sub".into(),
+            types: types.iter().map(|s| s.to_string()).collect(),
+            status: "done".into(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn already_done_needs_every_file_of_a_finished_index() {
+        let d = tempfile::tempdir().unwrap();
+        let root = d.path();
+        fs::create_dir_all(root.join("sub")).unwrap();
+        let mut m = Manifest::default();
+        assert!(!already_done(&m, root, "ix"), "not in the manifest");
+
+        // single data file: present and non-empty, or a 0-record dump
+        let mut e = entry(&["data"]);
+        e.data_file = Some("ix.data.json.gz".into());
+        m.indices.insert("ix".into(), e.clone());
+        assert!(!already_done(&m, root, "ix"), "data file missing");
+        fs::write(root.join("sub/ix.data.json.gz"), "x").unwrap();
+        assert!(already_done(&m, root, "ix"));
+        e.status = "failed".into();
+        m.indices.insert("ix".into(), e.clone());
+        assert!(!already_done(&m, root, "ix"), "status must be done");
+        let mut empty = entry(&["data"]);
+        empty.records = Some(0);
+        m.indices.insert("e".into(), empty);
+        assert!(already_done(&m, root, "e"), "0 records needs no file");
+
+        // split parts: all present
+        let mut s = entry(&["data"]);
+        s.data_parts = vec!["s.data.split-0.json.gz".into(), "s.data.split-1.json.gz".into()];
+        m.indices.insert("s".into(), s);
+        fs::write(root.join("sub/s.data.split-0.json.gz"), "x").unwrap();
+        assert!(!already_done(&m, root, "s"), "part 1 missing");
+        fs::write(root.join("sub/s.data.split-1.json.gz"), "x").unwrap();
+        assert!(already_done(&m, root, "s"));
+
+        // meta files and the analyzer file (named by the manifest's codec and layout)
+        m.indices.insert("t".into(), entry(&["settings", "analyzer"]));
+        fs::write(root.join("sub/t.settings.json"), "{}").unwrap();
+        assert!(!already_done(&m, root, "t"), "analyzer file missing");
+        fs::write(
+            root.join("sub").join(item_file_for(false, "t", "analyzer", Compression::None)),
+            "{}",
+        )
+        .unwrap();
+        assert!(already_done(&m, root, "t"));
+    }
+}
+'''
+
 def cut(src, a, b, start=0):
     i = src.index(a, start); j = src.index(b, i)
     return src[i:j], i, j
@@ -43,6 +103,8 @@ dry_body = dry[len('    if ctx.args.dry_run {\n'):].rstrip()
 assert dry_body.endswith('return Ok(0);\n    }')
 dry_body = dry_body[:-len('return Ok(0);\n    }')].rstrip() + '\n'
 dry_body = dedent(dry_body, 4)
+assert '    for t in &selected {' in dry_body
+dry_body = dry_body.replace('    for t in &selected {', '    for t in selected {')  # selected: &[Target] now
 man, mi, mj = cut(inner, '    let mut m = Manifest::load(&ctx.meta)?.unwrap_or_default();\n', '    let mut todo = vec![];\n')
 done, oi, oj = cut(inner, '        let done = m.indices.get(&t.name).is_some_and(|e| {\n', '        if ctx.args.resume && done {\n')
 bud, bi, bj = cut(inner, '    let bytes = ctx.plan().budget.map(|b| {\n', '    for t in todo {\n')
@@ -50,7 +112,7 @@ bud, bi, bj = cut(inner, '    let bytes = ctx.plan().budget.map(|b| {\n', '    f
 start = inner
 start = start.replace(sel, '    let (selected, total) = select_dump_targets(ctx, &cluster).await?;\n')
 start = start.replace(dry, '    if ctx.args.dry_run {\n        dry_run::print_dump_plan(ctx, &root, &selected, total)?;\n        return Ok(Some(0));\n    }\n')
-start = start.replace(man, '    let mut m = prepare_manifest(ctx, &root, limits_json)?;\n')
+start = start.replace(man, '    let m = prepare_manifest(ctx, &root, limits_json)?;\n')
 start = start.replace(done, '        let done = already_done(&m, &root, &t.name);\n')
 start = start.replace(bud, '    let bytes = byte_budget(ctx);\n')
 for a, b in [('return Ok(1);', 'return Ok(Some(1));'), ('return Ok(code);', 'return Ok(Some(code));'),
@@ -114,6 +176,7 @@ pub(crate) fn byte_budget(ctx: &Ctx) -> Option<(Arc<tokio::sync::Semaphore>, u32
     {bud_expr.strip()}
 }}
 '''
+dump_plan += TESTS
 open(f'{D}/run_local/dump_plan.rs', 'w').write(dump_plan)
 
 dry_run = f'''//! `--dryRun` listings of `run_local` (split steps 12-13), printed to stdout.

@@ -41,6 +41,8 @@ dry, _, _ = cut(inner, '    if ctx.args.dry_run {\n', '    if found.is_empty() &
 dry_body = dry[len('    if ctx.args.dry_run {\n'):].rstrip()
 assert dry_body.endswith('return Ok(0);\n    }')
 dry_body = dedent(dry_body[:-len('return Ok(0);\n    }')].rstrip() + '\n', 4)
+assert '    for f in &found {' in dry_body
+dry_body = dry_body.replace('    for f in &found {', '    for f in found {')  # found: &[Found] now
 
 start = inner
 start = start.replace(disc, '    let found = discover_selected(ctx, &root)?;\n')
@@ -53,7 +55,8 @@ for a, b in [('return Ok(1);', 'return Ok(Some(1));'), ('return Ok(code);', 'ret
 k = start.index('    for f in found {\n')
 start = refs(start[:k]) + start[k:]
 
-disc_fn = disc.rstrip('\n') + '\n    Ok(found)\n'
+assert 'discover(&root, ' in disc
+disc_fn = disc.replace('discover(&root, ', 'discover(root, ').rstrip('\n') + '\n    Ok(found)\n'  # root: &Path now
 cf_body = cf.rstrip('\n')
 assert cf_body.startswith('    let cluster_files: Vec<&str> = ') and cf_body.endswith(';')
 cf_expr = '    ' + cf_body[len('    let cluster_files: Vec<&str> = '):-1].lstrip()
