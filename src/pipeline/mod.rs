@@ -12,7 +12,8 @@ use anyhow::Result;
 use tokio_util::sync::CancellationToken;
 
 pub use bulk::{
-    BulkAction, BulkOptions, BulkSink, DEFAULT_REFRESH_INTERVAL, RefreshPolicy, WriteReport,
+    BulkAction, BulkOptions, BulkSink, DEFAULT_REFRESH_INTERVAL, RefreshPolicy, TargetIndexRecord,
+    WriteReport, target_index_record,
 };
 pub use sink::{FileSink, Sink};
 pub use window::DocWindow;

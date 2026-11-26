@@ -13,6 +13,9 @@ fn bin() -> std::process::Command {
         "SEARCHDUMP_INPUT_PASSWORD",
         "SEARCHDUMP_OUTPUT_USERNAME",
         "SEARCHDUMP_OUTPUT_PASSWORD",
+        "SEARCHDUMP_TLS_PASS",
+        "SEARCHDUMP_INPUT_TLS_PASS",
+        "SEARCHDUMP_OUTPUT_TLS_PASS",
         "RUST_LOG",
         "HTTP_PROXY",
         "http_proxy",
@@ -552,4 +555,104 @@ async fn world_readable_auth_file_is_warned_about() {
         );
         assert!(!err.contains("FAKE-perm-pw"), "{err}");
     }
+}
+
+/// L4-001: the client-key passphrase from `$SEARCHDUMP_TLS_PASS` / `$SEARCHDUMP_{DIR}_TLS_PASS`
+/// works like `--pass` and never shows in stderr/stdout, with a wrong passphrase, with the right
+/// one (the run then fails on the connection) and with --debug. Throwaway key and certificate
+/// from the system `openssl`; skipped when it is missing.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn tls_passphrase_from_env_never_leaks() {
+    let d = std::env::temp_dir().join(format!("edrs-tlsenv-{}", std::process::id()));
+    std::fs::create_dir_all(&d).unwrap();
+    let p = |n: &str| d.join(n).to_str().unwrap().to_string();
+    let ok = |args: &[&str]| {
+        std::process::Command::new("openssl")
+            .args(args)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .is_ok_and(|s| s.success())
+    };
+    let pp = "CNRY-tlsenv-7";
+    let made = ok(&[
+        "genpkey",
+        "-algorithm",
+        "EC",
+        "-pkeyopt",
+        "ec_paramgen_curve:P-256",
+        "-out",
+        &p("k.pem"),
+    ]) && ok(&[
+        "req",
+        "-x509",
+        "-new",
+        "-key",
+        &p("k.pem"),
+        "-subj",
+        "/CN=client",
+        "-days",
+        "1",
+        "-out",
+        &p("c.pem"),
+    ]) && ok(&[
+        "pkcs8",
+        "-topk8",
+        "-v2",
+        "aes-256-cbc",
+        "-in",
+        &p("k.pem"),
+        "-out",
+        &p("enc.pem"),
+        "-passout",
+        &format!("pass:{pp}"),
+    ]);
+    if !made {
+        eprintln!("openssl not available: skipped");
+        return;
+    }
+    let base = |debug: bool| {
+        let mut a = vec![
+            "--input".to_string(),
+            "https://127.0.0.1:9/i".to_string(),
+            "--output".to_string(),
+            "$".to_string(),
+            "--input-cert".to_string(),
+            p("c.pem"),
+            "--input-key".to_string(),
+            p("enc.pem"),
+            "--tlsAuth".to_string(),
+            "--retryAttempts".to_string(),
+            "0".to_string(),
+            "--noImplicitRetry".to_string(),
+        ];
+        if debug {
+            a.push("--debug".to_string());
+        }
+        a
+    };
+    for debug in [false, true] {
+        // the wrong passphrase: a decrypt error that does not echo it
+        let wrong = "CNRY-tlsenv-wrong-8";
+        let o = run(
+            base(debug),
+            vec![("SEARCHDUMP_INPUT_TLS_PASS", wrong.to_string())],
+        )
+        .await;
+        let err = stderr(&o);
+        assert!(!o.status.success());
+        assert!(err.contains("Failed to decrypt private key"), "{err}");
+        assert!(!err.contains(wrong), "{err}");
+        // the right one (shared variable): the key decrypts, the run fails on the connection
+        let o = run(base(debug), vec![("SEARCHDUMP_TLS_PASS", pp.to_string())]).await;
+        let err = stderr(&o);
+        let out = String::from_utf8_lossy(&o.stdout).into_owned();
+        assert!(!o.status.success());
+        assert!(
+            !err.contains("decrypt"),
+            "the env passphrase was not used: {err}"
+        );
+        assert!(!err.contains(pp) && !out.contains(pp), "{err}");
+    }
+    std::fs::remove_dir_all(&d).ok();
 }

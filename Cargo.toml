@@ -85,6 +85,8 @@ memchr = "2"
 rust-ini = "0.21"
 semver = "1"
 regex = { version = "1.11", default-features = false, features = ["std", "unicode-perl", "unicode-case"] }
+# L4-002: searchdump-multi gives each child run a random (v4) id; already in the tree via opendal.
+uuid = { version = "1", default-features = false, features = ["std", "v4"] }
 # Global allocators (L-802a, L-808b; benchmarks: results/local/L-802a.md). glibc Linux builds
 # use mimalloc by default (target table below; opt out with `--features system-allocator`);
 # musl builds keep musl's own allocator unless a feature asks for one.

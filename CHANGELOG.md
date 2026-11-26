@@ -19,6 +19,23 @@ Headline: limits and multi polish. Branch `release/1.4` (from v1.3.1); not relea
   formats decrypt as before (PBES2 with PBKDF2-HMAC-SHA256 or scrypt and AES-128/256-CBC, as `openssl pkcs8
   -topk8 -v2 aes-256-cbc` writes); the SHA-1 PRF stays unsupported, as in 1.3.
 
+### Added
+
+- `searchdump-multi` TLS options (C11): `--ca`, `--cert`, `--key`, `--pass` (and searchdump's `--input-*` /
+  `--output-*` names for the cluster's side) for the parent's own requests and every child; before, only
+  `--insecure` was forwarded and private-CA users had to turn verification off. The key passphrase reaches the
+  children only through their environment (`SEARCHDUMP_INPUT_TLS_PASS` / `SEARCHDUMP_OUTPUT_TLS_PASS`), never their
+  command line. A flag for the other side, a certificate without a key, TLS flags with `--direction copy`, and a
+  passphrase with a Node elasticdump child are refused.
+- `searchdump`: the client-key passphrase from the environment: `SEARCHDUMP_TLS_PASS` (both directions),
+  `SEARCHDUMP_INPUT_TLS_PASS`, `SEARCHDUMP_OUTPUT_TLS_PASS` (after `--pass` / `--{input,output}-pass`), masked in
+  every log, debug line and error like the passwords.
+- Per-child ids in `searchdump-multi` (C6): each child run gets a UUID (`SEARCHDUMP_CHILD_ID`) shown in the
+  parent's new `child ID start:` / `child ID end:` lines and in failure messages, on every log line of the child
+  (`[time LEVEL child ID]`), in its `--statsFile` (`child_id`, plus `target_index` with the restore target's index
+  uuid noted mid-run and at the end), in the manifest (`children` per index) and in the new
+  `LOGDIR/children.json` (id, index, step, log, pid, start, seconds, status, exit, target index).
+
 ### Fixed
 
 - A huge `--idleTimeout`, `--requestTimeout` or `--timeout` (for example `--idleTimeout 9223372036854775807`)

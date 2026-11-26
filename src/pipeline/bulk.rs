@@ -176,6 +176,33 @@ pub struct WriteReport {
     pub disk_blocked: u64,
 }
 
+/// L4-002: the single target index of a restore and its `index.uuid`, noted mid-run (after
+/// [`UUID_CAPTURE_AFTER`]) and looked up again at the end, for the `--statsFile`. A
+/// searchdump-multi child ([`crate::child_id`]) always records the final uuid, so the parent's
+/// report shows which index instance each child wrote to (TST-BRK-SRV-008 tracing).
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize)]
+pub struct TargetIndexRecord {
+    pub name: String,
+    pub uuid_noted: Option<String>,
+    pub uuid_final: Option<String>,
+    /// The index was missing (404) at the end.
+    pub missing_at_end: bool,
+}
+
+static TARGET_INDEX: Mutex<Option<TargetIndexRecord>> = Mutex::new(None);
+
+/// What the last finished restore of this process recorded (see [`TargetIndexRecord`]).
+pub fn target_index_record() -> Option<TargetIndexRecord> {
+    TARGET_INDEX
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone()
+}
+
+fn record_target_index(r: TargetIndexRecord) {
+    *TARGET_INDEX.lock().unwrap_or_else(|e| e.into_inner()) = Some(r);
+}
+
 /// The read-only-allow-delete block that the disk flood-stage watermark sets (its reason
 /// text varies by version: `FORBIDDEN/12/index read-only / allow delete (api)`, `disk usage
 /// exceeded flood-stage watermark, index has read-only-allow-delete block`).
@@ -732,13 +759,25 @@ impl BulkSink {
     /// means it was deleted; another uuid means it was deleted and re-created (auto-create,
     /// dynamic mappings) while documents were written.
     async fn check_target_index(&mut self) -> Result<()> {
-        if self.target_uuid.is_none() && !self.target_gone_mid_run {
+        let noted = self.target_uuid.is_some() || self.target_gone_mid_run;
+        if !noted && crate::child_id().is_none() {
             return Ok(());
         }
         let Some(name) = self.single_target() else {
             return Ok(());
         };
         let end = self.target_uuid(&name).await;
+        record_target_index(TargetIndexRecord {
+            name: name.clone(),
+            uuid_noted: self.target_uuid.clone(),
+            uuid_final: end.clone().ok().flatten(),
+            missing_at_end: end.is_err(),
+        });
+        if !noted {
+            // a multi child's lookup only records the uuid; the deletion check needs the
+            // mid-run note (short runs keep Node's request shape)
+            return Ok(());
+        }
         let Some(recreated) =
             target_index_outcome(self.target_uuid.as_deref(), self.target_gone_mid_run, end)
         else {

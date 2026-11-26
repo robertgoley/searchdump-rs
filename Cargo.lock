@@ -2414,6 +2414,7 @@ dependencies = [
  "tokio",
  "tokio-util",
  "url",
+ "uuid",
  "webpki-roots",
  "zstd",
 ]

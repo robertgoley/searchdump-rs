@@ -208,6 +208,24 @@ pub fn is_transient(error: &anyhow::Error) -> bool {
         })
 }
 
+/// L4-002: the environment variable searchdump-multi sets on each child: a per-child run id
+/// (a UUID) that the child puts on every log line and in its `--statsFile`, so a stalled or
+/// failed step can be traced from the parent's log to one child's log and stats.
+pub const CHILD_ID_ENV: &str = "SEARCHDUMP_CHILD_ID";
+
+/// The child id from [`CHILD_ID_ENV`], if set and well-formed (1-64 ASCII letters, digits and
+/// `-`; anything else is ignored, so the variable cannot inject text into log lines).
+pub fn child_id() -> Option<&'static str> {
+    static ID: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
+    ID.get_or_init(|| valid_child_id(crate::envnames::var(CHILD_ID_ENV)?))
+        .as_deref()
+}
+
+fn valid_child_id(v: String) -> Option<String> {
+    (!v.is_empty() && v.len() <= 64 && v.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-'))
+        .then_some(v)
+}
+
 fn init_logging(cli: &Cli) {
     let default = if cli.debug() {
         "debug"
@@ -222,9 +240,13 @@ fn init_logging(cli: &Cli) {
             // every log line is scrubbed of registered secrets (TST-BRK-CLI-007)
             let msg = secrets::scrub(&record.args().to_string());
             let style = buf.default_level_style(record.level());
+            // L4-002: a searchdump-multi child tags every line with its run id
+            let child = child_id()
+                .map(|c| format!(" child {c}"))
+                .unwrap_or_default();
             writeln!(
                 buf,
-                "[{} {style}{}{style:#}] {msg}",
+                "[{} {style}{}{style:#}{child}] {msg}",
                 buf.timestamp(),
                 record.level()
             )
@@ -853,6 +875,12 @@ async fn es_source_options(
 fn register_early_secrets(cli: &Cli) {
     let env = [Direction::Input, Direction::Output]
         .map(|d| crate::envnames::var(&format!("{}_PASSWORD", d.env_prefix())));
+    // L4-001: the client-key passphrase from the environment
+    let tls_env = [
+        crate::envnames::var(config::TLS_PASS_ENV),
+        crate::envnames::var(&config::tls_pass_env(Direction::Input)),
+        crate::envnames::var(&config::tls_pass_env(Direction::Output)),
+    ];
     for p in [
         &cli.input_password,
         &cli.output_password,
@@ -862,6 +890,7 @@ fn register_early_secrets(cli: &Cli) {
     ]
     .into_iter()
     .chain(&env)
+    .chain(&tls_env)
     .flatten()
     {
         secrets::register(p);
@@ -1541,6 +1570,10 @@ fn write_stats_file(path: &std::path::Path, report: &pipeline::WriteReport) -> R
         "overwritten": report.overwritten,
         "rejected": report.rejected,
         "server_limits": limits::recorded(),
+        // L4-002: the searchdump-multi child id, and the single target index's uuid noted
+        // mid-run and at the end (a different or missing final uuid: deleted/re-created)
+        "child_id": child_id(),
+        "target_index": pipeline::target_index_record(),
     });
     let name = path
         .file_name()
@@ -1842,6 +1875,23 @@ mod compression_default_tests {
         assert!(help.contains("--fsCompress"), "{help}");
         assert!(help.contains("off by default"), "{help}");
         assert!(help.contains("only when given explicitly"), "{help}");
+    }
+}
+
+#[cfg(test)]
+mod child_id_tests {
+    #[test]
+    fn l4_002_child_ids_are_validated() {
+        let ok = |v: &str| super::valid_child_id(v.to_string());
+        assert_eq!(
+            ok("0b9c1f4e-6f0a-4c1e-9a55-2d8f00c0ffee").as_deref(),
+            Some("0b9c1f4e-6f0a-4c1e-9a55-2d8f00c0ffee")
+        );
+        assert!(ok("").is_none());
+        assert!(ok("a b").is_none());
+        assert!(ok("x\n[ERROR] y").is_none());
+        assert!(ok(&"a".repeat(65)).is_none());
+        assert!(ok(&"a".repeat(64)).is_some());
     }
 }
 

@@ -20,6 +20,13 @@
 //! `--httpAuthFile`; children inherit them. `user:pass@` in a URL works but puts the password on
 //! every child's command line (visible in `ps`). When `--httpAuthFile` is given it wins over URL
 //! userinfo and env (L-645b).
+//!
+//! TLS (1.4, L4-001): `--ca`, `--cert`/`--key` and `--insecure` apply to the cluster and go to
+//! every child as `--input-*` (dump) or `--output-*` (load). The key passphrase (`--pass`, or
+//! `$SEARCHDUMP_TLS_PASS`) reaches children only through `$SEARCHDUMP_{INPUT,OUTPUT}_TLS_PASS`,
+//! never their command line. Per-child ids (L4-002): every child run gets a UUID in
+//! `$SEARCHDUMP_CHILD_ID`, printed by the parent, tagged on the child's log lines and recorded in
+//! its stats, the manifest and `LOGDIR/children.json`.
 #![forbid(unsafe_code)]
 
 use std::collections::BTreeMap;
@@ -618,6 +625,46 @@ pub struct Args {
     /// Skip TLS certificate verification (also passed to searchdump)
     #[arg(long)]
     pub insecure: bool,
+    /// 1.4: CA bundle (PEM) for the cluster; passed to searchdump as --input-ca (dump) or
+    /// --output-ca (load)
+    #[arg(long)]
+    pub ca: Option<String>,
+    /// 1.4: client certificate chain (PEM) for the cluster (with --key); passed to searchdump as
+    /// --input-cert / --output-cert, with --tlsAuth
+    #[arg(long)]
+    pub cert: Option<String>,
+    /// 1.4: client private key (PEM) for --cert; passed as --input-key / --output-key
+    #[arg(long)]
+    pub key: Option<String>,
+    /// 1.4: passphrase of an encrypted PKCS#8 --key. Shows in `ps` for this process; prefer
+    /// $SEARCHDUMP_TLS_PASS. Children never get it on their command line, only as
+    /// $SEARCHDUMP_INPUT_TLS_PASS (dump) / $SEARCHDUMP_OUTPUT_TLS_PASS (load)
+    #[arg(long, value_parser = parse_secret)]
+    pub pass: Option<Secret>,
+    /// --ca for a dump's cluster (searchdump's name; --ca wins)
+    #[arg(long = "input-ca", hide_short_help = true)]
+    pub input_ca: Option<String>,
+    /// --cert for a dump's cluster
+    #[arg(long = "input-cert", hide_short_help = true)]
+    pub input_cert: Option<String>,
+    /// --key for a dump's cluster
+    #[arg(long = "input-key", hide_short_help = true)]
+    pub input_key: Option<String>,
+    /// --pass for a dump's cluster (default $SEARCHDUMP_INPUT_TLS_PASS)
+    #[arg(long = "input-pass", hide_short_help = true, value_parser = parse_secret)]
+    pub input_pass: Option<Secret>,
+    /// --ca for a load's cluster (searchdump's name; --ca wins)
+    #[arg(long = "output-ca", hide_short_help = true)]
+    pub output_ca: Option<String>,
+    /// --cert for a load's cluster
+    #[arg(long = "output-cert", hide_short_help = true)]
+    pub output_cert: Option<String>,
+    /// --key for a load's cluster
+    #[arg(long = "output-key", hide_short_help = true)]
+    pub output_key: Option<String>,
+    /// --pass for a load's cluster (default $SEARCHDUMP_OUTPUT_TLS_PASS)
+    #[arg(long = "output-pass", hide_short_help = true, value_parser = parse_secret)]
+    pub output_pass: Option<Secret>,
     /// INI file with user= and password= for the cluster (also passed to searchdump)
     #[arg(long = "httpAuthFile")]
     pub http_auth_file: Option<String>,
@@ -1087,6 +1134,9 @@ pub struct IndexEntry {
     /// 1.2: the data run's page / bulk sizes and why (`default|large-docs|budget|off|fallback|user`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sizing: Option<serde_json::Value>,
+    /// L4-002: the child run of each step (details in the log dir's `children.json`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub children: Vec<ChildRef>,
 }
 
 /// One cluster-scoped file (`_cluster/TYPE.json`).
@@ -1421,6 +1471,169 @@ pub fn parent_retry_delay(attempt: u32) -> Duration {
     Duration::from_millis((250u64 << attempt.min(4)).min(4000))
 }
 
+/// L4-001: a secret flag value (the key passphrase): `Debug` never shows it.
+#[derive(Clone, PartialEq, Eq)]
+pub struct Secret(pub String);
+
+impl std::fmt::Debug for Secret {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Secret(***)")
+    }
+}
+
+fn parse_secret(s: &str) -> std::result::Result<Secret, String> {
+    Ok(Secret(s.to_string()))
+}
+
+/// The cluster's side for searchdump: a dump reads it (`--input-*`), a load writes it
+/// (`--output-*`).
+pub type Side = searchdump_rs::endpoint::Direction;
+
+/// L4-001 (1.4, C11): TLS settings for the one cluster of a dump or load: used by the parent's
+/// own requests and passed to every child. CA/cert/key paths go on the child's command line;
+/// the key passphrase only through the child's environment (Robert, t253u).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ClusterTls {
+    pub ca: Option<String>,
+    pub cert: Option<String>,
+    pub key: Option<String>,
+    pub pass: Option<Secret>,
+    pub insecure: bool,
+}
+
+impl ClusterTls {
+    /// `--X` wins over `--{side}-X` (searchdump's order); the passphrase then falls back to
+    /// `$SEARCHDUMP_TLS_PASS` and `$SEARCHDUMP_{SIDE}_TLS_PASS`. A flag for the other side is an
+    /// error, since that side is a directory and the flag would silently do nothing.
+    pub fn resolve(args: &Args, side: Side, env: &dyn Fn(&str) -> Option<String>) -> Result<Self> {
+        let (other, mine, theirs) = match side {
+            Side::Input => (
+                "output",
+                [&args.input_ca, &args.input_cert, &args.input_key],
+                [&args.output_ca, &args.output_cert, &args.output_key],
+            ),
+            Side::Output => (
+                "input",
+                [&args.output_ca, &args.output_cert, &args.output_key],
+                [&args.input_ca, &args.input_cert, &args.input_key],
+            ),
+        };
+        let (my_pass, their_pass) = match side {
+            Side::Input => (&args.input_pass, &args.output_pass),
+            Side::Output => (&args.output_pass, &args.input_pass),
+        };
+        for (name, v) in ["ca", "cert", "key"].iter().zip(theirs) {
+            if v.is_some() {
+                bail!(
+                    "--{other}-{name} names the {other} cluster, but with --direction {} the cluster is the {}; use --{name} or --{}-{name}",
+                    if side == Side::Input { "dump" } else { "load" },
+                    side.as_str(),
+                    side.as_str()
+                );
+            }
+        }
+        if their_pass.is_some() {
+            bail!(
+                "--{other}-pass names the {other} cluster, but the cluster is the {}; use --pass, --{}-pass or $SEARCHDUMP_TLS_PASS",
+                side.as_str(),
+                side.as_str()
+            );
+        }
+        let pick = |shared: &Option<String>, own: &Option<String>| shared.clone().or(own.clone());
+        let tls = ClusterTls {
+            ca: pick(&args.ca, mine[0]),
+            cert: pick(&args.cert, mine[1]),
+            key: pick(&args.key, mine[2]),
+            pass: args
+                .pass
+                .clone()
+                .or(my_pass.clone())
+                .or_else(|| {
+                    searchdump_rs::envnames::lookup(env, searchdump_rs::config::TLS_PASS_ENV)
+                        .filter(|v| !v.is_empty())
+                        .map(Secret)
+                })
+                .or_else(|| {
+                    searchdump_rs::envnames::lookup(env, &searchdump_rs::config::tls_pass_env(side))
+                        .filter(|v| !v.is_empty())
+                        .map(Secret)
+                }),
+            insecure: args.insecure,
+        };
+        if tls.cert.is_some() != tls.key.is_some() {
+            bail!(
+                "--cert and --key (or --{s}-cert/--{s}-key) must be given together",
+                s = side.as_str()
+            );
+        }
+        Ok(tls)
+    }
+
+    /// Whether any TLS flag of the cluster was given (copy has no cluster and refuses them).
+    pub fn any_flag(args: &Args) -> bool {
+        [
+            &args.ca,
+            &args.cert,
+            &args.key,
+            &args.input_ca,
+            &args.input_cert,
+            &args.input_key,
+            &args.output_ca,
+            &args.output_cert,
+            &args.output_key,
+        ]
+        .iter()
+        .any(|v| v.is_some())
+            || args.pass.is_some()
+            || args.input_pass.is_some()
+            || args.output_pass.is_some()
+    }
+
+    /// The parent's own client settings.
+    pub fn options(&self) -> TlsOptions {
+        TlsOptions {
+            ca: self.ca.clone().map(Into::into),
+            cert: self.cert.clone().map(Into::into),
+            key: self.key.clone().map(Into::into),
+            pass: self.pass.as_ref().map(|p| p.0.clone()),
+            insecure: self.insecure,
+        }
+    }
+
+    /// Command-line flags for a child (no secret in them). `--insecure` stays as before.
+    pub fn child_flags(&self, side: Side) -> Vec<String> {
+        let d = side.as_str();
+        let mut v = vec![];
+        if self.insecure {
+            v.push("--insecure".to_string());
+        }
+        if let Some(ca) = &self.ca {
+            v.push(format!("--{d}-ca={ca}"));
+        }
+        if let (Some(cert), Some(key)) = (&self.cert, &self.key) {
+            v.push(format!("--{d}-cert={cert}"));
+            v.push(format!("--{d}-key={key}"));
+            v.push("--tlsAuth".to_string());
+        }
+        v
+    }
+
+    /// Environment for a child: the passphrase as `$SEARCHDUMP_{SIDE}_TLS_PASS`, and the
+    /// variables that would win over it (the shared one and the old `ELASTICDUMP_*` names)
+    /// removed, so the child uses exactly the passphrase the parent resolved.
+    pub fn child_env(&self, side: Side) -> (Vec<(String, String)>, Vec<String>) {
+        let Some(pass) = &self.pass else {
+            return (vec![], vec![]);
+        };
+        let own = searchdump_rs::config::tls_pass_env(side);
+        let shared = searchdump_rs::config::TLS_PASS_ENV.to_string();
+        let mut remove = vec![shared.clone()];
+        remove.extend(searchdump_rs::envnames::old_name(&shared));
+        remove.extend(searchdump_rs::envnames::old_name(&own));
+        (vec![(own, pass.0.clone())], remove)
+    }
+}
+
 pub struct Cluster {
     client: EsClient,
     /// What children get as --input/--output (as the user gave it, without a trailing slash).
@@ -1428,7 +1641,7 @@ pub struct Cluster {
 }
 
 impl Cluster {
-    pub fn new(raw: &str, env_prefix: &str, args: &Args) -> Result<Self> {
+    pub fn new(raw: &str, env_prefix: &str, args: &Args, tls: &ClusterTls) -> Result<Self> {
         let auth = args
             .http_auth_file
             .as_deref()
@@ -1443,13 +1656,7 @@ impl Cluster {
             password,
             headers: vec![],
             params: vec![],
-            tls: TlsOptions {
-                ca: None,
-                cert: None,
-                key: None,
-                pass: None,
-                insecure: args.insecure,
-            },
+            tls: tls.options(),
             timeout: Some(Duration::from_secs(300)),
             idle_timeout: None,
             compress: false,
@@ -1886,6 +2093,10 @@ pub const CHILD_GRACE: Duration = Duration::from_secs(5);
 
 pub struct Runner {
     pub bin: PathBuf,
+    /// L4-001: environment set for every child (the key passphrase; never on argv).
+    pub child_env: Vec<(String, String)>,
+    /// L4-001: variables removed from every child's environment (would override `child_env`).
+    pub child_env_remove: Vec<String>,
     pub log_dir: PathBuf,
     pub common: Vec<String>,
     pub data_flags: Vec<String>,
@@ -1900,9 +2111,81 @@ pub struct Runner {
     /// 1.2: data runs get `--serverLimits=off` (the child is searchdump 1.2+; the parent sized
     /// them already).
     pub server_limits: bool,
+    /// L4-002: every child run of this process, in start order (see [`ChildRun`]).
+    pub runs: Mutex<Vec<ChildRun>>,
+}
+
+/// L4-002: one child run. The `id` (a v4 UUID) is in the parent's start/end lines, in the
+/// child's environment (`$SEARCHDUMP_CHILD_ID`: searchdump puts it on every log line and in its
+/// `--statsFile`), in the manifest entry of the index and in `LOGDIR/children.json`.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct ChildRun {
+    pub id: String,
+    pub index: String,
+    /// The step: the type (`settings`, `data`, ...) or the data part's label.
+    pub step: String,
+    pub log: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pid: Option<u32>,
+    /// Start time, seconds since the Unix epoch.
+    pub started: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub seconds: Option<f64>,
+    /// running, ok, failed or interrupted.
+    pub status: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub exit: Option<String>,
+    /// The target index the child wrote and its uuid at the end (restores, from its stats).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target_index: Option<serde_json::Value>,
+}
+
+/// L4-002: what the manifest keeps per index: each step's child id.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct ChildRef {
+    pub step: String,
+    pub id: String,
+    pub status: String,
+}
+
+/// L4-002: the `target_index` of a child's `--statsFile`, if any.
+fn stats_target_index(stats_file: Option<&Path>) -> Option<serde_json::Value> {
+    let v: serde_json::Value = serde_json::from_str(&fs::read_to_string(stats_file?).ok()?).ok()?;
+    v.get("target_index").filter(|t| !t.is_null()).cloned()
 }
 
 impl Runner {
+    /// L4-002: the child runs of `index`, for its manifest entry.
+    pub fn refs_for(&self, index: &str) -> Vec<ChildRef> {
+        self.runs
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .iter()
+            .filter(|r| r.index == index)
+            .map(|r| ChildRef {
+                step: r.step.clone(),
+                id: r.id.clone(),
+                status: r.status.clone(),
+            })
+            .collect()
+    }
+
+    /// L4-002: write every child run to `LOGDIR/children.json` (the run's report).
+    pub fn save_runs(&self) -> Result<PathBuf> {
+        let path = self.log_dir.join("children.json");
+        let runs = self.runs.lock().unwrap_or_else(|e| e.into_inner()).clone();
+        fs::write(&path, serde_json::to_vec_pretty(&runs)?)
+            .with_context(|| format!("write {}", path.display()))?;
+        Ok(path)
+    }
+
+    fn update_run(&self, id: &str, f: impl FnOnce(&mut ChildRun)) {
+        let mut runs = self.runs.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(r) = runs.iter_mut().find(|r| r.id == id) {
+            f(r);
+        }
+    }
+
     /// Run searchdump once; output goes to LOGDIR/INDEX.KIND.log.
     pub async fn run(
         &self,
@@ -1943,8 +2226,12 @@ impl Runner {
             // never read the counts of an earlier run
             let _ = fs::remove_file(p);
         }
+        // L4-002: this child's run id
+        let id = uuid::Uuid::new_v4().to_string();
+        let started_at = Instant::now();
         let mut child = {
             let mut cmd = tokio::process::Command::new(&self.bin);
+            cmd.env(searchdump_rs::CHILD_ID_ENV, &id);
             cmd.arg(format!("--input={input}"))
                 .arg(format!("--output={output}"))
                 .arg(format!("--type={kind}"))
@@ -1956,6 +2243,7 @@ impl Runner {
                         .iter()
                         .map(|p| format!("--statsFile={}", p.display())),
                 )
+                .envs(self.child_env.iter().map(|(k, v)| (k, v)))
                 .stdin(Stdio::null())
                 .stdout(log.try_clone()?)
                 .stderr(log)
@@ -1964,37 +2252,79 @@ impl Runner {
             // The child then gets exactly one signal (our SIGTERM below); a SIGINT from the
             // terminal followed by our SIGTERM would be its second signal, a force-quit that
             // skips finishing in-flight requests and cleaning up staged output.
+            for k in &self.child_env_remove {
+                cmd.env_remove(k);
+            }
             #[cfg(unix)]
             cmd.process_group(0);
             cmd.spawn()
-                .with_context(|| format!("could not start {}", self.bin.display()))?
+                .with_context(|| format!("could not start {} (child {id})", self.bin.display()))?
+        };
+        let pid = child.id();
+        eprintln!(
+            "child {id} start: {index} {label} (pid {}, log {})",
+            pid.map(|p| p.to_string()).unwrap_or_else(|| "?".into()),
+            log_path.display()
+        );
+        self.runs
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .push(ChildRun {
+                id: id.clone(),
+                index: index.to_string(),
+                step: label.to_string(),
+                log: log_path.display().to_string(),
+                pid,
+                started: chrono_stamp(),
+                status: "running".into(),
+                ..Default::default()
+            });
+        let end = |status: &str, exit: String| {
+            let secs = started_at.elapsed().as_secs_f64();
+            eprintln!("child {id} end: {index} {label} {status} ({exit}) in {secs:.1}s");
+            self.update_run(&id, |r| {
+                r.status = status.to_string();
+                r.exit = Some(exit.clone());
+                r.seconds = Some((secs * 10.0).round() / 10.0);
+                r.target_index = stats_target_index(stats_path.as_deref());
+            });
         };
         let waited = tokio::select! {
             s = child.wait() => Some(s),
             _ = self.cancel.cancelled() => None,
         };
         let status = match waited {
-            Some(s) => s.with_context(|| format!("wait for {}", self.bin.display()))?,
+            Some(s) => match s {
+                Ok(s) => s,
+                Err(e) => {
+                    end("failed", format!("wait: {e}"));
+                    return Err(anyhow!(e))
+                        .with_context(|| format!("wait for {} (child {id})", self.bin.display()));
+                }
+            },
             None => {
                 let how = stop_child(&mut child, self.grace).await;
+                end("interrupted", how.clone());
                 eprintln!(
-                    "interrupted: stopped searchdump --type={kind} for {index} ({how}); log: {}",
+                    "interrupted: stopped searchdump --type={kind} for {index} ({how}, child {id}); log: {}",
                     log_path.display()
                 );
                 bail!(
-                    "interrupted: searchdump --type={kind} was stopped ({how}); last lines of {}:\n{}",
+                    "interrupted: searchdump --type={kind} was stopped ({how}, child {id}); last lines of {}:\n{}",
                     log_path.display(),
                     tail(&log_path, 15)
                 );
             }
         };
         if !status.success() {
+            end("failed", status.to_string());
             bail!(
-                "searchdump --type={kind} failed ({status}); last lines of {}:\n{}",
+                "searchdump --type={kind} failed ({status}, child {id}); last lines of {}:\n{}",
                 log_path.display(),
                 tail(&log_path, 15)
             );
         }
+        end("ok", status.to_string());
         Ok(child_stats(stats_path.as_deref(), &log_path))
     }
 }
@@ -2085,6 +2415,8 @@ pub enum Outcome {
 
 struct Ctx {
     args: Args,
+    /// L4-001: TLS settings of the cluster (parent requests; children get them as flags/env).
+    tls: ClusterTls,
     /// Where the manifest and `_cluster/` live (the dump directory unless --metaDir or
     /// --nodeCompat put them elsewhere).
     meta: PathBuf,
@@ -2465,6 +2797,7 @@ async fn dump_one(
             Outcome::Failed(format!("{e:#}"))
         }
     };
+    entry.children = ctx.runner.refs_for(index);
     let mut m = manifest.lock().unwrap();
     m.indices.insert(index.to_string(), entry);
     if let Err(e) = m.save(&ctx.meta) {
@@ -2799,6 +3132,11 @@ async fn run(mut args: Args) -> Result<i32> {
                     "--direction copy copies a dump directory between stores; use dump or load for a cluster"
                 );
             }
+            if ClusterTls::any_flag(&args) {
+                bail!(
+                    "--direction copy has no cluster, so --ca/--cert/--key/--pass do not apply; set ca_file= or insecure= in the storage config for an s3:// or b2:// endpoint"
+                );
+            }
             if args.node_compat || args.file_size.is_some() || args.max_rows.is_some() {
                 bail!(
                     "--direction copy copies the files as they are (format, compression and split parts kept); --nodeCompat, --fileSize and --maxRows do not apply"
@@ -3009,10 +3347,17 @@ async fn run_local(args: Args) -> Result<i32> {
             chrono_stamp()
         )),
     };
-    let mut common = vec![];
-    if args.insecure {
-        common.push("--insecure".to_string());
+    // L4-001: the cluster's TLS settings, for the parent and every child
+    let side = if args.direction == Direction::Dump {
+        Side::Input
+    } else {
+        Side::Output
+    };
+    let tls = ClusterTls::resolve(&args, side, &|k| std::env::var(k).ok())?;
+    if let Some(p) = &tls.pass {
+        searchdump_rs::secrets::register(&p.0);
     }
+    let mut common = tls.child_flags(side);
     if let Some(f) = &args.http_auth_file {
         common.push(format!("--httpAuthFile={f}"));
     }
@@ -3043,7 +3388,18 @@ async fn run_local(args: Args) -> Result<i32> {
     let bin = find_bin(args.elasticdump_bin.as_deref());
     let stats = takes_stats_file(&bin) && accepts_stats_file(&bin);
     let server_limits = takes_stats_file(&bin) && accepts_server_limits(&bin);
+    if tls.pass.is_some() && !takes_stats_file(&bin) {
+        bail!(
+            "a key passphrase is passed to searchdump through ${}, which {} does not read; use searchdump, or an unencrypted key",
+            searchdump_rs::config::tls_pass_env(side),
+            bin.display()
+        );
+    }
+    let (child_env, child_env_remove) = tls.child_env(side);
     let runner = Runner {
+        runs: Mutex::new(vec![]),
+        child_env,
+        child_env_remove,
         bin,
         log_dir: log_dir.clone(),
         common,
@@ -3058,6 +3414,7 @@ async fn run_local(args: Args) -> Result<i32> {
     let meta = meta_dir(&args);
     let ctx = Arc::new(Ctx {
         meta,
+        tls,
         args,
         types,
         sel,
@@ -3078,6 +3435,7 @@ async fn run_local(args: Args) -> Result<i32> {
                 &ctx.args.input,
                 "SEARCHDUMP_INPUT",
                 &ctx.args,
+                &ctx.tls,
             )?);
             let mt = &ctx.args.match_type;
             let mut selected = vec![];
@@ -3360,6 +3718,7 @@ async fn run_local(args: Args) -> Result<i32> {
                 &ctx.args.output,
                 "SEARCHDUMP_OUTPUT",
                 &ctx.args,
+                &ctx.tls,
             )?);
             if ctx.types.index.contains(&"data") {
                 let (stop, _) = plan_sizes(&ctx, &cluster, &[]).await;
@@ -3415,6 +3774,18 @@ async fn run_local(args: Args) -> Result<i32> {
         report(index, outcome);
     }
     failed.sort();
+    if !ctx
+        .runner
+        .runs
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .is_empty()
+    {
+        match ctx.runner.save_runs() {
+            Ok(p) => eprintln!("child runs: {}", p.display()),
+            Err(e) => eprintln!("warning: could not write the child-run report: {e:#}"),
+        }
+    }
     println!(
         "\n{ok} done, {skipped} skipped, {} failed in {:.0?}{}",
         failed.len(),
@@ -3447,7 +3818,11 @@ fn main() {
     let code = match rt.block_on(run(args)) {
         Ok(c) => c,
         Err(e) => {
-            eprintln!("searchdump-multi: {e:#}");
+            // L4-001: never show a registered secret (the key passphrase) in an error
+            eprintln!(
+                "searchdump-multi: {}",
+                searchdump_rs::secrets::scrub(&format!("{e:#}"))
+            );
             2
         }
     };
@@ -3456,6 +3831,108 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
+    // ------------------------------------------------------------------ L4-001: TLS
+    fn tls_args(extra: &[&str]) -> super::Args {
+        use clap::Parser;
+        let mut v = vec!["m", "--input=https://h:9200", "--output=/tmp/x"];
+        v.extend_from_slice(extra);
+        super::Args::try_parse_from(v).unwrap()
+    }
+
+    #[test]
+    fn l4_001_cluster_tls_flags_and_precedence() {
+        use super::{ClusterTls, Secret, Side};
+        let none = |_: &str| None;
+        let a = tls_args(&[
+            "--ca=shared.pem",
+            "--input-ca=in.pem",
+            "--input-cert=c.pem",
+            "--input-key=k.pem",
+        ]);
+        let t = ClusterTls::resolve(&a, Side::Input, &none).unwrap();
+        assert_eq!(
+            t.ca.as_deref(),
+            Some("shared.pem"),
+            "--ca wins like searchdump"
+        );
+        assert_eq!(t.cert.as_deref(), Some("c.pem"));
+        assert_eq!(
+            t.child_flags(Side::Input),
+            vec![
+                "--input-ca=shared.pem",
+                "--input-cert=c.pem",
+                "--input-key=k.pem",
+                "--tlsAuth"
+            ]
+        );
+        // a load passes the same settings as --output-*
+        let a = tls_args(&["--ca=ca.pem", "--insecure"]);
+        let t = ClusterTls::resolve(&a, Side::Output, &none).unwrap();
+        assert_eq!(
+            t.child_flags(Side::Output),
+            vec!["--insecure", "--output-ca=ca.pem"]
+        );
+        let o = t.options();
+        assert_eq!(o.ca.unwrap().to_str(), Some("ca.pem"));
+        assert!(o.insecure && o.pass.is_none());
+        // flags for the other side, or a cert without a key, are refused
+        let a = tls_args(&["--output-ca=x.pem"]);
+        let e = ClusterTls::resolve(&a, Side::Input, &none).unwrap_err();
+        assert!(format!("{e}").contains("--output-ca"), "{e}");
+        let a = tls_args(&["--output-pass=FAKE-tls-pp-0"]);
+        let e = ClusterTls::resolve(&a, Side::Input, &none).unwrap_err();
+        assert!(!format!("{e}").contains("FAKE"), "{e}");
+        let a = tls_args(&["--cert=c.pem"]);
+        assert!(ClusterTls::resolve(&a, Side::Input, &none).is_err());
+        // no flags: nothing added
+        let t = ClusterTls::resolve(&tls_args(&[]), Side::Input, &none).unwrap();
+        assert!(t.child_flags(Side::Input).is_empty());
+        assert_eq!(t.child_env(Side::Input), (vec![], vec![]));
+        assert!(!ClusterTls::any_flag(&tls_args(&["--insecure"])));
+        assert!(ClusterTls::any_flag(&tls_args(&["--input-key=k"])));
+        assert!(ClusterTls::any_flag(&tls_args(&["--pass=x"])));
+        let _ = Secret("x".into());
+    }
+
+    #[test]
+    fn l4_001_passphrase_goes_to_children_only_through_the_environment() {
+        use super::{ClusterTls, Side};
+        let pp = "FAKE-tls-pp-1";
+        let env = |k: &str| match k {
+            "SEARCHDUMP_TLS_PASS" => Some(pp.to_string()),
+            _ => None,
+        };
+        let a = tls_args(&["--cert=c.pem", "--key=k.pem"]);
+        let t = ClusterTls::resolve(&a, Side::Output, &env).unwrap();
+        assert_eq!(t.options().pass.as_deref(), Some(pp));
+        let flags = t.child_flags(Side::Output);
+        assert!(!flags.iter().any(|f| f.contains(pp)), "{flags:?}");
+        let (set, remove) = t.child_env(Side::Output);
+        assert_eq!(
+            set,
+            vec![("SEARCHDUMP_OUTPUT_TLS_PASS".to_string(), pp.to_string())]
+        );
+        assert!(remove.contains(&"SEARCHDUMP_TLS_PASS".to_string()));
+        assert!(remove.contains(&"ELASTICDUMP_TLS_PASS".to_string()));
+        assert!(remove.contains(&"ELASTICDUMP_OUTPUT_TLS_PASS".to_string()));
+        // Debug of the args and the settings never shows it
+        let a = tls_args(&["--pass", pp]);
+        assert!(!format!("{a:?}").contains(pp));
+        let t = ClusterTls::resolve(&a, Side::Input, &|_| None).unwrap();
+        assert!(!format!("{t:?}").contains(pp));
+        // flag beats env; side env used when nothing else is set; empty env is unset
+        let side_env = |k: &str| match k {
+            "SEARCHDUMP_INPUT_TLS_PASS" => Some("FAKE-side".to_string()),
+            "SEARCHDUMP_TLS_PASS" => Some(String::new()),
+            _ => None,
+        };
+        let t = ClusterTls::resolve(&tls_args(&[]), Side::Input, &side_env).unwrap();
+        assert_eq!(t.pass.unwrap().0, "FAKE-side");
+        let t =
+            ClusterTls::resolve(&tls_args(&["--input-pass=FAKE-flag"]), Side::Input, &env).unwrap();
+        assert_eq!(t.pass.unwrap().0, "FAKE-flag");
+    }
+
     #[test]
     fn extra_flags_override_default_data_flags() {
         let extra: Vec<String> = ["--limit=200", "--scrollTime", "1m", "--noRefresh"]
@@ -4269,6 +4746,9 @@ mod tests {
         fs::write(&bin, format!("#!/bin/sh\n{body}\n")).unwrap();
         fs::set_permissions(&bin, fs::Permissions::from_mode(0o755)).unwrap();
         Runner {
+            runs: Mutex::new(vec![]),
+            child_env: vec![],
+            child_env_remove: vec![],
             bin,
             log_dir: dir.to_path_buf(),
             common: vec![],
@@ -4511,5 +4991,64 @@ echo "Total Writes: 5""#;
         r.stats = false;
         let s = r.run("idx", "data", "in", "out", &[]).await.unwrap();
         assert_eq!((s.written, s.source), (Some(5), Some(CountSource::LogLine)));
+    }
+
+    /// L4-002: each child gets its own id in `$SEARCHDUMP_CHILD_ID`; the run is recorded with
+    /// it (status, exit, target index from its stats file), failures name it, and the manifest
+    /// refs and `children.json` carry it. L4-001: the passphrase reaches the child only through
+    /// its environment, and the overriding variables are removed.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn l4_002_child_runs_carry_their_id() {
+        let d = tempfile::tempdir().unwrap();
+        let script = r#"echo "id=$SEARCHDUMP_CHILD_ID pass=${SEARCHDUMP_OUTPUT_TLS_PASS:-none} shared=${SEARCHDUMP_TLS_PASS:-unset} args=$*"
+for a in "$@"; do
+  case "$a" in
+    --statsFile=*) printf '{"complete":true,"written":3,"failed":0,"target_index":{"name":"t","uuid_final":"U1"}}' > "${a#--statsFile=}" ;;
+    --type=mapping) exit 3 ;;
+  esac
+done
+echo "Total Writes: 3""#;
+        let mut r = script_runner(d.path(), script, CHILD_GRACE);
+        r.stats = true;
+        r.child_env = vec![(
+            "SEARCHDUMP_OUTPUT_TLS_PASS".to_string(),
+            "FAKE-pp-child".to_string(),
+        )];
+        r.child_env_remove = vec!["SEARCHDUMP_TLS_PASS".to_string()];
+        r.run("idx", "data", "in", "out", &[]).await.unwrap();
+        let e = r
+            .run("idx", "mapping", "in", "out", &[])
+            .await
+            .unwrap_err()
+            .to_string();
+        let runs = r.runs.lock().unwrap().clone();
+        assert_eq!(runs.len(), 2);
+        let (ok, bad) = (&runs[0], &runs[1]);
+        assert_eq!(uuid::Uuid::parse_str(&ok.id).unwrap().get_version_num(), 4);
+        assert_ne!(ok.id, bad.id);
+        assert_eq!((ok.status.as_str(), bad.status.as_str()), ("ok", "failed"));
+        assert_eq!(ok.target_index.as_ref().unwrap()["uuid_final"], "U1");
+        assert!(bad.target_index.is_none());
+        assert!(e.contains(&format!("child {}", bad.id)), "{e}");
+        let log = fs::read_to_string(&ok.log).unwrap();
+        assert!(log.contains(&format!("id={}", ok.id)), "{log}");
+        assert!(log.contains("pass=FAKE-pp-child"), "{log}");
+        assert!(log.contains("shared=unset"), "{log}");
+        assert!(
+            !log.split("args=").nth(1).unwrap().contains("FAKE"),
+            "{log}"
+        );
+        let refs = r.refs_for("idx");
+        assert_eq!(refs.len(), 2);
+        assert_eq!(
+            (refs[0].step.as_str(), refs[0].id.as_str()),
+            ("data", ok.id.as_str())
+        );
+        assert!(r.refs_for("other").is_empty());
+        let report = r.save_runs().unwrap();
+        let back: Vec<ChildRun> =
+            serde_json::from_str(&fs::read_to_string(report).unwrap()).unwrap();
+        assert_eq!(back, runs);
+        assert!(!serde_json::to_string(&back).unwrap().contains("FAKE"));
     }
 }

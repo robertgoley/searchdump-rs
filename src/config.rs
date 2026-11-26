@@ -88,22 +88,50 @@ pub fn params_for(cli: &Cli, dir: Direction) -> Result<Vec<(String, String)>> {
     }
 }
 
+/// L4-001: environment variables with the client-key passphrase, so it never has to be on a
+/// command line (visible in `ps`). `SEARCHDUMP_TLS_PASS` is for both directions,
+/// `SEARCHDUMP_{INPUT,OUTPUT}_TLS_PASS` for one; searchdump-multi passes the passphrase to its
+/// children this way.
+pub const TLS_PASS_ENV: &str = "SEARCHDUMP_TLS_PASS";
+
+/// `SEARCHDUMP_INPUT_TLS_PASS` / `SEARCHDUMP_OUTPUT_TLS_PASS`.
+pub fn tls_pass_env(dir: Direction) -> String {
+    format!("{}_TLS_PASS", dir.env_prefix())
+}
+
+/// The key passphrase for `dir`: `--pass`, `--{dir}-pass`, `$SEARCHDUMP_TLS_PASS`,
+/// `$SEARCHDUMP_{DIR}_TLS_PASS`, in that order (flags first; the shared value before the
+/// direction-specific one, as for the flags). Empty environment values count as unset.
+pub fn tls_pass_for(
+    cli: &Cli,
+    dir: Direction,
+    env: &dyn Fn(&str) -> Option<String>,
+) -> Option<String> {
+    let flag = match dir {
+        Direction::Input => &cli.input_pass,
+        Direction::Output => &cli.output_pass,
+    };
+    cli.pass
+        .clone()
+        .or_else(|| flag.clone())
+        .or_else(|| crate::envnames::lookup(env, TLS_PASS_ENV).filter(|v| !v.is_empty()))
+        .or_else(|| crate::envnames::lookup(env, &tls_pass_env(dir)).filter(|v| !v.is_empty()))
+}
+
 /// TLS settings. The shared `--ca/--cert/--key/--pass` win over the
 /// direction-specific flags (elasticdump assignment order).
 pub fn tls_for(cli: &Cli, dir: Direction, env: &dyn Fn(&str) -> Option<String>) -> TlsOptions {
-    let (ca, cert, key, pass, insecure) = match dir {
+    let (ca, cert, key, insecure) = match dir {
         Direction::Input => (
             cli.input_ca.clone().or_else(|| cli.ca_file.clone()),
             &cli.input_cert,
             &cli.input_key,
-            &cli.input_pass,
             cli.input_insecure,
         ),
         Direction::Output => (
             cli.output_ca.clone(),
             &cli.output_cert,
             &cli.output_key,
-            &cli.output_pass,
             cli.output_insecure,
         ),
     };
@@ -112,7 +140,7 @@ pub fn tls_for(cli: &Cli, dir: Direction, env: &dyn Fn(&str) -> Option<String>) 
         ca: cli.ca.clone().or(ca).map(Into::into),
         cert: cli.cert.clone().or_else(|| cert.clone()).map(Into::into),
         key: cli.key.clone().or_else(|| key.clone()).map(Into::into),
-        pass: cli.pass.clone().or_else(|| pass.clone()),
+        pass: tls_pass_for(cli, dir, env),
         insecure: cli.insecure.unwrap_or(false) || insecure.unwrap_or(false) || node_insecure,
     }
 }
@@ -337,6 +365,56 @@ mod tests {
         assert!(tls_for(&c, Direction::Output, &none).insecure);
         let node = |k: &str| (k == "NODE_TLS_REJECT_UNAUTHORIZED").then(|| "0".to_string());
         assert!(tls_for(&cli(&[]), Direction::Input, &node).insecure);
+    }
+
+    #[test]
+    fn l4_001_key_passphrase_from_env() {
+        let none = |_: &str| None;
+        assert!(tls_for(&cli(&[]), Direction::Input, &none).pass.is_none());
+        let env = |k: &str| match k {
+            "SEARCHDUMP_OUTPUT_TLS_PASS" => Some("out-env".to_string()),
+            "ELASTICDUMP_INPUT_TLS_PASS" => Some("in-old".to_string()),
+            _ => None,
+        };
+        // direction-specific variables, with the deprecated ELASTICDUMP_* alias
+        assert_eq!(
+            tls_for(&cli(&[]), Direction::Output, &env).pass.as_deref(),
+            Some("out-env")
+        );
+        assert_eq!(
+            tls_for(&cli(&[]), Direction::Input, &env).pass.as_deref(),
+            Some("in-old")
+        );
+        // the shared variable before the direction one; flags before both
+        let both = |k: &str| match k {
+            "SEARCHDUMP_TLS_PASS" => Some("shared-env".to_string()),
+            "SEARCHDUMP_INPUT_TLS_PASS" => Some("in-env".to_string()),
+            _ => None,
+        };
+        assert_eq!(
+            tls_for(&cli(&[]), Direction::Input, &both).pass.as_deref(),
+            Some("shared-env")
+        );
+        assert_eq!(
+            tls_for(&cli(&["--input-pass", "flag"]), Direction::Input, &both)
+                .pass
+                .as_deref(),
+            Some("flag")
+        );
+        assert_eq!(
+            tls_for(
+                &cli(&["--pass", "shared-flag", "--input-pass", "x"]),
+                Direction::Input,
+                &both
+            )
+            .pass
+            .as_deref(),
+            Some("shared-flag")
+        );
+        // empty means unset
+        let empty = |k: &str| (k == "SEARCHDUMP_TLS_PASS").then(String::new);
+        assert!(tls_for(&cli(&[]), Direction::Input, &empty).pass.is_none());
+        assert_eq!(tls_pass_env(Direction::Input), "SEARCHDUMP_INPUT_TLS_PASS");
     }
 
     #[test]

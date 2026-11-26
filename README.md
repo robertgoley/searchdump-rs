@@ -230,7 +230,8 @@ cases, are in [`examples/`](examples/README.md).
 * **Redirects** are never followed (Node follows them): a 3xx answer stops the run and names the target, so
   credentials and documents only go to the cluster you named. Use the final URL directly.
 * **Auth/TLS:** `--httpAuthFile`, `--input-username`/`--input-password`, `--output-username`/`--output-password`
-  (see [Credentials](#credentials)), `--tlsAuth`, `--ca`/`--cert`/`--key`/`--pass` and their `--input-*`/`--output-*` forms.
+  (see [Credentials](#credentials)), `--tlsAuth`, `--ca`/`--cert`/`--key`/`--pass` and their `--input-*`/`--output-*` forms; the passphrase also from
+  `$SEARCHDUMP_TLS_PASS` / `$SEARCHDUMP_{INPUT,OUTPUT}_TLS_PASS` (1.4, kept out of `ps`).
 * **Metadata:** `--templateRegex`, `--filterSystemTemplates` (Node), and the extensions `--filterManaged`
   (default true), `--closeIndex`, `--excludeTemplateFields`, `--convertIlmToIsm`, `--lenientPolicyConversion`,
   `--metaFormat string|object`, `--renamePrefix`, `--renameIndex`, `--renameAliases`, `--renamePatterns`.
@@ -571,6 +572,23 @@ searchdump-multi --direction=load --input=/data/logs --output=https://dst:9200 -
   what the cluster's limits allow. The manifest records the limits (`server_limits`) and each index's sizes
   (`sizing`). Credentials:
   `SEARCHDUMP_INPUT_USERNAME`/`_PASSWORD` and `SEARCHDUMP_OUTPUT_USERNAME`/`_PASSWORD`, or `--httpAuthFile`.
+- TLS (1.4): `--ca`, `--cert`/`--key` and `--insecure` apply to the cluster (the input of a dump, the output of a
+  load), for the parent's own requests and every child, which gets them as `--input-ca`/`--input-cert`/
+  `--input-key` (dump) or `--output-*` (load), plus `--tlsAuth` with a certificate. searchdump's names
+  `--input-ca`, `--output-cert`, ... are accepted for the matching side; one for the other side is an error. The
+  passphrase of an encrypted `--key` comes from `$SEARCHDUMP_TLS_PASS` (or `$SEARCHDUMP_INPUT_TLS_PASS` /
+  `$SEARCHDUMP_OUTPUT_TLS_PASS`; `--pass` works but shows in `ps`) and reaches the children **only through their
+  environment** (`$SEARCHDUMP_INPUT_TLS_PASS` / `$SEARCHDUMP_OUTPUT_TLS_PASS`), never on their command line; a Node
+  elasticdump child (`--elasticdumpBin`) cannot read it, so that combination is refused. Example:
+  `SEARCHDUMP_TLS_PASS=... searchdump-multi --input https://os:9200 --output /backup --ca ca.pem --cert client.pem
+  --key client-key.pem`. `--direction copy` has no cluster and refuses these flags.
+- Per-child ids (1.4): every child run gets a random id (UUID). The parent prints `child ID start: INDEX STEP (pid,
+  log)` and `child ID end: INDEX STEP ok|failed|interrupted (exit) in Ns`; the child (`$SEARCHDUMP_CHILD_ID`) puts
+  ` child ID` on each of its log lines and `child_id` in its stats file, with the restore target's index uuid
+  (`target_index`: name, uuid noted mid-run, uuid at the end); a failure message names the id; the manifest lists
+  each index's `children` (step, id, status); and `LOGDIR/children.json` lists every run (id, index, step, log,
+  pid, start, seconds, status, exit, target index). A stalled step can be followed from the parent's line to one
+  child's log and stats.
 - Per-run logs go to `--logDir` (default a temp dir; one log per data part); a failure prints the last lines.
   `--dryRun` lists what would run. Exit status: 0 all done, 1 any item failed or nothing matched, 2 usage error,
   130 interrupted.
@@ -957,6 +975,12 @@ Each direction resolves its basic-auth username and password on its own (L-645).
 `searchdump-multi` uses the same order for its own cluster requests (the auth file over URL userinfo over env) and
 passes `--httpAuthFile` on to every child run.
 
+**Client-key passphrase** (1.4), highest first: `--pass`, `--input-pass`/`--output-pass`, `$SEARCHDUMP_TLS_PASS`
+(both directions), `$SEARCHDUMP_INPUT_TLS_PASS`/`$SEARCHDUMP_OUTPUT_TLS_PASS` (the deprecated `ELASTICDUMP_*` names
+work too; an empty value counts as unset). The flags show in `ps`; the variables do not. Like the passwords, the
+passphrase never appears in logs, `--debug` output or errors. `searchdump-multi` hands it to its children through
+the environment only (see [Bulk dump and load](#bulk-dump-and-load-searchdump-multi)).
+
 * A trailing CR/LF is removed from every value (an auth file saved with CRLF line ends, `$(cat file)`), so it never
   turns into a confusing 401. An empty password is sent as is (`user:`).
 * In a URL, `#`, `?`, `/` and `@` inside the password must be percent-encoded (`%23`, `%3F`, `%2F`, `%40`); `:`,
@@ -965,7 +989,8 @@ passes `--httpAuthFile` on to every child run.
   `--output-password`, where any character works.
 * A `--httpAuthFile` readable by every user on the machine is used, with a warning to `chmod 600` it.
 * `--insecure` / `NODE_TLS_REJECT_UNAUTHORIZED=0` disable certificate verification and print a warning.
-* Encrypted client keys: PKCS#8 only (convert legacy keys with `openssl pkcs8 -topk8`).
+* Encrypted client keys: PKCS#8 only (convert legacy keys with `openssl pkcs8 -topk8`): PBES2 with scrypt or
+  PBKDF2-HMAC-SHA256 and AES-CBC (`openssl pkcs8 -topk8 -v2 aes-256-cbc`).
 
 ## Memory
 

@@ -5378,3 +5378,51 @@ async fn l2_005_multi_parent_probes_once_and_reads_stats_in_one_call() {
         stderr(&o)
     );
 }
+
+/// L4-002: a searchdump-multi child (`$SEARCHDUMP_CHILD_ID`) tags every log line with its id
+/// and writes it to the `--statsFile`; a malformed id is ignored (no log injection).
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn l4_002_child_id_tags_log_lines_and_stats() {
+    let d = tempfile::tempdir().unwrap();
+    for (id, expect) in [
+        ("0b9c1f4e-6f0a-4c1e-9a55-2d8f00c0ffee", true),
+        ("bad id\n[INFO] forged", false),
+    ] {
+        let mock = MockEs::serve(scroll_script(&[hit("1", r#"{"n":1}"#)])).await;
+        let out = d.path().join("o.json");
+        let stats = d.path().join("s.json");
+        let _ = std::fs::remove_file(&stats);
+        let o = run_async(
+            vec![
+                "--input".into(),
+                mock.input_url("idx"),
+                "--output".into(),
+                out.to_str().unwrap().into(),
+                "--overwrite".into(),
+                "--debug".into(),
+                format!("--statsFile={}", stats.display()),
+            ],
+            vec![("SEARCHDUMP_CHILD_ID".into(), id.into())],
+        )
+        .await;
+        let err = stderr(&o);
+        assert!(o.status.success(), "{err}");
+        let v: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&stats).unwrap()).unwrap();
+        let log_lines: Vec<&str> = err.lines().filter(|l| l.starts_with("[20")).collect();
+        assert!(!log_lines.is_empty(), "{err}");
+        if expect {
+            assert_eq!(v["child_id"], id);
+            assert!(
+                log_lines
+                    .iter()
+                    .all(|l| l.contains(&format!(" child {id}] "))),
+                "{err}"
+            );
+        } else {
+            assert!(v["child_id"].is_null(), "{v}");
+            assert!(!err.contains("forged"), "{err}");
+            assert!(!err.contains(" child "), "{err}");
+        }
+    }
+}

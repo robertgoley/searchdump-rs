@@ -35,14 +35,16 @@ L4-004 one reqwest; L4-005+ are handoff/CI follow-ups. They land in whatever ord
 | when (ET) | commit | what |
 |---|---|---|
 | 2026-11-25 22:10 | L4-004 | reqwest 0.12 -> 0.13 (cluster side; `rustls-no-provider`), pkcs8 0.10 -> 0.11 (RustCrypto 0.11 stack), tools on sha2 0.11 / reqwest 0.13; timeouts capped (reqwest 0.13 panicked on `--idleTimeout 2^63`); deny skips and vet exemptions updated, notices regenerated. Local: nextest unit 387/387, contract 129/129, chaos_brk 63/63, clippy -D warnings, deny/audit/vet OK |
+| 2026-11-25 23:00 | L4-004a | geiger baseline for the RustCrypto 0.11 stack (CI supply-chain failed on it: der/inout/polyval/scrypt per-crate rises; total 35383 -> 34702); pkcs8 scrypt + hmacWithSHA256 decrypt test |
+| 2026-11-26 00:30 | L4-001 + L4-002 | multi TLS flags + passphrase env (children via env only); searchdump `SEARCHDUMP_*TLS_PASS`; per-child ids (parent lines, child log lines, stats `child_id` + `target_index`, manifest `children`, `children.json`). Local: nextest unit 393/393, contract 131/131, clippy -D warnings, deny/vet/audit/machete/notices/pins/native OK; IT on private-CA OpenSearch (demo CA, kirk client cert auth, encrypted PKCS#8 key) 91 passed / 1 ignored incl. new `tls_auth::multi_private_ca_client_cert_and_env_passphrase` |
 
 ## 4. Item status
 
 | item | status | notes |
 |---|---|---|
 | 4. one reqwest (+ cheap duplicate removal) | done locally (L4-004) | Left: digest/crypto-common 0.10 (crc-fast via opendal-service-s3), getrandom 0.2/0.3/0.4 (ring, ahash/tempfile, uuid), hashbrown 0.14 (rust-ini), syn 2 (openssh-sftp). None removable without upstream bumps |
-| 1. multi TLS flags + passphrase env | todo | |
-| 2. per-child uuid logging | todo | |
+| 1. multi TLS flags + passphrase env | done locally (L4-001) | IT against private-CA OpenSearch 2 with client-cert auth (`it-os-sec-l4tls`, port 19252, store edrs-1.4-podman) |
+| 2. per-child uuid logging | done locally (L4-002) | run uuid per child + target index uuid in child stats (D9) |
 | 3. `--pageBytes` | todo | |
 
 ## 5. Decisions taken (open for Robert to confirm)
@@ -50,6 +52,20 @@ L4-004 one reqwest; L4-005+ are handoff/CI follow-ups. They land in whatever ord
 - D1 (L4-004): pkcs8 0.11 taken in 1.4 (it is the Dependabot PR's bump); it removes 7 duplicate crates. It adds
   aes-gcm/ghash/polyval (pkcs5 0.8 supports AES-GCM PBES2), all RustCrypto, exempted in cargo-vet like the 0.10 ones.
 - D2 (L4-004): timeouts above ~100 years are capped (they meant "never" anyway) instead of erroring.
+- D3 (L4-004a): geiger per-crate rises from the RustCrypto 0.11 stack accepted into the baseline (total went down).
+- D4 (L4-001): passphrase env names `SEARCHDUMP_TLS_PASS` (both), `SEARCHDUMP_{INPUT,OUTPUT}_TLS_PASS`; order
+  `--pass` > `--{dir}-pass` > shared env > per-direction env; empty = unset; `ELASTICDUMP_*` aliases accepted.
+- D5 (L4-001): multi `--pass` accepted (warned as `ps`-visible); env preferred. Children always get it via env only.
+- D6 (L4-001): multi refuses other-side TLS flags, TLS flags with `--direction copy`, cert without key, and a
+  passphrase with a Node elasticdump child (it cannot read the env var).
+- D7 (L4-001): the multi parent still ignores `NODE_TLS_REJECT_UNAUTHORIZED` for its own requests (unchanged; use
+  `--insecure`). Open question.
+- D8 (L4-002): `child ID start:` / `end:` lines go to stderr for every child (can be noisy with many indices/parts;
+  could move behind `--debug`). `children.json` in the log dir is the report. Open question.
+- D9 (L4-002): "uuid" done both ways: a run UUID per child, plus the restore target's index uuid (noted/final) in
+  child stats (HANDOFF-1.3 8.6 meaning).
+- D10 (env): new isolated podman store `edrs-1.4-podman` (wrapper `/workspace/perf-1.4/bin/podman`) because
+  `edrs-1.2-podman` has damaged layers (`podman system check`: damage detected). The 1.2 store is left untouched.
 
 ## 6. How to resume
 

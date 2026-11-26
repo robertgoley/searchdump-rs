@@ -555,24 +555,33 @@ pub struct Cli {
     /// Client private key (PEM) for both directions
     #[arg(long)]
     pub key: Option<String>,
-    /// Passphrase for an encrypted PKCS#8 --key
+    /// Passphrase for an encrypted PKCS#8 --key (shows in `ps`; prefer $SEARCHDUMP_TLS_PASS, or
+    /// $SEARCHDUMP_INPUT_TLS_PASS / $SEARCHDUMP_OUTPUT_TLS_PASS for one direction)
     #[arg(long)]
     pub pass: Option<String>,
 
+    /// CA bundle (PEM) for the input cluster
     #[arg(long = "input-ca")]
     pub input_ca: Option<String>,
+    /// Client certificate chain (PEM) for the input cluster
     #[arg(long = "input-cert")]
     pub input_cert: Option<String>,
+    /// Client private key (PEM) for the input cluster
     #[arg(long = "input-key")]
     pub input_key: Option<String>,
+    /// Passphrase for an encrypted --input-key (default $SEARCHDUMP_INPUT_TLS_PASS)
     #[arg(long = "input-pass")]
     pub input_pass: Option<String>,
+    /// CA bundle (PEM) for the output cluster
     #[arg(long = "output-ca")]
     pub output_ca: Option<String>,
+    /// Client certificate chain (PEM) for the output cluster
     #[arg(long = "output-cert")]
     pub output_cert: Option<String>,
+    /// Client private key (PEM) for the output cluster
     #[arg(long = "output-key")]
     pub output_key: Option<String>,
+    /// Passphrase for an encrypted --output-key (default $SEARCHDUMP_OUTPUT_TLS_PASS)
     #[arg(long = "output-pass")]
     pub output_pass: Option<String>,
 
