@@ -1531,8 +1531,15 @@ pub struct ClusterTls {
     pub cert: Option<String>,
     pub key: Option<String>,
     pub pass: Option<Secret>,
+    /// `--insecure`, or `NODE_TLS_REJECT_UNAUTHORIZED=0` (see `node_insecure`).
     pub insecure: bool,
+    /// 1.4 (t255u): `NODE_TLS_REJECT_UNAUTHORIZED=0` in the environment, as searchdump and Node
+    /// elasticdump honour it: verification off for the parent's requests and every child.
+    pub node_insecure: bool,
 }
+
+/// The variable Node (and searchdump) read: `0` turns certificate verification off.
+pub const NODE_TLS_ENV: &str = "NODE_TLS_REJECT_UNAUTHORIZED";
 
 impl ClusterTls {
     /// `--X` wins over `--{side}-X` (searchdump's order); the passphrase then falls back to
@@ -1591,7 +1598,8 @@ impl ClusterTls {
                         .filter(|v| !v.is_empty())
                         .map(Secret)
                 }),
-            insecure: args.insecure,
+            insecure: args.insecure || env(NODE_TLS_ENV).as_deref() == Some("0"),
+            node_insecure: env(NODE_TLS_ENV).as_deref() == Some("0"),
         };
         if tls.cert.is_some() != tls.key.is_some() {
             bail!(
@@ -1633,7 +1641,9 @@ impl ClusterTls {
         }
     }
 
-    /// Command-line flags for a child (no secret in them). `--insecure` stays as before.
+    /// Command-line flags for a child (no secret in them). `--insecure` also when only
+    /// `NODE_TLS_REJECT_UNAUTHORIZED=0` turned verification off (the child inherits the variable
+    /// too; the flag makes it explicit, whatever the child does with its environment).
     pub fn child_flags(&self, side: Side) -> Vec<String> {
         let d = side.as_str();
         let mut v = vec![];
@@ -1683,6 +1693,13 @@ impl Cluster {
         let (base, username, password) = split_url(raw, env_prefix, auth.as_ref(), &|k| {
             searchdump_rs::envnames::var(k)
         })?;
+        if tls.insecure {
+            // searchdump's warning (multi has no logger, so it is printed here)
+            eprintln!(
+                "warning: TLS certificate verification is DISABLED for {}",
+                searchdump_rs::endpoint::redacted_url(&base)
+            );
+        }
         let opts = ClientOptions {
             base,
             username,
@@ -3402,6 +3419,12 @@ async fn run_local(args: Args) -> Result<i32> {
         Side::Output
     };
     let tls = ClusterTls::resolve(&args, side, &|k| std::env::var(k).ok())?;
+    if tls.node_insecure {
+        // the same words searchdump prints
+        eprintln!(
+            "warning: NODE_TLS_REJECT_UNAUTHORIZED=0: TLS certificate verification is disabled"
+        );
+    }
     if let Some(p) = &tls.pass {
         searchdump_rs::secrets::register(&p.0);
     }
@@ -3942,6 +3965,25 @@ mod tests {
         let t = ClusterTls::resolve(&tls_args(&[]), Side::Input, &none).unwrap();
         assert!(t.child_flags(Side::Input).is_empty());
         assert_eq!(t.child_env(Side::Input), (vec![], vec![]));
+        // t255u: NODE_TLS_REJECT_UNAUTHORIZED=0 turns verification off for the parent and the
+        // children (as --insecure; the children inherit the variable too); other values do not
+        for (v, off) in [("0", true), ("1", false), ("", false), ("false", false)] {
+            let env = |k: &str| (k == NODE_TLS_ENV).then(|| v.to_string());
+            let t = ClusterTls::resolve(&tls_args(&["--ca=ca.pem"]), Side::Input, &env).unwrap();
+            assert_eq!(t.node_insecure, off, "{v:?}");
+            assert_eq!(t.options().insecure, off, "{v:?}");
+            assert_eq!(
+                t.child_flags(Side::Input)
+                    .contains(&"--insecure".to_string()),
+                off,
+                "{v:?}"
+            );
+            assert_eq!(
+                t.child_env(Side::Input),
+                (vec![], vec![]),
+                "the variable is inherited, not removed"
+            );
+        }
         assert!(!ClusterTls::any_flag(&tls_args(&["--insecure"])));
         assert!(ClusterTls::any_flag(&tls_args(&["--input-key=k"])));
         assert!(ClusterTls::any_flag(&tls_args(&["--pass=x"])));

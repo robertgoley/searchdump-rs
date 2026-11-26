@@ -41,7 +41,15 @@ Headline: limits and multi polish. Branch `release/1.4` (from v1.3.1); not relea
   cluster's page budget, also with `off`); a page that still comes back bigger makes the later pages smaller in
   proportion (`--searchAfter`/PIT), or restarts a scroll whose first page was too big with a smaller page (its
   context cleared). Never raises `--limit`. multi sizes each index with it (manifest `sizing.reason` `page-bytes`)
-  and passes it to searchdump data children; load and copy refuse it.
+  and passes it to searchdump data children; load and copy refuse it. Values below 1 MiB (down to `1kb`) are
+  allowed but rarely practical (many more, smaller search requests).
+
+- `searchdump-multi` honours `NODE_TLS_REJECT_UNAUTHORIZED=0` like searchdump and Node elasticdump (owner decision
+  t255u): certificate verification is off for the parent's own requests, with searchdump's warnings
+  (`NODE_TLS_REJECT_UNAUTHORIZED=0: TLS certificate verification is disabled`, `TLS certificate verification is
+  DISABLED for URL`), and for every child (`--insecure`, plus the inherited variable). Before, the parent ignored
+  it and failed on a private CA while its children would have accepted it. The parent now also prints the
+  `DISABLED` warning for `--insecure`.
 
 ### Fixed
 

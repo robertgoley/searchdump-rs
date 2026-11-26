@@ -492,3 +492,59 @@ async fn multi_private_ca_client_cert_and_env_passphrase() {
     let _ = std::fs::remove_dir_all(&dir);
     let _ = std::fs::remove_dir_all(&logs);
 }
+
+/// t255u: searchdump-multi honours `NODE_TLS_REJECT_UNAUTHORIZED=0` like searchdump and Node
+/// elasticdump: without `--ca` the private-CA cluster is reached by the parent and every child,
+/// with searchdump's warnings; without the variable the same run fails verification.
+#[tokio::test]
+async fn multi_honours_node_tls_reject_unauthorized() {
+    let Some(s) = secure() else { return };
+    let index = seeded(&s, "tls_multi_node").await;
+    let dir = tmp_path("tls_multi_node", "d");
+    let logs = tmp_path("tls_multi_node_logs", "d");
+    let mut envs: Vec<(String, String)> = vec![];
+    let mut a = s_args(&[
+        "--direction",
+        "dump",
+        "--input",
+        &s.c.url,
+        "--output",
+        dir.to_str().unwrap(),
+        "--match",
+        &format!("^{index}$"),
+        "--logDir",
+        logs.to_str().unwrap(),
+    ]);
+    if cert_auth() {
+        // the admin certificate authenticates (no CA given: only verification is off)
+        envs.push(("SEARCHDUMP_TLS_PASS".into(), s.key_pass.clone()));
+        a.extend(s_args(&["--cert", &s.cert, "--key", &s.key_enc]));
+    } else {
+        envs.push(("SEARCHDUMP_INPUT_USERNAME".into(), s.user.clone()));
+        envs.push(("SEARCHDUMP_INPUT_PASSWORD".into(), s.pw.clone()));
+    }
+    let o = multi(a.clone(), envs.clone()).await;
+    assert!(!o.status.success(), "verification on without the variable");
+    let mut node = envs.clone();
+    node.push(("NODE_TLS_REJECT_UNAUTHORIZED".into(), "0".into()));
+    let o = multi(a, node).await;
+    let err = String::from_utf8_lossy(&o.stderr).into_owned();
+    assert!(o.status.success(), "{err}");
+    assert!(
+        err.contains("NODE_TLS_REJECT_UNAUTHORIZED=0: TLS certificate verification is disabled"),
+        "{err}"
+    );
+    assert!(
+        err.contains("TLS certificate verification is DISABLED for"),
+        "{err}"
+    );
+    // the data child ran without verification too, and said so in its log
+    let log = std::fs::read_to_string(logs.join(format!("{index}.data.log"))).unwrap();
+    assert!(log.contains("verification is DISABLED"), "{log}");
+    let n = s.c.count(&index).await;
+    let out = String::from_utf8_lossy(&o.stdout).into_owned();
+    assert!(out.contains(&format!("({n} records)")), "{out}");
+    s.c.delete_index(&index).await;
+    let _ = std::fs::remove_dir_all(&dir);
+    let _ = std::fs::remove_dir_all(&logs);
+}

@@ -582,6 +582,9 @@ searchdump-multi --direction=load --input=/data/logs --output=https://dst:9200 -
   elasticdump child (`--elasticdumpBin`) cannot read it, so that combination is refused. Example:
   `SEARCHDUMP_TLS_PASS=... searchdump-multi --input https://os:9200 --output /backup --ca ca.pem --cert client.pem
   --key client-key.pem`. `--direction copy` has no cluster and refuses these flags.
+  `NODE_TLS_REJECT_UNAUTHORIZED=0` (1.4) turns certificate verification off like `--insecure`, as in searchdump and
+  Node elasticdump: for the parent's own requests (with searchdump's warnings) and every child (which gets
+  `--insecure` and inherits the variable).
 - Per-child ids (1.4): every child run gets a random id (UUID). The parent prints `child ID start: INDEX STEP (pid,
   log)` and `child ID end: INDEX STEP ok|failed|interrupted (exit) in Ns`; the child (`$SEARCHDUMP_CHILD_ID`) puts
   ` child ID` on each of its log lines and `child_id` in its stats file, with the restore target's index uuid
@@ -988,7 +991,8 @@ the environment only (see [Bulk dump and load](#bulk-dump-and-load-searchdump-mu
   quoting the password, instead of a dump to the wrong host; or pass the password with `--input-password` /
   `--output-password`, where any character works.
 * A `--httpAuthFile` readable by every user on the machine is used, with a warning to `chmod 600` it.
-* `--insecure` / `NODE_TLS_REJECT_UNAUTHORIZED=0` disable certificate verification and print a warning.
+* `--insecure` / `NODE_TLS_REJECT_UNAUTHORIZED=0` disable certificate verification and print a warning, in
+  `searchdump` and (since 1.4) `searchdump-multi`, for its own requests and every child.
 * Encrypted client keys: PKCS#8 only (convert legacy keys with `openssl pkcs8 -topk8`): PBES2 with scrypt or
   PBKDF2-HMAC-SHA256 and AES-CBC (`openssl pkcs8 -topk8 -v2 aes-256-cbc`).
 
@@ -1173,7 +1177,9 @@ once, at most 5 s) and sizes requests from the smallest data node:
 
 **Page byte cap (`--pageBytes`, 1.4).** `--pageBytes=SIZE` (e.g. `8mb`, `512kb`, or bytes; units as in
 `--maxBulkBytes`, so `kb` is 1000 and `kib` 1024; at least `1kb`) caps each dump page by bytes instead of
-documents, for indices whose documents vary in size or that you share with other workloads:
+documents, for indices whose documents vary in size or that you share with other workloads. Values below 1 MiB are
+allowed but rarely practical: pages of a few documents mean many more search requests and a much slower dump,
+so prefer a few MB unless the documents are tiny or the heap very small:
 
 - At the start the page is `SIZE ÷ (average stored document × 3)` documents, from the index's `_stats` (one
   read-only call). With `--serverLimits auto`/`min` it is the smaller of that and the cluster's page budget (it

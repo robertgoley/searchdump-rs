@@ -40,6 +40,7 @@ L4-004 one reqwest; L4-005+ are handoff/CI follow-ups. They land in whatever ord
 | 2026-11-25 22:05 | (CI) | ci 45744818606 + security 45744821344 on c1194b3: both success (L4-004a geiger fix confirmed) |
 | 2026-11-25 22:30 | L4-003 | `--pageBytes` (searchdump + multi): start-up sizing from avg stored doc (auto/min: min with budget, below floor allowed; off/fallback: one `_stats` call), run-time shrink (search_after/PIT next pages; scroll first page dropped + context cleared + restarted smaller), multi `sizing.reason=page-bytes` + `--pageBytes` to searchdump data children, load/copy refuse. Tests: limits unit, multi Plan unit, chaos_brk 4 mock tests, IT `data::l4_003_page_bytes_caps_dump_pages` (scroll auto/off, search_after, multi) on private-CA OpenSearch. Local: fmt, clippy -D warnings, no-default-features build, nextest unit 393/393, contract 131/131, chaos_brk 67/67, router_mock 17/17, IT 92 passed / 1 ignored, matrix-md, native-code, machete OK |
 | 2026-11-25 22:55 | (CI) | ci 45746923521 + security 45746925694 on 4625cec: both success (all it legs incl. opensearch-secure, supply-chain, coverage, image). All four 1.4 items done; test container `it-os-sec-l4tls` stopped (not removed) |
+| 2026-11-25 22:50 | L4-006 | t255u-t259u: multi honours `NODE_TLS_REJECT_UNAUTHORIZED=0` (parent + children, searchdump's warnings), `--pageBytes` < 1 MiB doc note, D3/D4/D7/D8/D10/D12 resolved; edrs-1.2-podman deleted and recreated (t258u), 11 images re-pulled, smoke OK. Local: fmt, clippy, unit 393/393, contract 131/131, IT 93 passed / 1 ignored (new `tls_auth::multi_honours_node_tls_reject_unauthorized`) |
 
 ## 4. Item status
 
@@ -55,23 +56,34 @@ L4-004 one reqwest; L4-005+ are handoff/CI follow-ups. They land in whatever ord
 - D1 (L4-004): pkcs8 0.11 taken in 1.4 (it is the Dependabot PR's bump); it removes 7 duplicate crates. It adds
   aes-gcm/ghash/polyval (pkcs5 0.8 supports AES-GCM PBES2), all RustCrypto, exempted in cargo-vet like the 0.10 ones.
 - D2 (L4-004): timeouts above ~100 years are capped (they meant "never" anyway) instead of erroring.
-- D3 (L4-004a): geiger per-crate rises from the RustCrypto 0.11 stack accepted into the baseline (total went down).
-- D4 (L4-001): passphrase env names `SEARCHDUMP_TLS_PASS` (both), `SEARCHDUMP_{INPUT,OUTPUT}_TLS_PASS`; order
+- D3 (L4-004a, RESOLVED t259u: baseline accepted): geiger per-crate rises from the RustCrypto 0.11 stack accepted into the baseline (total went down).
+- D4 (L4-001, RESOLVED t255u: names approved): passphrase env names `SEARCHDUMP_TLS_PASS` (both), `SEARCHDUMP_{INPUT,OUTPUT}_TLS_PASS`; order
   `--pass` > `--{dir}-pass` > shared env > per-direction env; empty = unset; `ELASTICDUMP_*` aliases accepted.
 - D5 (L4-001): multi `--pass` accepted (warned as `ps`-visible); env preferred. Children always get it via env only.
 - D6 (L4-001): multi refuses other-side TLS flags, TLS flags with `--direction copy`, cert without key, and a
   passphrase with a Node elasticdump child (it cannot read the env var).
-- D7 (L4-001): the multi parent still ignores `NODE_TLS_REJECT_UNAUTHORIZED` for its own requests (unchanged; use
-  `--insecure`). Open question.
-- D8 (L4-002): `child ID start:` / `end:` lines go to stderr for every child (can be noisy with many indices/parts;
-  could move behind `--debug`). `children.json` in the log dir is the report. Open question.
+- D7 (L4-006, RESOLVED t255u): the multi parent honours `NODE_TLS_REJECT_UNAUTHORIZED=0` for its own requests
+  (searchdump's two warnings printed) and children get `--insecure` plus the inherited variable. Only `0` counts.
+  The parent now also prints the `DISABLED for URL` warning for `--insecure` (it had no logger, so it was silent).
+- D8 (L4-002, RESOLVED t255u: keep as is): `child ID start:` / `end:` lines go to stderr for every child.
+  `children.json` in the log dir is the report.
 - D9 (L4-002): "uuid" done both ways: a run UUID per child, plus the restore target's index uuid (noted/final) in
   child stats (HANDOFF-1.3 8.6 meaning).
-- D10 (env): new isolated podman store `edrs-1.4-podman` (wrapper `/workspace/perf-1.4/bin/podman`) because
-  `edrs-1.2-podman` has damaged layers (`podman system check`: damage detected). The 1.2 store is left untouched.
+- D10 (env, RESOLVED t258u): new isolated podman store `edrs-1.4-podman` (wrapper `/workspace/perf-1.4/bin/podman`) because
+  `edrs-1.2-podman` had damaged layers (`podman system check`: damage detected). Robert (t258u) approved deleting
+  and replacing it: on 2026-11-25 ~22:45 ET, with no container in it and no process using it, only its graphroot
+  `/home/box/.local/share/edrs-1.2-podman` and runroot `/tmp/edrs-1.2-podman/run` were removed (`podman unshare
+  rm -rf`, then the empty re-initialised dirs) and recreated at the same paths, so `/workspace/perf-1.2/env.sh` and
+  its wrapper are unchanged. The 11 images it held (list in `/workspace/perf-1.2/notes/images-before-reset-20261125.txt`)
+  were re-pulled by digest. Other stores (default, edrs-1.4, edrs-beta1-rerun, edrs-odt) untouched.
+  `podman system check` on the fresh store only reports the rootless false positives (`/dev/*` device nodes that a
+  rootless store cannot create; directory mtimes), the same as the healthy edrs-1.4 store; no missing layer
+  content (the old damage). Smoke: OpenSearch 2.19.7 (digest 3bfa1ec7...) from the fresh store on 127.0.0.1:19252
+  answered, a 1-document searchdump dump worked; container `smoke-l4-os` stopped (kept).
 - D11 (L4-003): `--pageBytes` units as `--maxBulkBytes` (bytesize: `kb`=1000, `kib`=1024); minimum 1000 bytes, `0`
   refused (leave it out for no cap). It never raises `--limit`, and lowers an explicit `--limit` too.
-- D12 (L4-003): with auto/min the cap may go below the 1.3 1 MiB page floor (user's explicit choice wins); with
+- D12 (L4-003, RESOLVED t256u: below the floor stays allowed, min 1kb; docs note that < 1 MiB is rarely
+  practical): with auto/min the cap may go below the 1.3 1 MiB page floor (user's explicit choice wins); with
   `off` one read-only `_stats` call is still made, only because the flag was given.
 - D13 (L4-003): run-time: search_after/PIT keep an over-cap page and shrink the next ones; scroll drops an over-cap
   FIRST page unread, clears its context and restarts smaller (later scroll pages cannot be resized: only the

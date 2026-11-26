@@ -476,7 +476,8 @@ pub struct Cli {
     /// Pages are sized from the index's average document size at the start (with
     /// --serverLimits auto/min the smaller of this and the cluster's page budget; with off too),
     /// and a page that still comes back bigger shrinks the next pages (search_after/PIT) or
-    /// restarts the scroll with a smaller page. Never raises --limit
+    /// restarts the scroll with a smaller page. Never raises --limit. Below 1mb is allowed but
+    /// rarely practical (many small searches)
     #[arg(long = "pageBytes", value_parser = parse_page_bytes)]
     pub page_bytes: Option<u64>,
 
