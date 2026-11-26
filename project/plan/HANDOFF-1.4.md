@@ -39,15 +39,16 @@ L4-004 one reqwest; L4-005+ are handoff/CI follow-ups. They land in whatever ord
 | 2026-11-26 00:30 | L4-001 + L4-002 | multi TLS flags + passphrase env (children via env only); searchdump `SEARCHDUMP_*TLS_PASS`; per-child ids (parent lines, child log lines, stats `child_id` + `target_index`, manifest `children`, `children.json`). Local: nextest unit 393/393, contract 131/131, clippy -D warnings, deny/vet/audit/machete/notices/pins/native OK; IT on private-CA OpenSearch (demo CA, kirk client cert auth, encrypted PKCS#8 key) 91 passed / 1 ignored incl. new `tls_auth::multi_private_ca_client_cert_and_env_passphrase` |
 | 2026-11-25 22:05 | (CI) | ci 45744818606 + security 45744821344 on c1194b3: both success (L4-004a geiger fix confirmed) |
 | 2026-11-25 22:30 | L4-003 | `--pageBytes` (searchdump + multi): start-up sizing from avg stored doc (auto/min: min with budget, below floor allowed; off/fallback: one `_stats` call), run-time shrink (search_after/PIT next pages; scroll first page dropped + context cleared + restarted smaller), multi `sizing.reason=page-bytes` + `--pageBytes` to searchdump data children, load/copy refuse. Tests: limits unit, multi Plan unit, chaos_brk 4 mock tests, IT `data::l4_003_page_bytes_caps_dump_pages` (scroll auto/off, search_after, multi) on private-CA OpenSearch. Local: fmt, clippy -D warnings, no-default-features build, nextest unit 393/393, contract 131/131, chaos_brk 67/67, router_mock 17/17, IT 92 passed / 1 ignored, matrix-md, native-code, machete OK |
+| 2026-11-25 22:55 | (CI) | ci 45746923521 + security 45746925694 on 4625cec: both success (all it legs incl. opensearch-secure, supply-chain, coverage, image). All four 1.4 items done; test container `it-os-sec-l4tls` stopped (not removed) |
 
 ## 4. Item status
 
 | item | status | notes |
 |---|---|---|
-| 4. one reqwest (+ cheap duplicate removal) | done locally (L4-004) | Left: digest/crypto-common 0.10 (crc-fast via opendal-service-s3), getrandom 0.2/0.3/0.4 (ring, ahash/tempfile, uuid), hashbrown 0.14 (rust-ini), syn 2 (openssh-sftp). None removable without upstream bumps |
-| 1. multi TLS flags + passphrase env | done locally (L4-001) | IT against private-CA OpenSearch 2 with client-cert auth (`it-os-sec-l4tls`, port 19252, store edrs-1.4-podman) |
-| 2. per-child uuid logging | done locally (L4-002) | run uuid per child + target index uuid in child stats (D9) |
-| 3. `--pageBytes` | done locally (L4-003) | see D11-D13 |
+| 4. one reqwest (+ cheap duplicate removal) | done, CI green (L4-004/004a) | Left: digest/crypto-common 0.10 (crc-fast via opendal-service-s3), getrandom 0.2/0.3/0.4 (ring, ahash/tempfile, uuid), hashbrown 0.14 (rust-ini), syn 2 (openssh-sftp). None removable without upstream bumps |
+| 1. multi TLS flags + passphrase env | done, CI green (L4-001) | IT against private-CA OpenSearch 2 with client-cert auth (`it-os-sec-l4tls`, port 19252, store edrs-1.4-podman) |
+| 2. per-child uuid logging | done, CI green (L4-002) | run uuid per child + target index uuid in child stats (D9) |
+| 3. `--pageBytes` | done, CI green (L4-003) | see D11-D13 |
 
 ## 5. Decisions taken (open for Robert to confirm)
 
