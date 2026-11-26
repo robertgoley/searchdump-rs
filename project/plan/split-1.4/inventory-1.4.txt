@@ -1,0 +1,366 @@
+54-54 (1) pub const MANIFEST
+   -> 
+   <- impl Manifest, meta_dir, parse_data_file
+56-63 (8) pub enum Direction
+   -> 
+   <- Args, meta_dir, run, run_local
+65-74 (10) pub enum Layout
+   -> 
+   <- Args, Manifest, dump_one, rel_dir, run_local
+76-83 (8) pub enum Compression
+   -> 
+   <- Args, Manifest, count_records, data_parts, dump_one, impl Compression, load_one, node_item_file, parse_data_file, run_local
+85-113 (29) impl impl Compression
+   -> Compression
+   <- 
+115-122 (8) pub enum Lifecycle
+   -> 
+   <- Args, cluster_flags, load_one
+124-132 (9) const DATA_FLAGS
+   -> 
+   <- run_local
+134-401 (268) pub mod sizing
+   -> 
+   <- Ctx, IndexEntry, dump_one, impl Cluster, impl Ctx, note_size, plan_sizes
+403-409 (7) fn flag_name
+   -> 
+   <- merge_data_flags, plan_sizes, sizing_json
+411-423 (13) fn merge_data_flags
+   -> flag_name
+   <- merge_data_flags_owned, run_local
+425-430 (6) fn merge_data_flags_owned
+   -> merge_data_flags
+   <- dump_one, load_one
+432-461 (30) fn note_size
+   -> limits_max_page, sizing
+   <- dump_one
+463-465 (3) fn limits_max_page
+   -> 
+   <- note_size
+467-475 (9) fn sizing_json
+   -> flag_name
+   <- dump_one
+477-478 (2) pub const TYPE_ORDER
+   -> 
+   <- resolve_types
+480-489 (10) pub const CLUSTER_TYPES
+   -> 
+   <- resolve_types, run_local
+491-493 (3) pub const CLUSTER_DIR
+   -> 
+   <- discover, dump_cluster, load_cluster, meta_dir, run_local
+495-499 (5) pub enum Order
+   -> 
+   <- Args, run_local
+501-509 (9) pub enum MatchType
+   -> 
+   <- Args, run_local, select_targets
+532-742 (211) pub struct Args
+   -> Compression, Direction, Layout, Lifecycle, MatchType, Order, Secret, meta_dir, parse_secret, staging_dir
+   <- Ctx, impl Cluster, impl ClusterTls, main
+744-755 (12) impl impl Args
+   -> 
+   <- 
+759-764 (6) pub struct Selector
+   -> 
+   <- Ctx, run_local, select_targets
+766-800 (35) impl impl Selector
+   -> sanitize_dir
+   <- 
+802-807 (6) pub enum TargetKind
+   -> 
+   <- Target, dump_one, run_local, select_targets
+809-817 (9) pub struct Target
+   -> TargetKind
+   <- dump_one, select_targets
+819-865 (47) pub fn select_targets
+   -> MatchType, Selector, Target, TargetKind
+   <- run_local
+867-884 (18) pub fn sanitize_dir
+   -> 
+   <- impl Selector, rel_dir
+886-897 (12) pub fn check_index_name
+   -> 
+   <- discover, load_one, run_local
+899-909 (11) pub fn rel_dir
+   -> Layout, sanitize_dir
+   <- dump_one, run_local
+911-917 (7) pub fn item_file
+   -> 
+   <- dump_one, item_file_for, load_one
+919-932 (14) pub fn node_item_file
+   -> Compression
+   <- dump_one, item_file_for, run_local
+934-941 (8) pub fn item_file_for
+   -> item_file, node_item_file
+   <- dump_one, run_local
+943-953 (11) const META_SUFFIXES
+   -> 
+   <- parse_data_file
+955-990 (36) pub fn parse_data_file
+   -> Compression, MANIFEST, META_SUFFIXES
+   <- count_records, data_parts, discover, is_part, load_one, remove_data_files
+992-995 (4) fn rs_named
+   -> 
+   <- discover
+997-1004 (8) pub fn meta_file
+   -> nonempty
+   <- load_one, run_local
+1006-1017 (12) fn read_text
+   -> 
+   <- load_one
+1019-1054 (36) pub fn data_parts
+   -> Compression, file_name, parse_data_file
+   <- IndexEntry, discover, dump_one, run_local
+1056-1061 (6) pub struct Types
+   -> 
+   <- Ctx, resolve_types
+1063-1114 (52) pub fn node_type_flags
+   -> 
+   <- run_local
+1116-1141 (26) pub fn resolve_types
+   -> CLUSTER_TYPES, TYPE_ORDER, Types
+   <- run_local
+1145-1173 (29) pub struct IndexEntry
+   -> ChildRef, data_parts, sizing
+   <- Manifest, dump_one
+1175-1182 (8) pub struct ClusterEntry
+   -> 
+   <- Manifest, dump_cluster
+1184-1203 (20) pub struct Manifest
+   -> ClusterEntry, Compression, IndexEntry, Layout
+   <- discover, dump_cluster, dump_one, impl Manifest, load_cluster, run_local
+1205-1223 (19) impl impl Manifest
+   -> MANIFEST, Manifest
+   <- 
+1227-1236 (10) pub struct Found
+   -> 
+   <- discover, run_local
+1238-1387 (150) pub fn discover
+   -> CLUSTER_DIR, Found, Manifest, check_index_name, data_parts, file_name, is_part, parse_data_file, rs_named
+   <- run_local
+1389-1392 (4) fn is_part
+   -> file_name, parse_data_file
+   <- discover
+1396-1421 (26) pub fn count_records
+   -> Compression, file_name, parse_data_file
+   <- dump_one, load_one
+1423-1438 (16) pub fn mappings_body
+   -> 
+   <- load_one
+1442-1484 (43) pub fn split_url
+   -> 
+   <- impl Cluster
+1486-1491 (6) pub const PARENT_429_RETRIES
+   -> 
+   <- impl Cluster
+1493-1500 (8) pub fn parent_call_retryable
+   -> 
+   <- impl Cluster
+1502-1505 (4) pub fn parent_retry_delay
+   -> 
+   <- impl Cluster
+1507-1509 (3) pub struct Secret
+   -> 
+   <- Args, ClusterTls, impl ClusterTls, parse_secret
+1511-1515 (5) impl impl std::fmt::Debug for Secret
+   -> 
+   <- 
+1517-1519 (3) fn parse_secret
+   -> Secret
+   <- Args
+1521-1523 (3) pub type Side
+   -> 
+   <- impl ClusterTls, run_local
+1525-1539 (15) pub struct ClusterTls
+   -> Secret
+   <- Ctx, impl Cluster, impl ClusterTls, run, run_local
+1541-1542 (2) pub const NODE_TLS_ENV
+   -> 
+   <- impl ClusterTls
+1544-1678 (135) impl impl ClusterTls
+   -> Args, ClusterTls, NODE_TLS_ENV, Secret, Side
+   <- 
+1680-1684 (5) pub struct Cluster
+   -> 
+   <- dump_cluster, dump_one, plan_sizes, run_local
+1686-2004 (319) impl impl Cluster
+   -> Args, ClusterTls, PARENT_429_RETRIES, parent_call_retryable, parent_retry_delay, sizing, split_url
+   <- 
+2008-2015 (8) pub enum CountSource
+   -> 
+   <- ChildStats, parse_stats_file, parse_total_writes
+2017-2024 (8) pub struct ChildStats
+   -> CountSource
+   <- dump_one, impl Runner, parse_stats_file, parse_total_writes
+2026-2032 (7) impl impl ChildStats
+   -> 
+   <- 
+2034-2045 (12) pub fn parse_stats_file
+   -> ChildStats, CountSource
+   <- child_stats
+2047-2074 (28) pub fn parse_total_writes
+   -> ChildStats, CountSource
+   <- child_stats
+2076-2085 (10) fn read_tail
+   -> 
+   <- child_stats
+2087-2098 (12) pub fn child_stats
+   -> parse_stats_file, parse_total_writes, read_tail
+   <- impl Runner
+2100-2108 (9) pub fn takes_stats_file
+   -> file_name
+   <- run_local
+2110-2123 (14) fn accepts_server_limits
+   -> 
+   <- run_local
+2125-2134 (10) fn accepts_stats_file
+   -> 
+   <- run_local
+2136-2139 (4) fn debug_counts
+   -> 
+   <- dump_one
+2141-2142 (2) pub const CHILD_GRACE
+   -> 
+   <- run_local
+2144-2166 (23) pub struct Runner
+   -> ChildRun
+   <- Ctx, run_local
+2168-2191 (24) pub struct ChildRun
+   -> 
+   <- Runner, impl Runner
+2193-2199 (7) pub struct ChildRef
+   -> 
+   <- IndexEntry, impl Runner
+2201-2205 (5) fn stats_target_index
+   -> 
+   <- impl Runner
+2207-2380 (174) impl impl Runner
+   -> ChildRef, ChildRun, ChildStats, child_stats, chrono_stamp, run, stats_target_index, stop_child, tail
+   <- 
+2382-2402 (21) async fn stop_child
+   -> send_term
+   <- impl Runner
+2404-2420 (17) async fn send_term
+   -> 
+   <- stop_child
+2422-2432 (11) fn tail
+   -> 
+   <- impl Runner
+2434-2449 (16) fn find_bin
+   -> 
+   <- run_local
+2451-2455 (5) fn nonempty
+   -> 
+   <- dump_one, load_cluster, meta_file, run_local
+2459-2464 (6) pub enum Outcome
+   -> 
+   <- dump_cluster, dump_one, load_cluster, load_one, run_local
+2466-2481 (16) struct Ctx
+   -> Args, ClusterTls, Pacer, Runner, Selector, Types, sizing
+   <- dump_cluster, dump_one, plan_sizes, run_local
+2483-2499 (17) impl impl Ctx
+   -> sizing
+   <- 
+2501-2614 (114) async fn plan_sizes
+   -> Cluster, Ctx, flag_name, sizing
+   <- run_local
+2616-2620 (5) pub struct Pacer
+   -> 
+   <- Ctx, run_local
+2622-2640 (19) impl impl Pacer
+   -> 
+   <- 
+2642-2643 (2) const LIFECYCLE_DROP
+   -> 
+   <- cluster_flags, load_one
+2645-2647 (3) fn strings
+   -> 
+   <- dump_one, load_one
+2649-2665 (17) fn remove_data_files
+   -> file_name, parse_data_file
+   <- dump_one
+2667-2671 (5) fn file_name
+   -> 
+   <- count_records, data_parts, discover, dump_one, is_part, load_one, remove_data_files, takes_stats_file
+2673-2865 (193) async fn dump_one
+   -> ChildStats, Cluster, Compression, Ctx, IndexEntry, Layout, Manifest, Outcome, Target, TargetKind, count_records, data_parts, debug_counts, file_name, item_file, item_file_for, merge_data_flags_owned, node_item_file, nonempty, note_size, rel_dir, remove_data_files, run, sizing, sizing_json, strings
+   <- run_local
+2867-2883 (17) fn cluster_flags
+   -> LIFECYCLE_DROP, Lifecycle
+   <- load_cluster, load_one
+2885-2925 (41) async fn dump_cluster
+   -> CLUSTER_DIR, Cluster, ClusterEntry, Ctx, Manifest, Outcome, run
+   <- run_local
+2927-2967 (41) async fn load_cluster
+   -> CLUSTER_DIR, Manifest, Outcome, cluster_flags, nonempty, run
+   <- run_local
+2969-3128 (160) async fn load_one
+   -> Compression, LIFECYCLE_DROP, Lifecycle, Outcome, check_index_name, cluster_flags, count_records, file_name, item_file, mappings_body, merge_data_flags_owned, meta_file, parse_data_file, read_text, run, strings, with_part
+   <- run_local
+3130-3139 (10) fn with_part
+   -> 
+   <- load_one
+3141-3165 (25) pub fn meta_dir
+   -> CLUSTER_DIR, Direction, MANIFEST
+   <- Args, run, run_local
+3167-3304 (138) async fn run
+   -> ClusterTls, Direction, meta_dir, run_local, staging_dir
+   <- dump_cluster, dump_one, impl Runner, load_cluster, load_one, main
+3306-3324 (19) fn staging_dir
+   -> chrono_stamp
+   <- Args, run
+3326-3880 (555) async fn run_local
+   -> CHILD_GRACE, CLUSTER_DIR, CLUSTER_TYPES, Cluster, ClusterTls, Compression, Ctx, DATA_FLAGS, Direction, Found, Layout, Manifest, MatchType, Order, Outcome, Pacer, Runner, Selector, Side, TargetKind, accepts_server_limits, accepts_stats_file, check_index_name, chrono_stamp, data_parts, discover, dump_cluster, dump_one, find_bin, item_file_for, load_cluster, load_one, merge_data_flags, meta_dir, meta_file, node_item_file, node_type_flags, nonempty, plan_sizes, rel_dir, resolve_types, select_targets, takes_stats_file
+   <- run
+3882-3887 (6) fn chrono_stamp
+   -> 
+   <- impl Runner, run_local, staging_dir
+3889-3907 (19) fn main
+   -> Args, run
+   <- 
+impl Compression ['suffix@86', 'flags@93', 'of_file@102']
+sizing ['page_limit_for@153', 'avg@195', 'page_estimate@200']
+impl Args ['splits@746']
+impl Selector ['new@767', 'selects@780', 'has_group@790', 'group@795']
+impl Manifest ['load@1206', 'save@1217']
+impl std::fmt::Debug for Secret ['fmt@1512']
+impl ClusterTls ['resolve@1548', 'any_flag@1614', 'options@1634', 'child_flags@1647', 'child_env@1667']
+impl Cluster ['new@1687', 'index_url@1723', 'call@1729', 'ok_json@1759', 'list_indices@1786', 'list_aliases@1824', 'list_data_streams@1848', 'data_stream@1877', 'exists@1900', 'count@1915', 'index_stats@1930', 'target_stats@1964', 'probe_limits@1982', 'put_mapping@1999']
+impl ChildStats ['docs_read@2029']
+impl Runner ['refs_for@2209', 'save_runs@2224', 'update_run@2232', 'run@2240', 'run_as@2258']
+impl Ctx ['plan@2484', 'stats_of@2496']
+impl Pacer ['new@2623', 'wait@2630']
+
+#TESTS
+3912-3917 (6) tls_args: Args
+3920-3991 (72) l4_001_cluster_tls_flags_and_precedence: ClusterTls, NODE_TLS_ENV, Secret, Side
+3994-4030 (37) l4_001_passphrase_goes_to_children_only_through_the_environment: ClusterTls, Side
+4033-4062 (30) extra_flags_override_default_data_flags: DATA_FLAGS, merge_data_flags, merge_data_flags_owned, strings
+4066-4076 (11) run_control_flags_unchanged: DATA_FLAGS, strings
+4082-4108 (27) parent_retries_only_read_only_calls_on_429_and_503: PARENT_429_RETRIES, parent_call_retryable, parent_retry_delay
+4111-4175 (65) server_limits_off_reproduces_1_1_0_flags: DATA_FLAGS, merge_data_flags, sizing
+4179-4189 (11) page_limit_shrinks_for_large_documents: sizing
+4194-4278 (85) auto_plan_sizes_from_fixture_limits: sizing
+4283-4305 (23) selection_include_exclude_hidden: Selector
+4308-4337 (30) group_breakout: Layout, Selector, rel_dir, sanitize_dir
+4340-4393 (54) names_and_types: Compression, check_index_name, item_file, resolve_types
+4396-4408 (13) mappings_body_shapes: mappings_body
+4411-4442 (32) credentials_order_and_redaction: split_url
+4445-4462 (18) record_counts_all_codecs: Compression, count_records
+4465-4522 (58) discover_layouts_and_manifest: IndexEntry, Manifest, discover
+4525-4582 (58) targets_by_index_alias_and_datastream: Layout, MatchType, Selector, Target, TargetKind, rel_dir, select_targets
+4585-4641 (57) split_part_names_and_discovery: CLUSTER_DIR, Compression, data_parts, discover, parse_data_file, remove_data_files
+4644-4694 (51) split_flag_detection_and_cluster_flags: Args, LIFECYCLE_DROP, Lifecycle, MatchType, cluster_flags
+4697-4719 (23) interval_spaces_out_starts: Pacer
+4722-4784 (63) node_ignore_flags: Args, node_type_flags, resolve_types
+4787-4868 (82) node_names_and_meta_dir: Args, Compression, data_parts, discover, meta_dir, meta_file, node_item_file, parse_data_file
+4872-4894 (23) script_runner: Runner
+4898-4949 (52) cancel_stops_a_running_child_with_sigterm_then_sigkill: run
+4953-4965 (13) a_failed_load_step_names_its_part_only_when_there_are_several: with_part
+4968-4991 (24) a_failed_child_reports_its_log_tail: CHILD_GRACE, run
+4997-5027 (31) many_children_do_not_starve_the_runtime: CHILD_GRACE, run
+5032-5080 (49) child_counts_from_stats_file_or_log_line: ChildStats, CountSource, child_stats, parse_stats_file, parse_total_writes
+5083-5101 (19) stats_file_only_for_searchdump: takes_stats_file
+5107-5126 (20) runner_returns_child_counts: CHILD_GRACE, CountSource, run
+5133-5185 (53) l4_002_child_runs_carry_their_id: CHILD_GRACE, ChildRun, run
