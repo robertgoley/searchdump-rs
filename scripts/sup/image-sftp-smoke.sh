@@ -10,7 +10,9 @@ PORT=${2:-19924}
 CONTAINER=${CONTAINER:-podman}
 HERE=$(cd "$(dirname "$0")/.." && pwd)
 W=$(mktemp -d); NAME=edrs-img-sftp-$$
-trap '$CONTAINER rm -f "$NAME" >/dev/null 2>&1 || true; rm -rf "$W"' EXIT
+# files the image's user wrote are owned by a subordinate uid under rootless podman: remove them in its namespace
+cleanup() { $CONTAINER rm -f "$NAME" >/dev/null 2>&1 || true; $CONTAINER unshare rm -rf "$W" 2>/dev/null || rm -rf "$W" 2>/dev/null || true; }
+trap cleanup EXIT
 $CONTAINER build --network=host -q -t localhost/edrs-odt-openssh:latest \
   -f "$HERE/opendal-tests/containers/openssh.Containerfile" "$HERE/opendal-tests/containers" >/dev/null
 mkdir -p "$W/keys" "$W/data"
