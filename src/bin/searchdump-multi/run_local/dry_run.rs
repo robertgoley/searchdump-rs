@@ -69,3 +69,27 @@ pub(crate) fn print_dump_plan(
     }
     Ok(())
 }
+
+/// The load dry run: the cluster-wide files, then each index with its target name and parts.
+pub(crate) fn print_load_plan(ctx: &Ctx, found: &[Found], cluster_files: &[&str]) {
+    if !cluster_files.is_empty() {
+        println!("cluster-wide, loaded first: {}", cluster_files.join(", "));
+    }
+    println!("{} indices/data streams to load:", found.len());
+    for f in found {
+        let parts = if f.data.len() > 1 {
+            format!(", {} data parts", f.data.len())
+        } else {
+            String::new()
+        };
+        let ds = if f.datastream { " [data stream]" } else { "" };
+        println!(
+            "  {}{ds} -> {}{}{} (from {}{parts})",
+            f.index,
+            ctx.args.prefix,
+            f.index,
+            ctx.args.suffix,
+            f.dir.display()
+        );
+    }
+}

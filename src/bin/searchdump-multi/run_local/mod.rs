@@ -4,6 +4,8 @@ use crate::*;
 
 mod dry_run;
 mod dump_plan;
+mod load_plan;
+mod report;
 mod setup;
 
 pub(crate) async fn run_local(args: Args) -> Result<i32> {
@@ -30,119 +32,14 @@ pub(crate) async fn run_local(args: Args) -> Result<i32> {
             }
         }
         Direction::Load | Direction::Copy => {
-            let root = PathBuf::from(&ctx.args.input);
-            if !root.is_dir() {
-                bail!("dump directory does not exist: {}", root.display());
-            }
-            let mut found: Vec<Found> = if ctx.types.index.is_empty() {
-                vec![]
-            } else {
-                discover(&root, &ctx.meta)?
-                    .into_iter()
-                    .filter(|f| ctx.sel.selects(&f.index))
-                    .collect()
-            };
-            if ctx.args.order == Order::Desc {
-                found.reverse();
-            }
-            let cluster_files: Vec<&str> = ctx
-                .types
-                .cluster
-                .iter()
-                .copied()
-                .filter(|k| nonempty(&ctx.meta.join(CLUSTER_DIR).join(format!("{k}.json"))))
-                .collect();
-            if ctx.args.dry_run {
-                if !cluster_files.is_empty() {
-                    println!("cluster-wide, loaded first: {}", cluster_files.join(", "));
-                }
-                println!("{} indices/data streams to load:", found.len());
-                for f in &found {
-                    let parts = if f.data.len() > 1 {
-                        format!(", {} data parts", f.data.len())
-                    } else {
-                        String::new()
-                    };
-                    let ds = if f.datastream { " [data stream]" } else { "" };
-                    println!(
-                        "  {}{ds} -> {}{}{} (from {}{parts})",
-                        f.index,
-                        ctx.args.prefix,
-                        f.index,
-                        ctx.args.suffix,
-                        f.dir.display()
-                    );
-                }
-                return Ok(0);
-            }
-            if found.is_empty() && cluster_files.is_empty() {
-                eprintln!(
-                    "nothing in {} matches --match '{}'",
-                    root.display(),
-                    ctx.args.match_re
-                );
-                return Ok(1);
-            }
-            let cluster = Arc::new(Cluster::new(
-                &ctx.args.output,
-                "SEARCHDUMP_OUTPUT",
-                &ctx.args,
-                &ctx.tls,
-            )?);
-            if ctx.types.index.contains(&"data") {
-                let (stop, _) = plan_sizes(&ctx, &cluster, &[]).await;
-                if let Some(code) = stop {
-                    return Ok(code);
-                }
-            }
-            fs::create_dir_all(&log_dir)?;
-            if !ctx.types.cluster.is_empty() {
-                early = load_cluster(&ctx, &cluster).await;
-            }
-            println!(
-                "loading {} indices/data streams from {} ({} at a time, logs in {})",
-                found.len(),
-                root.display(),
-                ctx.args.parallel,
-                log_dir.display()
-            );
-            for f in found {
-                let (ctx, cluster, sem) = (ctx.clone(), cluster.clone(), sem.clone());
-                set.spawn(async move {
-                    let _p = sem.acquire().await;
-                    let o = load_one(&ctx, &cluster, &f).await;
-                    (f.index, o)
-                });
+            if let Some(code) = load_plan::start(&ctx, &log_dir, &sem, &mut set, &mut early).await?
+            {
+                return Ok(code);
             }
         }
     }
 
-    let (mut ok, mut skipped, mut failed) = (0, 0, vec![]);
-    let mut report = |index: String, outcome: Outcome| {
-        match outcome {
-            Outcome::Done(s) => {
-                ok += 1;
-                println!("ok      {index}: {s}");
-            }
-            Outcome::Skipped(s) => {
-                skipped += 1;
-                println!("skipped {index}: {s}");
-            }
-            Outcome::Failed(s) => {
-                eprintln!("FAILED  {index}: {s}");
-                failed.push(index);
-            }
-        }
-        let _ = std::io::stdout().flush();
-    };
-    for (index, outcome) in early {
-        report(index, outcome);
-    }
-    while let Some(r) = set.join_next().await {
-        let (index, outcome) = r?;
-        report(index, outcome);
-    }
-    failed.sort();
+    let tally = report::collect(early, set).await?;
     if !ctx
         .runner
         .runs
@@ -155,18 +52,6 @@ pub(crate) async fn run_local(args: Args) -> Result<i32> {
             Err(e) => eprintln!("warning: could not write the child-run report: {e:#}"),
         }
     }
-    println!(
-        "\n{ok} done, {skipped} skipped, {} failed in {:.0?}{}",
-        failed.len(),
-        started.elapsed(),
-        if failed.is_empty() {
-            String::new()
-        } else {
-            format!(": {}", failed.join(", "))
-        }
-    );
-    if interrupt.cancelled() {
-        return Ok(130);
-    }
-    Ok(if failed.is_empty() { 0 } else { 1 })
+    println!("{}", tally.summary_line(started.elapsed()));
+    Ok(tally.exit_code(interrupt.cancelled()))
 }
