@@ -2,7 +2,7 @@
 # shellcheck shell=bash
 
 : "${CONTAINER_ENGINE:=podman}"
-: "${SEARCHDUMP_IMAGE:=ghcr.io/robertgoley/searchdump-rs:1.3.0-dhi-debian}"
+: "${SEARCHDUMP_IMAGE:=ghcr.io/robertgoley/searchdump-rs:1.3.1-dhi-debian}"
 : "${NETWORK:=host}"
 : "${ES_URL:=http://127.0.0.1:9200}"
 : "${DEST_ES_URL:=${ES_URL}}"

@@ -24,7 +24,7 @@ spec:
         # is above them) fails the Job before any data moves. A fallback (no monitor privilege,
         # serverless) still exits 0.
         - name: preflight
-          image: ghcr.io/robertgoley/searchdump-rs:1.3.0-dhi-debian
+          image: ghcr.io/robertgoley/searchdump-rs:1.3.1-dhi-debian
           imagePullPolicy: IfNotPresent
           command:
             - /bin/sh
@@ -67,7 +67,7 @@ spec:
               mountPath: /tmp
       containers:
         - name: searchdump
-          image: ghcr.io/robertgoley/searchdump-rs:1.3.0-dhi-debian
+          image: ghcr.io/robertgoley/searchdump-rs:1.3.1-dhi-debian
           imagePullPolicy: IfNotPresent
           command:
             - /bin/sh

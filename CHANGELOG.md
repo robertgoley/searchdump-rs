@@ -5,6 +5,45 @@ a version with a hyphen (`1.0.0-beta1`) is a pre-release. The release workflow
 (`.github/workflows/release.yml`) uses the section for a version as the release notes of its draft
 GitHub release.
 
+## 1.3.1
+
+Release date: 2026-11-25 (tag `v1.3.1`). Security patch release; no behaviour changes in `searchdump` or
+`searchdump-multi`. User-facing notes: [`project/release/RELEASE-NOTES-1.3.1.md`](project/release/RELEASE-NOTES-1.3.1.md).
+
+### Disclaimer
+
+searchdump-rs is provided "as is", without warranty of any kind, as stated in the MIT license
+(the same warranty disclaimer as the elasticdump-rs code it derives from; Node elasticdump,
+whose behaviour it follows, has the equivalent disclaimer in Apache-2.0, sections 7 and 8).
+The authors are not liable for any damage from its use, including data loss, corruption,
+downtime or service disruption, in production or elsewhere. Test in a non-production environment
+first, and verify every backup and restore yourself (restore it, compare document counts) before
+you rely on it. See [Disclaimer](README.md#disclaimer).
+
+### Security
+
+- `url` 2.5.9 (RUSTSEC-2026-0592, stack overflow in `Url::origin()` on nested `blob:` URLs; searchdump never calls
+  it), with `form_urlencoded` 1.2.3, `rustls-webpki` 0.103.17 and `webpki-roots` 1.0.12; `base64` 0.23.1 (PR #2).
+- Container images rebuilt on refreshed dhi.io base digests, resolved in CI (`security` `base_refresh` job):
+  glibc 2.41-12+deb13u5 (CVE-2026-5435, CVE-2026-19499), krb5 1.21.3-5+deb13u2 (15 Kerberos ids) and zstd
+  deb13u1 are fixed in the default `dhi-debian` image.
+- The Debian images run `apt-get upgrade` before installing the OpenSSH client, which brings openssl
+  3.5.9-1~deb13u1+dhi2 with DHI's backports for 8 OpenSSL ids (including the L-824 six). CVE-2026-84786 (DANE client
+  NULL dereference, fixed upstream in 3.5.10) and five OpenSSL ids in the `-dhi-alpine` image (libssl3/libcrypto3
+  3.5.9-r3) have no fixed package yet and are accepted with version-scoped scanner rules (see
+  [SECURITY-CVE.md](SECURITY-CVE.md#openssl-359-l-831)). searchdump itself uses rustls; OpenSSL is in the images for
+  the OpenSSH client behind `sftp://`, which stays in every image with a package manager.
+
+### Changed
+
+- CI: GitHub Actions bumped (checkout 7.0.1, upload-artifact 7.0.2, download-artifact 8.0.2, setup-zig 2.2.1,
+  install-action 2.90.4; PR #8). New `security` dispatch option `base_refresh=true`: resolves the current dhi.io
+  digests, probes the package repos, builds `dhi-debian` and `dhi-alpine` on them, runs an `sftp://` smoke test
+  through each image's own `ssh` (`scripts/sup/image-sftp-smoke.sh`) and attaches grype/trivy reports.
+- Supply chain: the SUP-019 publisher baseline is refreshed after review (bitflags, uuid, regex, regex-automata,
+  regex-syntax and socket2 each lost owners under the Rust project's crate-ownership policy or an org move; no
+  owner was added).
+
 ## 1.3.0
 
 Release date: 2026-11-20 (tag `v1.3.0`). User-facing notes: [`project/release/RELEASE-NOTES-1.3.md`](project/release/RELEASE-NOTES-1.3.md).
