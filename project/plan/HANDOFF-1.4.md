@@ -7,8 +7,10 @@ Last update: see the newest row of section 3 (times are America/New_York).
 
 - `release/1.4` was cut from `main` at ac8d8c4 (v1.3.1) on 2026-11-25 and pushed to origin as its own branch
   (like `release/1.3`). Worktree on grokbox: `/workspace/rel-1.4` (the repo is `/workspace/push-fork`).
-- Not merged into `main`; no tag; no PR. `Cargo.toml` still says `1.3.1`; the version bump, tag and release are
-  for Robert to start.
+- **Released as 1.4.0 (Robert t269u, 2026-11-27):** version commit c3d3242 on `release/1.4`, `main`
+  fast-forwarded ac8d8c4 -> c3d3242 (no merge commit), annotated tag `v1.4.0` (object 39c3d00) on c3d3242,
+  release https://github.com/robertgoley/searchdump-rs/releases/tag/v1.4.0 published and marked Latest.
+  Verification results: section 7. No PR.
 - Headline (Robert, t248u/t250u): **limits and multi polish**. Approved items (t243u): multi TLS flags,
   per-child uuid logging, `--pageBytes`, remove the duplicate reqwest. The key passphrase reaches children
   through the environment, never argv (t253u).
@@ -48,6 +50,9 @@ L4-004 one reqwest; L4-005+ are handoff/CI follow-ups. They land in whatever ord
 | 2026-11-25 23:10 | (CI) | ci 45750955415 + security 45750958177 on 7ecf996: both success (all it legs incl. opensearch-secure). No open questions left from the 1.4 items |
 | 2026-11-26 00:55 | L4-008..L4-011 | searchdump-multi split started (t264u): step 0 safety net, step 1 git mv, step 2 http::Method, split tooling; details and status in `project/plan/HANDOFF-SPLIT-1.4.md` |
 | 2026-11-27 04:45 | L4-012..L4-029 | searchdump-multi split done (steps 3-17); final verification green locally (tests, help goldens, supply chain, IT 93/1, smoke); ci 45972304648 + security 45972307714 success on d869392. See HANDOFF-SPLIT-1.4 |
+| 2026-11-27 05:00 | c3d3242 | Version 1.4.0 (Cargo, Dockerfile ARG, README/examples tags, CHANGELOG `## 1.4.0`, RELEASE-NOTES-1.4.0); ci 45978472578 + security 45978476476 success |
+| 2026-11-27 05:20 | (release) | `main` ff to c3d3242 (ci 45980219359 + security 45980219397 success); tag `v1.4.0`; release-build 45980239972 success (all jobs, 5 image jobs) |
+| 2026-11-27 05:47 | (release) | draft published, marked Latest; deployment verification in section 7 |
 
 ## 4. Item status
 
@@ -102,3 +107,38 @@ L4-004 one reqwest; L4-005+ are handoff/CI follow-ups. They land in whatever ord
 1. `cd /workspace/rel-1.4 && source /workspace/perf-1.2/env.sh && git status && git log --oneline ac8d8c4..`
 2. Read section 3/4 for the next step. Check nothing is still running (`pgrep -af 'cargo|searchdump'`) before
    starting a new build or test chain.
+
+## 7. Release 1.4.0 verification (2026-11-27, ET)
+
+- **Release:** https://github.com/robertgoley/searchdump-rs/releases/tag/v1.4.0, published 05:47 ET, `releases/latest`
+  = v1.4.0. Tag `v1.4.0` -> c3d3242 = `main` = `release/1.4`. release-build run 45980239972.
+- **Assets (11, same set as v1.3.1):** 4 tarballs (x86_64/aarch64 x gnu/musl) + `.sha256` each, CycloneDX SBOM
+  `searchdump-rs-1.4.0.cdx.json` + `.sha256`, `SHA256SUMS`. All download anonymously and match; `sha256sum -c`
+  OK; `gh attestation verify` (build provenance) OK for the 4 tarballs and the SBOM; SBOM is CycloneDX 1.3,
+  280 components, version 1.4.0.
+- **Binaries:** x86_64 gnu + musl: `searchdump`, `searchdump-multi` and the symlinks `elasticdump`, `elasticdump-rs`,
+  `multielasticdump` print 1.4.0; `--help` OK; multi help == `tests/fixtures/multi/help.txt`. aarch64: `file` only
+  (ELF aarch64, gnu dynamic / musl static); not executed (no qemu on the box).
+- **Images (ghcr.io/robertgoley/searchdump-rs, same tag set as 1.3.1; no cosign in 1.3.1 or 1.4.0):**
+  - `latest` = `1.4.0` = `1.4.0-dhi-debian`: `sha256:630d89a3af203873b01ae4878bb86bd37ffad9c72dd2480a95e8ba28f1b5c6a8`
+  - `1.4.0-dhi-alpine`: `sha256:3e2ddf43f2edd5739d6526bebcd27a1dcfa280d810909e3b996c0ab33a21d0fd`
+  - `1.4.0-dhi-static`: `sha256:2a757f512d0661b21c3f4d8aeb4a9588cebb4f90fb7df06f6a3005c6a38abbbc`
+  - `1.4.0-public`: `sha256:005391a41d40b007efb4533822d6bb4a0e5613cb086cb405f89ad73d2b1d69af`
+  - `1.4.0-alpine`: `sha256:ab761016952391ae52d5c833259d80a3a7e8f81e7df2e3e9566fc14168e835ef`
+  Pulled digests == release-build log; each prints `searchdump 1.4.0` / `searchdump-multi 1.4.0`, `--help` OK;
+  `gh attestation verify oci://...@digest` OK for all 5.
+- **Smoke (it-os-sec-l4tls, port 19252, private CA):** released x86_64 gnu binary dumped 500 docs and loaded them
+  (500/500); `searchdump-multi` dump OK (500 records). Index creation was then refused by the node's own
+  `cluster.blocks.create_index` (disk watermark: /workspace at 91%), so the mapping restore and the multi load
+  failed on index creation, not on the tool. Without new indices: binary and image (`:1.4.0`) dumps of
+  `it_tls_multi_node_471526_0` identical (54 docs), image and binary idempotent loads back OK (count 54), image
+  `searchdump-multi` dump identical to the binary dump. The block is still set on that test node.
+- **Scan (grype 0.121.0 / trivy, Makefile rules):** dhi-debian, dhi-alpine, dhi-static pass both. `public` fails
+  (grype 24 ids, trivy 19 ids) and `alpine` fails grype (5 OpenSSL 3.5.9 ids). **No id outside SECURITY-CVE.md:**
+  every public id is in the dhi-debian accepted lists; the alpine ids are exactly the 5 accepted for dhi-alpine
+  (L-831). Open for Robert: SECURITY-CVE.md says public Alpine has 0 High and `alpine` uses the shared
+  `docker/grype-ignore.yaml`, so either accept the 5 OpenSSL ids for `alpine` (per-variant ignore file) or note
+  it as open; public Debian stays the documented not-recommended base.
+- Not done: aarch64 execution (no qemu), cosign (not used by the release process). Dependabot PR runs (sha2,
+  rand, rand_chacha) failed; left alone.
+
