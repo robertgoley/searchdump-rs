@@ -139,6 +139,12 @@ L4-004 one reqwest; L4-005+ are handoff/CI follow-ups. They land in whatever ord
   (L-831). Open for Robert: SECURITY-CVE.md says public Alpine has 0 High and `alpine` uses the shared
   `docker/grype-ignore.yaml`, so either accept the 5 OpenSSL ids for `alpine` (per-variant ignore file) or note
   it as open; public Debian stays the documented not-recommended base.
+- **Alpine CVEs accepted (Robert t273u, 2026-11-27 14:04 ET, L4-031):** the 5 OpenSSL 3.5.9 ids (CVE-2026-107493,
+  -107494, -121482, -124709, -84786) on libssl3/libcrypto3 for the public `alpine` image, as for dhi-alpine. The image
+  ships 3.5.9-r1 (Alpine main), not dhi's r3, so the new `docker/grype-ignore.alpine.yaml` /
+  `docker/trivyignore.alpine.yaml` cover 3.5.9-r1 and -r3 (fix states unknown / not-fixed / wont-fix); no other
+  variant's rules changed. Rescan of the published `1.4.0-alpine` (`sha256:ab761016…`): grype before rc=2 (shared
+  file), after rc=0; trivy rc=0. SECURITY-CVE.md updated (status row, last scan, Alpine table, L-831 section).
 - Not done: aarch64 execution (no qemu), cosign (not used by the release process). Dependabot PR runs (sha2,
   rand, rand_chacha) failed; left alone.
 

@@ -1,0 +1,370 @@
+# L4-031 (1.4.0, owner decision 2026-11-27, Robert t273u): grype ignore rules for the public `alpine` image
+# (IMAGE_VARIANT=alpine, `make image-alpine`, tag <ver>-alpine; `make scan` uses this file instead of
+# docker/grype-ignore.yaml for that variant only). Same 5 OpenSSL 3.5.9 High ids and the same rationale as
+# docker/grype-ignore.dhi-alpine.yaml (L-831): no fixed Alpine openssl yet (upstream fix is OpenSSL 3.5.10).
+# searchdump does not link OpenSSL (rustls); libcrypto3 is in the image for the OpenSSH client (sftp://) and apk.
+# Scoped to libssl3/libcrypto3 at 3.5.9-r1 (what alpine:3.24 + `apk upgrade` shipped in the 1.4.0 image,
+# sha256:ab761016...) and 3.5.9-r3 (the build accepted for dhi-alpine, in case a rebuild picks it up), and to the
+# fix states grype reports while no fix exists (unknown / not-fixed / wont-fix): a fixed openssl build no longer
+# matches. Remove once Alpine ships a fixed openssl; see SECURITY-CVE.md "OpenSSL 3.5.9 (L-831)".
+ignore:
+  - vulnerability: CVE-2026-107493
+    fix-state: unknown
+    package:
+      name: '^libssl3$'
+      version: '3.5.9-r1'
+      type: apk
+  - vulnerability: CVE-2026-107493
+    fix-state: not-fixed
+    package:
+      name: '^libssl3$'
+      version: '3.5.9-r1'
+      type: apk
+  - vulnerability: CVE-2026-107493
+    fix-state: wont-fix
+    package:
+      name: '^libssl3$'
+      version: '3.5.9-r1'
+      type: apk
+  - vulnerability: CVE-2026-107493
+    fix-state: unknown
+    package:
+      name: '^libcrypto3$'
+      version: '3.5.9-r1'
+      type: apk
+  - vulnerability: CVE-2026-107493
+    fix-state: not-fixed
+    package:
+      name: '^libcrypto3$'
+      version: '3.5.9-r1'
+      type: apk
+  - vulnerability: CVE-2026-107493
+    fix-state: wont-fix
+    package:
+      name: '^libcrypto3$'
+      version: '3.5.9-r1'
+      type: apk
+  - vulnerability: CVE-2026-107493
+    fix-state: unknown
+    package:
+      name: '^libssl3$'
+      version: '3.5.9-r3'
+      type: apk
+  - vulnerability: CVE-2026-107493
+    fix-state: not-fixed
+    package:
+      name: '^libssl3$'
+      version: '3.5.9-r3'
+      type: apk
+  - vulnerability: CVE-2026-107493
+    fix-state: wont-fix
+    package:
+      name: '^libssl3$'
+      version: '3.5.9-r3'
+      type: apk
+  - vulnerability: CVE-2026-107493
+    fix-state: unknown
+    package:
+      name: '^libcrypto3$'
+      version: '3.5.9-r3'
+      type: apk
+  - vulnerability: CVE-2026-107493
+    fix-state: not-fixed
+    package:
+      name: '^libcrypto3$'
+      version: '3.5.9-r3'
+      type: apk
+  - vulnerability: CVE-2026-107493
+    fix-state: wont-fix
+    package:
+      name: '^libcrypto3$'
+      version: '3.5.9-r3'
+      type: apk
+  - vulnerability: CVE-2026-107494
+    fix-state: unknown
+    package:
+      name: '^libssl3$'
+      version: '3.5.9-r1'
+      type: apk
+  - vulnerability: CVE-2026-107494
+    fix-state: not-fixed
+    package:
+      name: '^libssl3$'
+      version: '3.5.9-r1'
+      type: apk
+  - vulnerability: CVE-2026-107494
+    fix-state: wont-fix
+    package:
+      name: '^libssl3$'
+      version: '3.5.9-r1'
+      type: apk
+  - vulnerability: CVE-2026-107494
+    fix-state: unknown
+    package:
+      name: '^libcrypto3$'
+      version: '3.5.9-r1'
+      type: apk
+  - vulnerability: CVE-2026-107494
+    fix-state: not-fixed
+    package:
+      name: '^libcrypto3$'
+      version: '3.5.9-r1'
+      type: apk
+  - vulnerability: CVE-2026-107494
+    fix-state: wont-fix
+    package:
+      name: '^libcrypto3$'
+      version: '3.5.9-r1'
+      type: apk
+  - vulnerability: CVE-2026-107494
+    fix-state: unknown
+    package:
+      name: '^libssl3$'
+      version: '3.5.9-r3'
+      type: apk
+  - vulnerability: CVE-2026-107494
+    fix-state: not-fixed
+    package:
+      name: '^libssl3$'
+      version: '3.5.9-r3'
+      type: apk
+  - vulnerability: CVE-2026-107494
+    fix-state: wont-fix
+    package:
+      name: '^libssl3$'
+      version: '3.5.9-r3'
+      type: apk
+  - vulnerability: CVE-2026-107494
+    fix-state: unknown
+    package:
+      name: '^libcrypto3$'
+      version: '3.5.9-r3'
+      type: apk
+  - vulnerability: CVE-2026-107494
+    fix-state: not-fixed
+    package:
+      name: '^libcrypto3$'
+      version: '3.5.9-r3'
+      type: apk
+  - vulnerability: CVE-2026-107494
+    fix-state: wont-fix
+    package:
+      name: '^libcrypto3$'
+      version: '3.5.9-r3'
+      type: apk
+  - vulnerability: CVE-2026-121482
+    fix-state: unknown
+    package:
+      name: '^libssl3$'
+      version: '3.5.9-r1'
+      type: apk
+  - vulnerability: CVE-2026-121482
+    fix-state: not-fixed
+    package:
+      name: '^libssl3$'
+      version: '3.5.9-r1'
+      type: apk
+  - vulnerability: CVE-2026-121482
+    fix-state: wont-fix
+    package:
+      name: '^libssl3$'
+      version: '3.5.9-r1'
+      type: apk
+  - vulnerability: CVE-2026-121482
+    fix-state: unknown
+    package:
+      name: '^libcrypto3$'
+      version: '3.5.9-r1'
+      type: apk
+  - vulnerability: CVE-2026-121482
+    fix-state: not-fixed
+    package:
+      name: '^libcrypto3$'
+      version: '3.5.9-r1'
+      type: apk
+  - vulnerability: CVE-2026-121482
+    fix-state: wont-fix
+    package:
+      name: '^libcrypto3$'
+      version: '3.5.9-r1'
+      type: apk
+  - vulnerability: CVE-2026-121482
+    fix-state: unknown
+    package:
+      name: '^libssl3$'
+      version: '3.5.9-r3'
+      type: apk
+  - vulnerability: CVE-2026-121482
+    fix-state: not-fixed
+    package:
+      name: '^libssl3$'
+      version: '3.5.9-r3'
+      type: apk
+  - vulnerability: CVE-2026-121482
+    fix-state: wont-fix
+    package:
+      name: '^libssl3$'
+      version: '3.5.9-r3'
+      type: apk
+  - vulnerability: CVE-2026-121482
+    fix-state: unknown
+    package:
+      name: '^libcrypto3$'
+      version: '3.5.9-r3'
+      type: apk
+  - vulnerability: CVE-2026-121482
+    fix-state: not-fixed
+    package:
+      name: '^libcrypto3$'
+      version: '3.5.9-r3'
+      type: apk
+  - vulnerability: CVE-2026-121482
+    fix-state: wont-fix
+    package:
+      name: '^libcrypto3$'
+      version: '3.5.9-r3'
+      type: apk
+  - vulnerability: CVE-2026-124709
+    fix-state: unknown
+    package:
+      name: '^libssl3$'
+      version: '3.5.9-r1'
+      type: apk
+  - vulnerability: CVE-2026-124709
+    fix-state: not-fixed
+    package:
+      name: '^libssl3$'
+      version: '3.5.9-r1'
+      type: apk
+  - vulnerability: CVE-2026-124709
+    fix-state: wont-fix
+    package:
+      name: '^libssl3$'
+      version: '3.5.9-r1'
+      type: apk
+  - vulnerability: CVE-2026-124709
+    fix-state: unknown
+    package:
+      name: '^libcrypto3$'
+      version: '3.5.9-r1'
+      type: apk
+  - vulnerability: CVE-2026-124709
+    fix-state: not-fixed
+    package:
+      name: '^libcrypto3$'
+      version: '3.5.9-r1'
+      type: apk
+  - vulnerability: CVE-2026-124709
+    fix-state: wont-fix
+    package:
+      name: '^libcrypto3$'
+      version: '3.5.9-r1'
+      type: apk
+  - vulnerability: CVE-2026-124709
+    fix-state: unknown
+    package:
+      name: '^libssl3$'
+      version: '3.5.9-r3'
+      type: apk
+  - vulnerability: CVE-2026-124709
+    fix-state: not-fixed
+    package:
+      name: '^libssl3$'
+      version: '3.5.9-r3'
+      type: apk
+  - vulnerability: CVE-2026-124709
+    fix-state: wont-fix
+    package:
+      name: '^libssl3$'
+      version: '3.5.9-r3'
+      type: apk
+  - vulnerability: CVE-2026-124709
+    fix-state: unknown
+    package:
+      name: '^libcrypto3$'
+      version: '3.5.9-r3'
+      type: apk
+  - vulnerability: CVE-2026-124709
+    fix-state: not-fixed
+    package:
+      name: '^libcrypto3$'
+      version: '3.5.9-r3'
+      type: apk
+  - vulnerability: CVE-2026-124709
+    fix-state: wont-fix
+    package:
+      name: '^libcrypto3$'
+      version: '3.5.9-r3'
+      type: apk
+  - vulnerability: CVE-2026-84786
+    fix-state: unknown
+    package:
+      name: '^libssl3$'
+      version: '3.5.9-r1'
+      type: apk
+  - vulnerability: CVE-2026-84786
+    fix-state: not-fixed
+    package:
+      name: '^libssl3$'
+      version: '3.5.9-r1'
+      type: apk
+  - vulnerability: CVE-2026-84786
+    fix-state: wont-fix
+    package:
+      name: '^libssl3$'
+      version: '3.5.9-r1'
+      type: apk
+  - vulnerability: CVE-2026-84786
+    fix-state: unknown
+    package:
+      name: '^libcrypto3$'
+      version: '3.5.9-r1'
+      type: apk
+  - vulnerability: CVE-2026-84786
+    fix-state: not-fixed
+    package:
+      name: '^libcrypto3$'
+      version: '3.5.9-r1'
+      type: apk
+  - vulnerability: CVE-2026-84786
+    fix-state: wont-fix
+    package:
+      name: '^libcrypto3$'
+      version: '3.5.9-r1'
+      type: apk
+  - vulnerability: CVE-2026-84786
+    fix-state: unknown
+    package:
+      name: '^libssl3$'
+      version: '3.5.9-r3'
+      type: apk
+  - vulnerability: CVE-2026-84786
+    fix-state: not-fixed
+    package:
+      name: '^libssl3$'
+      version: '3.5.9-r3'
+      type: apk
+  - vulnerability: CVE-2026-84786
+    fix-state: wont-fix
+    package:
+      name: '^libssl3$'
+      version: '3.5.9-r3'
+      type: apk
+  - vulnerability: CVE-2026-84786
+    fix-state: unknown
+    package:
+      name: '^libcrypto3$'
+      version: '3.5.9-r3'
+      type: apk
+  - vulnerability: CVE-2026-84786
+    fix-state: not-fixed
+    package:
+      name: '^libcrypto3$'
+      version: '3.5.9-r3'
+      type: apk
+  - vulnerability: CVE-2026-84786
+    fix-state: wont-fix
+    package:
+      name: '^libcrypto3$'
+      version: '3.5.9-r3'
+      type: apk

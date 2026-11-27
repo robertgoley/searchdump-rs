@@ -1,0 +1,41 @@
+# L4-031 (1.4.0, owner decision 2026-11-27, Robert t273u): trivy ignore rules for the public `alpine` image only
+# (`make scan` passes this file with --ignorefile when IMAGE_VARIANT=alpine). Same ids as
+# docker/grype-ignore.alpine.yaml and docker/trivyignore.dhi-alpine.yaml, scoped to libssl3/libcrypto3 at 3.5.9-r1
+# and 3.5.9-r3 (versioned purls). trivy rated none of them HIGH on 2026-11-27; the entries keep the two scanners
+# consistent if its rating changes. See SECURITY-CVE.md "OpenSSL 3.5.9 (L-831)".
+vulnerabilities:
+  - id: CVE-2026-107493
+    purls:
+      - pkg:apk/alpine/libssl3@3.5.9-r1
+      - pkg:apk/alpine/libcrypto3@3.5.9-r1
+      - pkg:apk/alpine/libssl3@3.5.9-r3
+      - pkg:apk/alpine/libcrypto3@3.5.9-r3
+    statement: "no fixed Alpine openssl yet (upstream 3.5.10); accepted for the alpine image by Robert 2026-11-27 (t273u) until a fixed build ships, see SECURITY-CVE.md (L-831)"
+  - id: CVE-2026-107494
+    purls:
+      - pkg:apk/alpine/libssl3@3.5.9-r1
+      - pkg:apk/alpine/libcrypto3@3.5.9-r1
+      - pkg:apk/alpine/libssl3@3.5.9-r3
+      - pkg:apk/alpine/libcrypto3@3.5.9-r3
+    statement: "no fixed Alpine openssl yet (upstream 3.5.10); accepted for the alpine image by Robert 2026-11-27 (t273u) until a fixed build ships, see SECURITY-CVE.md (L-831)"
+  - id: CVE-2026-121482
+    purls:
+      - pkg:apk/alpine/libssl3@3.5.9-r1
+      - pkg:apk/alpine/libcrypto3@3.5.9-r1
+      - pkg:apk/alpine/libssl3@3.5.9-r3
+      - pkg:apk/alpine/libcrypto3@3.5.9-r3
+    statement: "no fixed Alpine openssl yet (upstream 3.5.10); accepted for the alpine image by Robert 2026-11-27 (t273u) until a fixed build ships, see SECURITY-CVE.md (L-831)"
+  - id: CVE-2026-124709
+    purls:
+      - pkg:apk/alpine/libssl3@3.5.9-r1
+      - pkg:apk/alpine/libcrypto3@3.5.9-r1
+      - pkg:apk/alpine/libssl3@3.5.9-r3
+      - pkg:apk/alpine/libcrypto3@3.5.9-r3
+    statement: "no fixed Alpine openssl yet (upstream 3.5.10); accepted for the alpine image by Robert 2026-11-27 (t273u) until a fixed build ships, see SECURITY-CVE.md (L-831)"
+  - id: CVE-2026-84786
+    purls:
+      - pkg:apk/alpine/libssl3@3.5.9-r1
+      - pkg:apk/alpine/libcrypto3@3.5.9-r1
+      - pkg:apk/alpine/libssl3@3.5.9-r3
+      - pkg:apk/alpine/libcrypto3@3.5.9-r3
+    statement: "no fixed Alpine openssl yet (upstream 3.5.10); accepted for the alpine image by Robert 2026-11-27 (t273u) until a fixed build ships, see SECURITY-CVE.md (L-831)"
