@@ -47,6 +47,7 @@ L4-004 one reqwest; L4-005+ are handoff/CI follow-ups. They land in whatever ord
 | 2026-11-25 22:50 | L4-006 | t255u-t259u: multi honours `NODE_TLS_REJECT_UNAUTHORIZED=0` (parent + children, searchdump's warnings), `--pageBytes` < 1 MiB doc note, D3/D4/D7/D8/D10/D12 resolved; edrs-1.2-podman deleted and recreated (t258u), 11 images re-pulled, smoke OK. Local: fmt, clippy, unit 393/393, contract 131/131, IT 93 passed / 1 ignored (new `tls_auth::multi_honours_node_tls_reject_unauthorized`) |
 | 2026-11-25 23:10 | (CI) | ci 45750955415 + security 45750958177 on 7ecf996: both success (all it legs incl. opensearch-secure). No open questions left from the 1.4 items |
 | 2026-11-26 00:55 | L4-008..L4-011 | searchdump-multi split started (t264u): step 0 safety net, step 1 git mv, step 2 http::Method, split tooling; details and status in `project/plan/HANDOFF-SPLIT-1.4.md` |
+| 2026-11-27 04:45 | L4-012..L4-029 | searchdump-multi split done (steps 3-17); final verification green locally (tests, help goldens, supply chain, IT 93/1, smoke); ci 45972304648 + security 45972307714 success on d869392. See HANDOFF-SPLIT-1.4 |
 
 ## 4. Item status
 

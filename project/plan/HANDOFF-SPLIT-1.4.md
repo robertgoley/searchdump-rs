@@ -13,7 +13,7 @@ t265u: save progress so another agent can finish). Times are America/New_York.
   (5186 lines, 29 unit tests).
 - Commit ids continue the 1.4 numbering: `L4-008` = split step 0, `L4-009` = step 1, ... (one commit per step or group).
 
-## 2. Status (updated 2026-11-27 04:30)
+## 2. Status (updated 2026-11-27 04:45): split complete
 
 | step | commit | state |
 |---|---|---|
@@ -36,7 +36,7 @@ t265u: save progress so another agent can finish). Times are America/New_York.
 | 15 visibility + explicit imports | L4-026 | done, gate OK (re-run on the final tree 2026-11-27): glob imports gone, every item `pub(crate)` or private, `#![warn(unreachable_pub)]`, `pub mod sizing` -> `mod sizing` |
 | 16 module docs | L4-027 | done: module map in the `main.rs` crate docs, the two intra-doc links broken by the move fixed; `cargo doc --bin searchdump-multi` has no warnings from the binary (the lib's 6 are pre-existing) |
 | 17 docs/CHANGELOG | L4-028 | done: CHANGELOG 1.4 "Internal" entry, FEATURES-TODO and examples/README paths, module map in HANDOFF-1.4 (there is no CONTRIBUTING file; ROADMAP plans and `results/local/*` are historical and unchanged); `matrix-md.py --check` OK |
-| final verification, push, CI | – | next |
+| final verification | L4-029 | done 2026-11-27 04:45 on d869392 (`project/plan/split-1.4/gate-full.sh`): release build; clippy -D warnings (all targets, and `--no-default-features`); `cargo test --workspace` 610 passed / 0 failed (multi bin 36, cli_contract 79, chaos_brk 67, router_mock 17, ...); nextest unit 368/368, contract 131/131; help and -h byte-identical to `tests/fixtures/multi/`; geiger, vet, deny, audit, machete, pins, matrix-md, native-code, notices all pass; IT on `it-os-sec-l4tls` (edrs-1.4-podman, port 19252) 93 passed / 1 ignored (as before the split); release-binary multi smoke dump -> load with `--ca` 5/5 docs; container stopped again. CI on d869392: ci 45972304648 success, security 45972307714 success |
 
 Phase A steps 3-10 were run by `steps.sh 4 10 13` (regenerate, G-fast gate, commit only on GATE OK with 29 multi tests).
 
