@@ -56,6 +56,14 @@ Headline: limits and multi polish. Branch `release/1.4` (from v1.3.1); not relea
 - A huge `--idleTimeout`, `--requestTimeout` or `--timeout` (for example `--idleTimeout 9223372036854775807`)
   is capped at about 100 years instead of panicking when the HTTP client adds it to the current time.
 
+### Internal
+
+- searchdump-multi split into modules (no behaviour change): `src/bin/searchdump-multi.rs` (5186 lines) is now
+  `src/bin/searchdump-multi/` (`main.rs` plus `cli`, `tls`, `cluster`, `selection`, `types`, `files`, `manifest`,
+  `discover`, `sizing`, `planner`, `flags`, `child/`, `ctx`, `dump`, `load`, `storage` and `run_local/`). Same
+  binary name, options, help text (pinned by new golden tests), output and exit codes.
+
+
 ## 1.3.1
 
 Release date: 2026-11-25 (tag `v1.3.1`). Security patch release; no behaviour changes in `searchdump` or

@@ -12,8 +12,12 @@ Last update: see the newest row of section 3 (times are America/New_York).
 - Headline (Robert, t248u/t250u): **limits and multi polish**. Approved items (t243u): multi TLS flags,
   per-child uuid logging, `--pageBytes`, remove the duplicate reqwest. The key passphrase reaches children
   through the environment, never argv (t253u).
-- The `searchdump-multi.rs` split was approved by Robert (t264u) and is in progress: see
-  **`project/plan/HANDOFF-SPLIT-1.4.md`** (status, steps, tooling in `project/plan/split-1.4/`).
+- The `searchdump-multi.rs` split (Robert t264u) is done on this branch: steps 0-17 as L4-008..L4-028, no
+  behaviour change, help text byte-identical. Details, decisions and tooling: **`project/plan/HANDOFF-SPLIT-1.4.md`**.
+  Module map (`src/bin/searchdump-multi/`, lines incl. tests): main 84, cli 339, tls 308, cluster 482,
+  selection 288, types 235, files 398, manifest 94, discover 305, sizing 443, planner 172, flags 183,
+  child/{mod 9, probe 84, runner 541, stats 157}, ctx 136, dump 417, load 264, storage 178,
+  run_local/{mod 63, setup 301, dump_plan 300, load_plan 107, dry_run 104, report 115}.
 - Reference: `/workspace/review-1.4/REVIEW-1.4.md` (1.4 review; items C6, C9, C11, C21).
 
 ## 2. Rules (standing)

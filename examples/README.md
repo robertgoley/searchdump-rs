@@ -119,7 +119,7 @@ a Bitnami / constrained Elasticsearch or OpenSearch node.
   `--workers=1`, a modest `--maxResponseMb`, and (on restore) `--concurrency=1`.
 - **`searchdump-multi` 1.0.0 default data flags are too heavy for a small heap.** In 1.0.0,
   every data child gets `--limit=5000`, `--maxResponseMb=0` (no response-size cap) and
-  `--scrollTime=10m`, from `DATA_FLAGS` in `src/bin/searchdump-multi.rs`. A single 5000-document
+  `--scrollTime=10m`, from `DATA_FLAGS` in `src/bin/searchdump-multi/flags.rs`. A single 5000-document
   page can take the node down during a **dump**, even with one thread and one shard: on
   2026-11-14 a 256 MB-heap Elasticsearch 7.10.2 or 8.6.1 (bitnamilegacy) died with
   `OutOfMemoryError`, and 8.19.23 answered HTTP 429 (`circuit_breaking_exception`) until the
