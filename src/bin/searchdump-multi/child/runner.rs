@@ -32,7 +32,7 @@ pub(crate) struct Runner {
     /// (SIGTERM, then SIGKILL after `grace`).
     pub(crate) cancel: CancellationToken,
     pub(crate) grace: Duration,
-    /// 1.1-7: data runs get `--statsFile` (the binary is searchdump, see [`takes_stats_file`]).
+    /// 1.1-7: data runs get `--statsFile` (the binary is searchdump, see [`takes_stats_file`](crate::child::takes_stats_file)).
     pub(crate) stats: bool,
     /// 1.2: data runs get `--serverLimits=off` (the child is searchdump 1.2+; the parent sized
     /// them already).

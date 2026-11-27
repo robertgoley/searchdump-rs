@@ -31,7 +31,7 @@ pub(crate) struct Ctx {
     pub(crate) sel: Selector,
     pub(crate) runner: Runner,
     pub(crate) pacer: Pacer,
-    /// 1.2: the sizing plan (set by [`plan_sizes`] before any index starts).
+    /// 1.2: the sizing plan (set by [`plan_sizes`](crate::planner::plan_sizes) before any index starts).
     pub(crate) plan: std::sync::OnceLock<sizing::Plan>,
     /// 1.2: primary (docs, stored bytes) per selected index, from one stats call.
     pub(crate) index_stats: std::sync::OnceLock<BTreeMap<String, sizing::Stats>>,

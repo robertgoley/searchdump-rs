@@ -34,7 +34,8 @@ t265u: save progress so another agent can finish). Times are America/New_York.
 | 13 run_local/load_plan.rs + print_load_plan + report.rs | 6d73cd5 L4-023 | done, gate OK (+2 tests) |
 | 14 child data-arg builder | 28e9244 L4-024 | done, gate OK (+2 argv-pinning tests; 36 multi tests); phase B complete |
 | 15 visibility + explicit imports | L4-026 | done, gate OK (re-run on the final tree 2026-11-27): glob imports gone, every item `pub(crate)` or private, `#![warn(unreachable_pub)]`, `pub mod sizing` -> `mod sizing` |
-| 16 module docs, 17 docs/CHANGELOG, final verification, push, CI | – | |
+| 16 module docs | L4-027 | done: module map in the `main.rs` crate docs, the two intra-doc links broken by the move fixed; `cargo doc --bin searchdump-multi` has no warnings from the binary (the lib's 6 are pre-existing) |
+| 17 docs/CHANGELOG, final verification, push, CI | – | next |
 
 Phase A steps 3-10 were run by `steps.sh 4 10 13` (regenerate, G-fast gate, commit only on GATE OK with 29 multi tests).
 

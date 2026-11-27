@@ -27,6 +27,17 @@
 //! never their command line. Per-child ids (L4-002): every child run gets a UUID in
 //! `$SEARCHDUMP_CHILD_ID`, printed by the parent, tagged on the child's log lines and recorded in
 //! its stats, the manifest and `LOGDIR/children.json`.
+//!
+//! Module map (1.4 split, L4-008..L4-028; no behaviour change):
+//! * [`cli`]: `Args` and its value enums; [`tls`]: cluster TLS options and the passphrase
+//!   (L4-001, L4-006); [`cluster`]: the parent's own requests and retries.
+//! * [`selection`], [`types`]: what is selected and which item types run; [`files`],
+//!   [`manifest`], [`discover`]: file names, the manifest and finding a dump's parts.
+//! * [`sizing`], [`planner`], [`flags`]: `--serverLimits` sizing and the flags every child gets.
+//! * [`child`]: probing, running and counting child `searchdump` processes (L4-002 ids).
+//! * [`ctx`]: the shared run context; [`dump`], [`load`]: one index or the cluster-wide types.
+//! * [`storage`]: remote storage URLs around [`run_local`], which orchestrates a local run
+//!   (set-up, dump or load plan, dry run, report).
 #![forbid(unsafe_code)]
 #![warn(unreachable_pub)]
 
