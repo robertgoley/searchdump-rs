@@ -1,65 +1,77 @@
 //! Running child processes: logs, ids (L4-002), stop/cancel and runs file.
 
-use crate::*;
+use crate::child::ChildStats;
+use crate::child::child_stats;
+use crate::storage::chrono_stamp;
+use anyhow::{Context, Result, anyhow, bail};
+use serde::{Deserialize, Serialize};
+use std::fs;
+use std::io::{BufRead, BufReader};
+use std::path::{Path, PathBuf};
+use std::process::Stdio;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
+use tokio_util::sync::CancellationToken;
 
 /// 1.1-8: how long a child gets after SIGTERM (on Ctrl-C) before it is killed.
-pub const CHILD_GRACE: Duration = Duration::from_secs(5);
+pub(crate) const CHILD_GRACE: Duration = Duration::from_secs(5);
 
-pub struct Runner {
-    pub bin: PathBuf,
+pub(crate) struct Runner {
+    pub(crate) bin: PathBuf,
     /// L4-001: environment set for every child (the key passphrase; never on argv).
-    pub child_env: Vec<(String, String)>,
+    pub(crate) child_env: Vec<(String, String)>,
     /// L4-001: variables removed from every child's environment (would override `child_env`).
-    pub child_env_remove: Vec<String>,
-    pub log_dir: PathBuf,
-    pub common: Vec<String>,
-    pub data_flags: Vec<String>,
+    pub(crate) child_env_remove: Vec<String>,
+    pub(crate) log_dir: PathBuf,
+    pub(crate) common: Vec<String>,
+    pub(crate) data_flags: Vec<String>,
     /// Set on Ctrl-C: no new step starts.
-    pub cancelled: Arc<AtomicBool>,
+    pub(crate) cancelled: Arc<AtomicBool>,
     /// 1.1-8: cancelled on Ctrl-C together with `cancelled`; running children are stopped
     /// (SIGTERM, then SIGKILL after `grace`).
-    pub cancel: CancellationToken,
-    pub grace: Duration,
+    pub(crate) cancel: CancellationToken,
+    pub(crate) grace: Duration,
     /// 1.1-7: data runs get `--statsFile` (the binary is searchdump, see [`takes_stats_file`]).
-    pub stats: bool,
+    pub(crate) stats: bool,
     /// 1.2: data runs get `--serverLimits=off` (the child is searchdump 1.2+; the parent sized
     /// them already).
-    pub server_limits: bool,
+    pub(crate) server_limits: bool,
     /// L4-002: every child run of this process, in start order (see [`ChildRun`]).
-    pub runs: Mutex<Vec<ChildRun>>,
+    pub(crate) runs: Mutex<Vec<ChildRun>>,
 }
 
 /// L4-002: one child run. The `id` (a v4 UUID) is in the parent's start/end lines, in the
 /// child's environment (`$SEARCHDUMP_CHILD_ID`: searchdump puts it on every log line and in its
 /// `--statsFile`), in the manifest entry of the index and in `LOGDIR/children.json`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-pub struct ChildRun {
-    pub id: String,
-    pub index: String,
+pub(crate) struct ChildRun {
+    pub(crate) id: String,
+    pub(crate) index: String,
     /// The step: the type (`settings`, `data`, ...) or the data part's label.
-    pub step: String,
-    pub log: String,
+    pub(crate) step: String,
+    pub(crate) log: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub pid: Option<u32>,
+    pub(crate) pid: Option<u32>,
     /// Start time, seconds since the Unix epoch.
-    pub started: u64,
+    pub(crate) started: u64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub seconds: Option<f64>,
+    pub(crate) seconds: Option<f64>,
     /// running, ok, failed or interrupted.
-    pub status: String,
+    pub(crate) status: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub exit: Option<String>,
+    pub(crate) exit: Option<String>,
     /// The target index the child wrote and its uuid at the end (restores, from its stats).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub target_index: Option<serde_json::Value>,
+    pub(crate) target_index: Option<serde_json::Value>,
 }
 
 /// L4-002: what the manifest keeps per index: each step's child id.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-pub struct ChildRef {
-    pub step: String,
-    pub id: String,
-    pub status: String,
+pub(crate) struct ChildRef {
+    pub(crate) step: String,
+    pub(crate) id: String,
+    pub(crate) status: String,
 }
 
 /// L4-002: the `target_index` of a child's `--statsFile`, if any.
@@ -70,7 +82,7 @@ pub(crate) fn stats_target_index(stats_file: Option<&Path>) -> Option<serde_json
 
 impl Runner {
     /// L4-002: the child runs of `index`, for its manifest entry.
-    pub fn refs_for(&self, index: &str) -> Vec<ChildRef> {
+    pub(crate) fn refs_for(&self, index: &str) -> Vec<ChildRef> {
         self.runs
             .lock()
             .unwrap_or_else(|e| e.into_inner())
@@ -85,7 +97,7 @@ impl Runner {
     }
 
     /// L4-002: write every child run to `LOGDIR/children.json` (the run's report).
-    pub fn save_runs(&self) -> Result<PathBuf> {
+    pub(crate) fn save_runs(&self) -> Result<PathBuf> {
         let path = self.log_dir.join("children.json");
         let runs = self.runs.lock().unwrap_or_else(|e| e.into_inner()).clone();
         fs::write(&path, serde_json::to_vec_pretty(&runs)?)
@@ -101,7 +113,7 @@ impl Runner {
     }
 
     /// Run searchdump once; output goes to LOGDIR/INDEX.KIND.log.
-    pub async fn run(
+    pub(crate) async fn run(
         &self,
         index: &str,
         kind: &str,
@@ -119,7 +131,7 @@ impl Runner {
     /// future is dropped is killed (`kill_on_drop`).
     ///
     /// 1.1-7: returns the counts the child reported ([`child_stats`]).
-    pub async fn run_as(
+    pub(crate) async fn run_as(
         &self,
         index: &str,
         kind: &str,
@@ -298,6 +310,7 @@ pub(crate) fn tail(path: &Path, n: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::child::CountSource;
 
     /// 1.1-8: a Runner whose "searchdump" is a shell script.
     #[cfg(unix)]

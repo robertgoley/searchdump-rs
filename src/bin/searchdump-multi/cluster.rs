@@ -1,12 +1,23 @@
 //! The parent's own cluster client: listing, stats, probes and retries.
 
-use crate::*;
+use crate::cli::Args;
+use crate::sizing;
+use crate::tls::ClusterTls;
+use anyhow::{Context, Result, anyhow, bail};
+use http::Method;
+use searchdump_rs::endpoint::read_auth_file;
+use searchdump_rs::http::gate::RequestGate;
+use searchdump_rs::http::retry::error_chain;
+use searchdump_rs::http::{Body, ClientOptions, EsClient};
+use std::collections::BTreeMap;
+use std::time::Duration;
+use url::Url;
 
 // ----------------------------------------------------------------------------- cluster
 
 /// Base URL without credentials, plus credentials: `--httpAuthFile` wins (L-645b), then URL
 /// userinfo, then env.
-pub fn split_url(
+pub(crate) fn split_url(
     raw: &str,
     env_prefix: &str,
     auth_file: Option<&(String, String)>,
@@ -53,9 +64,9 @@ pub fn split_url(
 /// real-memory parent breaker refuses even a 0-byte `_refresh` until the next GC (seen on
 /// OpenSearch 3 at 256m after a load); without a retry the parent failed an index whose child
 /// had written every document. Requests that change the cluster are not repeated here.
-pub const PARENT_429_RETRIES: u32 = 6;
+pub(crate) const PARENT_429_RETRIES: u32 = 6;
 
-pub fn parent_call_retryable(method: &Method, segs: &[&str], status: u16) -> bool {
+pub(crate) fn parent_call_retryable(method: &Method, segs: &[&str], status: u16) -> bool {
     if status != 429 && status != 503 {
         return false;
     }
@@ -65,18 +76,18 @@ pub fn parent_call_retryable(method: &Method, segs: &[&str], status: u16) -> boo
 }
 
 /// 0.25 s, doubling, at most 4 s (about 12 s over all retries).
-pub fn parent_retry_delay(attempt: u32) -> Duration {
+pub(crate) fn parent_retry_delay(attempt: u32) -> Duration {
     Duration::from_millis((250u64 << attempt.min(4)).min(4000))
 }
 
-pub struct Cluster {
+pub(crate) struct Cluster {
     client: EsClient,
     /// What children get as --input/--output (as the user gave it, without a trailing slash).
     pub(crate) child_base: String,
 }
 
 impl Cluster {
-    pub fn new(raw: &str, env_prefix: &str, args: &Args, tls: &ClusterTls) -> Result<Self> {
+    pub(crate) fn new(raw: &str, env_prefix: &str, args: &Args, tls: &ClusterTls) -> Result<Self> {
         let auth = args
             .http_auth_file
             .as_deref()
@@ -112,7 +123,7 @@ impl Cluster {
         })
     }
 
-    pub fn index_url(&self, index: &str) -> String {
+    pub(crate) fn index_url(&self, index: &str) -> String {
         let enc = percent_encoding::utf8_percent_encode(index, percent_encoding::NON_ALPHANUMERIC)
             .to_string();
         format!("{}/{enc}", self.child_base)
@@ -175,7 +186,7 @@ impl Cluster {
     }
 
     /// Open indices (closed ones cannot be dumped), sorted by name.
-    pub async fn list_indices(&self) -> Result<Vec<String>> {
+    pub(crate) async fn list_indices(&self) -> Result<Vec<String>> {
         let v = self
             .ok_json(
                 Method::GET,
@@ -213,7 +224,7 @@ impl Cluster {
     }
 
     /// (alias, index) pairs, sorted.
-    pub async fn list_aliases(&self) -> Result<Vec<(String, String)>> {
+    pub(crate) async fn list_aliases(&self) -> Result<Vec<(String, String)>> {
         let v = self
             .ok_json(
                 Method::GET,
@@ -237,7 +248,7 @@ impl Cluster {
     }
 
     /// Data streams and their backing indices, sorted by name.
-    pub async fn list_data_streams(&self) -> Result<Vec<(String, Vec<String>)>> {
+    pub(crate) async fn list_data_streams(&self) -> Result<Vec<(String, Vec<String>)>> {
         let v = self
             .ok_json(Method::GET, &["_data_stream"], &[], Body::Empty)
             .await
@@ -266,7 +277,7 @@ impl Cluster {
     }
 
     /// One data stream's description (`GET _data_stream/NAME`), or None if there is none.
-    pub async fn data_stream(&self, name: &str) -> Result<Option<serde_json::Value>> {
+    pub(crate) async fn data_stream(&self, name: &str) -> Result<Option<serde_json::Value>> {
         let (status, bytes) = self
             .call(Method::GET, &["_data_stream", name], &[], Body::Empty)
             .await?;
@@ -289,7 +300,7 @@ impl Cluster {
         }
     }
 
-    pub async fn exists(&self, index: &str) -> Result<bool> {
+    pub(crate) async fn exists(&self, index: &str) -> Result<bool> {
         let (status, bytes) = self
             .call(Method::GET, &[index, "_settings"], &[], Body::Empty)
             .await?;
@@ -304,7 +315,7 @@ impl Cluster {
         }
     }
 
-    pub async fn count(&self, index: &str, refresh: bool) -> Result<u64> {
+    pub(crate) async fn count(&self, index: &str, refresh: bool) -> Result<u64> {
         if refresh {
             self.ok_json(Method::POST, &[index, "_refresh"], &[], Body::Empty)
                 .await?;
@@ -319,7 +330,7 @@ impl Cluster {
 
     /// 1.2: primary docs and stored bytes of every open index in ONE request
     /// (`_stats/docs,store?level=indices`), replacing 1.1-10's per-index `_stats` call.
-    pub async fn index_stats(&self) -> Result<BTreeMap<String, sizing::Stats>> {
+    pub(crate) async fn index_stats(&self) -> Result<BTreeMap<String, sizing::Stats>> {
         let v = self
             .ok_json(
                 Method::GET,
@@ -353,7 +364,7 @@ impl Cluster {
 
     /// The stats of one target (a data stream: its backing indices summed), for a target the
     /// one `index_stats` call did not name.
-    pub async fn target_stats(&self, name: &str) -> Option<sizing::Stats> {
+    pub(crate) async fn target_stats(&self, name: &str) -> Option<sizing::Stats> {
         let v = self
             .ok_json(
                 Method::GET,
@@ -371,7 +382,7 @@ impl Cluster {
     }
 
     /// 1.2: the node probe (once per run, by the parent).
-    pub async fn probe_limits(&self) -> searchdump_rs::limits::Limits {
+    pub(crate) async fn probe_limits(&self) -> searchdump_rs::limits::Limits {
         let host = Url::parse(&self.child_base)
             .ok()
             .and_then(|u| u.host_str().map(String::from))
@@ -388,7 +399,11 @@ impl Cluster {
         .await
     }
 
-    pub async fn put_mapping(&self, index: &str, mappings: &serde_json::Value) -> Result<()> {
+    pub(crate) async fn put_mapping(
+        &self,
+        index: &str,
+        mappings: &serde_json::Value,
+    ) -> Result<()> {
         self.ok_json(Method::PUT, &[index, "_mapping"], &[], Body::json(mappings))
             .await
             .map(|_| ())

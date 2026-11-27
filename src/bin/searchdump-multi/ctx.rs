@@ -1,11 +1,20 @@
 //! Shared run context and start pacing.
 
-use crate::*;
+use crate::child::Runner;
+use crate::cli::Args;
+use crate::files::meta_dir;
+use crate::selection::Selector;
+use crate::sizing;
+use crate::tls::ClusterTls;
+use crate::types::Types;
+use std::collections::BTreeMap;
+use std::path::PathBuf;
+use std::time::Duration;
 
 // ----------------------------------------------------------------------------- dump / load
 
 #[derive(Debug)]
-pub enum Outcome {
+pub(crate) enum Outcome {
     Done(String),
     Skipped(String),
     Failed(String),
@@ -70,20 +79,20 @@ impl Ctx {
 }
 
 /// `--interval`: a minimum gap between job starts, shared by all workers.
-pub struct Pacer {
+pub(crate) struct Pacer {
     gap: Duration,
     next: tokio::sync::Mutex<Option<tokio::time::Instant>>,
 }
 
 impl Pacer {
-    pub fn new(gap: Duration) -> Self {
+    pub(crate) fn new(gap: Duration) -> Self {
         Self {
             gap,
             next: tokio::sync::Mutex::new(None),
         }
     }
 
-    pub async fn wait(&self) {
+    pub(crate) async fn wait(&self) {
         if self.gap.is_zero() {
             return;
         }
@@ -98,6 +107,7 @@ impl Pacer {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Arc;
 
     #[tokio::test(start_paused = true)]
     async fn interval_spaces_out_starts() {

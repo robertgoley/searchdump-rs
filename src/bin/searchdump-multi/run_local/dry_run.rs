@@ -1,6 +1,15 @@
 //! `--dryRun` listings of `run_local` (split steps 12-13), printed to stdout.
 
-use crate::*;
+use crate::ctx::Ctx;
+use crate::discover::Found;
+use crate::files::CLUSTER_DIR;
+use crate::files::item_file_for;
+use crate::files::node_item_file;
+use crate::selection::Target;
+use crate::selection::TargetKind;
+use crate::selection::rel_dir;
+use anyhow::Result;
+use std::path::Path;
 
 /// The dump dry run: cluster-wide files, then each selected target with the files it would write.
 pub(crate) fn print_dump_plan(

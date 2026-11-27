@@ -1,12 +1,14 @@
 //! Document counts reported by children (stats file or log line).
 
-use crate::*;
+use std::fs;
+use std::io::Read;
+use std::path::Path;
 
 // ----------------------------------------------------------------------------- child runs
 
 /// 1.1-7: where a child's record count came from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CountSource {
+pub(crate) enum CountSource {
     /// The JSON the child wrote through `--statsFile`.
     StatsFile,
     /// Its `Total Writes: N` log line (searchdump and Node elasticdump print it).
@@ -16,22 +18,22 @@ pub enum CountSource {
 /// 1.1-7: what a finished child reported. `written` is `None` when it reported nothing usable
 /// (the caller then counts the data file itself).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct ChildStats {
-    pub written: Option<u64>,
-    pub failed: u64,
-    pub source: Option<CountSource>,
+pub(crate) struct ChildStats {
+    pub(crate) written: Option<u64>,
+    pub(crate) failed: u64,
+    pub(crate) source: Option<CountSource>,
 }
 
 impl ChildStats {
     /// Documents the child read from its input: written plus failed (a load compares this with
     /// the target's `_count`, so documents the child skipped still show as a mismatch).
-    pub fn docs_read(&self) -> Option<u64> {
+    pub(crate) fn docs_read(&self) -> Option<u64> {
         self.written.map(|w| w + self.failed)
     }
 }
 
 /// `--statsFile` JSON of a finished run (see searchdump's `write_stats_file`).
-pub fn parse_stats_file(text: &str) -> Option<ChildStats> {
+pub(crate) fn parse_stats_file(text: &str) -> Option<ChildStats> {
     let v: serde_json::Value = serde_json::from_str(text).ok()?;
     if v.get("complete").and_then(|c| c.as_bool()) != Some(true) {
         return None;
@@ -45,7 +47,7 @@ pub fn parse_stats_file(text: &str) -> Option<ChildStats> {
 
 /// The last `Total Writes: N` (and `Failed Writes: N`) of a child's log. searchdump prints
 /// `Total Writes: N`; Node elasticdump prints `<date> | Total Writes: N`.
-pub fn parse_total_writes(log: &str) -> Option<ChildStats> {
+pub(crate) fn parse_total_writes(log: &str) -> Option<ChildStats> {
     fn number_after(line: &str, key: &str) -> Option<u64> {
         let rest = &line[line.rfind(key)? + key.len()..];
         let digits: String = rest
@@ -84,7 +86,7 @@ pub(crate) fn read_tail(path: &Path, max: u64) -> Option<String> {
 }
 
 /// 1.1-7: the counts of a child that exited 0: its `--statsFile`, else its log line, else none.
-pub fn child_stats(stats_file: Option<&Path>, log: &Path) -> ChildStats {
+pub(crate) fn child_stats(stats_file: Option<&Path>, log: &Path) -> ChildStats {
     if let Some(p) = stats_file
         && let Ok(text) = fs::read_to_string(p)
         && let Some(s) = parse_stats_file(&text)

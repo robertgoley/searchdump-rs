@@ -1,14 +1,15 @@
 //! Item types (`--types` / `--ignoreType`) and the Node-compatible type flags.
 
-use crate::*;
+use crate::cli::Args;
+use anyhow::{Result, bail};
 
 /// Per-index item types, in the order they are dumped and loaded.
-pub const TYPE_ORDER: &[&str] = &["settings", "analyzer", "mapping", "alias", "data"];
+pub(crate) const TYPE_ORDER: &[&str] = &["settings", "analyzer", "mapping", "alias", "data"];
 
 /// Cluster-scoped types, dumped once per run into `DIR/_cluster/TYPE.json` and loaded before
 /// any index, in this order (policies before the templates that name them, component templates
 /// before the index templates composed of them).
-pub const CLUSTER_TYPES: &[&str] = &[
+pub(crate) const CLUSTER_TYPES: &[&str] = &[
     "policy",
     "component_template",
     "index_template",
@@ -18,16 +19,16 @@ pub const CLUSTER_TYPES: &[&str] = &[
 
 /// Per-index and cluster-wide types to process, in processing order.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct Types {
-    pub index: Vec<&'static str>,
-    pub cluster: Vec<&'static str>,
+pub(crate) struct Types {
+    pub(crate) index: Vec<&'static str>,
+    pub(crate) cluster: Vec<&'static str>,
 }
 
 /// Node multielasticdump's per-type flags folded into `--types`/`--ignoreType` lists:
 /// `--includeType` replaces the type list, `--ignoreX=true` removes X, `--ignoreX=false` adds it
 /// (Node ignores analyzer, alias and index unless told otherwise). Node's `index` type (the
 /// index create body) is our settings + mapping.
-pub fn node_type_flags(args: &Args, default_types: &[String]) -> (Vec<String>, Vec<String>) {
+pub(crate) fn node_type_flags(args: &Args, default_types: &[String]) -> (Vec<String>, Vec<String>) {
     let expand = |t: &str| -> Vec<String> {
         match t.trim() {
             "index" => vec!["settings".into(), "mapping".into()],
@@ -76,7 +77,7 @@ pub fn node_type_flags(args: &Args, default_types: &[String]) -> (Vec<String>, V
     (want, ignore)
 }
 
-pub fn resolve_types(types: &[String], ignore: &[String]) -> Result<Types> {
+pub(crate) fn resolve_types(types: &[String], ignore: &[String]) -> Result<Types> {
     let known = |t: &str| TYPE_ORDER.contains(&t) || CLUSTER_TYPES.contains(&t);
     let in_types = types.iter().map(|t| (t, true));
     for (t, allow_all) in in_types.chain(ignore.iter().map(|t| (t, false))) {
@@ -106,6 +107,10 @@ pub fn resolve_types(types: &[String], ignore: &[String]) -> Result<Types> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cli::Compression;
+    use crate::files::item_file;
+    use crate::selection::check_index_name;
+    use clap::Parser;
 
     #[test]
     fn names_and_types() {

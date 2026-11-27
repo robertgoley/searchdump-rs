@@ -13,7 +13,7 @@ t265u: save progress so another agent can finish). Times are America/New_York.
   (5186 lines, 29 unit tests).
 - Commit ids continue the 1.4 numbering: `L4-008` = split step 0, `L4-009` = step 1, ... (one commit per step or group).
 
-## 2. Status (updated 2026-11-26 02:20)
+## 2. Status (updated 2026-11-27 04:30)
 
 | step | commit | state |
 |---|---|---|
@@ -33,7 +33,7 @@ t265u: save progress so another agent can finish). Times are America/New_York.
 | 12 run_local/dump_plan.rs + dry_run::print_dump_plan | 669082d L4-022 | done, gate OK (+1 test) |
 | 13 run_local/load_plan.rs + print_load_plan + report.rs | 6d73cd5 L4-023 | done, gate OK (+2 tests) |
 | 14 child data-arg builder | 28e9244 L4-024 | done, gate OK (+2 argv-pinning tests; 36 multi tests); phase B complete |
-| 15 visibility + explicit imports | – | next; script ready: `phase_c15.py` |
+| 15 visibility + explicit imports | L4-026 | done, gate OK (re-run on the final tree 2026-11-27): glob imports gone, every item `pub(crate)` or private, `#![warn(unreachable_pub)]`, `pub mod sizing` -> `mod sizing` |
 | 16 module docs, 17 docs/CHANGELOG, final verification, push, CI | – | |
 
 Phase A steps 3-10 were run by `steps.sh 4 10 13` (regenerate, G-fast gate, commit only on GATE OK with 29 multi tests).

@@ -1,6 +1,9 @@
 //! Child flag lists: default data flags, merging user flags, cluster-wide type flags.
 
-use crate::*;
+use crate::child::Runner;
+use crate::cli::Args;
+use crate::cli::Lifecycle;
+use crate::sizing;
 
 /// Default run-control flags for data runs (from scripts/oslogs.py). 1.2 (ROADMAP-1.2 section 6):
 /// page and bulk sizes are no longer fixed here; they come from [`sizing`] per index
@@ -79,6 +82,8 @@ pub(crate) fn child_data_flags(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cli::MatchType;
+    use clap::Parser;
 
     #[test]
     fn extra_flags_override_default_data_flags() {
@@ -86,19 +91,16 @@ mod tests {
             .iter()
             .map(|s| s.to_string())
             .collect();
-        let got = crate::merge_data_flags(crate::DATA_FLAGS, &extra);
+        let got = merge_data_flags(DATA_FLAGS, &extra);
         assert!(!got.iter().any(|a| a == "--scrollTime=10m"), "{got:?}");
         assert_eq!(got.iter().filter(|a| a.starts_with("--limit")).count(), 1);
         assert!(got.contains(&"--retryAttempts=5".to_string()));
         assert!(got.ends_with(&extra));
         // no extras: the defaults unchanged
-        assert_eq!(
-            crate::merge_data_flags(crate::DATA_FLAGS, &[]),
-            crate::strings(crate::DATA_FLAGS)
-        );
-        assert!(crate::merge_data_flags(&[], &[]).is_empty());
+        assert_eq!(merge_data_flags(DATA_FLAGS, &[]), strings(DATA_FLAGS));
+        assert!(merge_data_flags(&[], &[]).is_empty());
         // computed sizes: the user's --limit replaces the plan's
-        let sized = crate::merge_data_flags_owned(
+        let sized = merge_data_flags_owned(
             &[
                 "--limit=5000".to_string(),
                 "--maxBulkBytes=16mb".to_string(),
@@ -116,7 +118,7 @@ mod tests {
     #[test]
     fn run_control_flags_unchanged() {
         assert_eq!(
-            crate::strings(crate::DATA_FLAGS),
+            strings(DATA_FLAGS),
             [
                 "--scrollTime=10m",
                 "--retryAttempts=5",

@@ -1,6 +1,28 @@
 //! Loading one index (all its parts) or the cluster-wide types.
 
-use crate::*;
+use crate::cli::Compression;
+use crate::cli::Lifecycle;
+use crate::cluster::Cluster;
+use crate::ctx::Ctx;
+use crate::ctx::Outcome;
+use crate::discover::Found;
+use crate::files::CLUSTER_DIR;
+use crate::files::count_records;
+use crate::files::file_name;
+use crate::files::item_file;
+use crate::files::mappings_body;
+use crate::files::meta_file;
+use crate::files::nonempty;
+use crate::files::parse_data_file;
+use crate::files::read_text;
+use crate::flags::LIFECYCLE_DROP;
+use crate::flags::child_data_flags;
+use crate::flags::cluster_flags;
+use crate::flags::strings;
+use crate::manifest::Manifest;
+use crate::selection::check_index_name;
+use anyhow::{Context, Result, bail};
+use std::path::Path;
 
 /// Load the cluster-scoped files present under `ROOT/_cluster`, in CLUSTER_TYPES order.
 pub(crate) async fn load_cluster(ctx: &Ctx, cluster: &Cluster) -> Vec<(String, Outcome)> {

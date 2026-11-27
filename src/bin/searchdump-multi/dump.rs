@@ -1,6 +1,34 @@
 //! Dumping one index or the cluster-wide types.
 
-use crate::*;
+use crate::child::ChildStats;
+use crate::cli::Compression;
+use crate::cli::Layout;
+use crate::cluster::Cluster;
+use crate::ctx::Ctx;
+use crate::ctx::Outcome;
+use crate::files::CLUSTER_DIR;
+use crate::files::count_records;
+use crate::files::data_parts;
+use crate::files::file_name;
+use crate::files::item_file;
+use crate::files::item_file_for;
+use crate::files::node_item_file;
+use crate::files::nonempty;
+use crate::files::remove_data_files;
+use crate::flags::child_data_flags;
+use crate::flags::strings;
+use crate::manifest::ClusterEntry;
+use crate::manifest::IndexEntry;
+use crate::manifest::Manifest;
+use crate::planner::note_size;
+use crate::planner::sizing_json;
+use crate::selection::Target;
+use crate::selection::TargetKind;
+use crate::selection::rel_dir;
+use anyhow::{Context, Result, anyhow, bail};
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 
 /// 1.1-7: `SEARCHDUMP_MULTI_DEBUG=1` prints where each record count came from.
 pub(crate) fn debug_counts() -> bool {
@@ -256,6 +284,19 @@ pub(crate) fn dump_data_args(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Args;
+    use crate::child::CHILD_GRACE;
+    use crate::child::Runner;
+    use crate::flags::DATA_FLAGS;
+    use crate::flags::merge_data_flags;
+    use crate::load::load_data_args;
+    use crate::selection::Selector;
+    use crate::tls::ClusterTls;
+    use crate::types::Types;
+    use clap::Parser;
+    use std::sync::Arc;
+    use std::sync::atomic::AtomicBool;
+    use tokio_util::sync::CancellationToken;
 
     /// A run context without a cluster: `argv` after the URLs, the data flags as run_local builds them.
     pub(crate) fn test_ctx(argv: &[&str], server_limits: bool) -> Ctx {

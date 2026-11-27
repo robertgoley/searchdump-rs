@@ -1,9 +1,23 @@
 //! The load (and copy) side of `run_local` (split step 13): find the selected indices and parts, the dry
 //! run, size plans, the cluster-wide load and one task per index.
 
-use crate::*;
+use anyhow::{Result, bail};
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use super::dry_run;
+use crate::cli::Order;
+use crate::cluster::Cluster;
+use crate::ctx::Ctx;
+use crate::ctx::Outcome;
+use crate::discover::Found;
+use crate::discover::discover;
+use crate::files::CLUSTER_DIR;
+use crate::files::nonempty;
+use crate::load::load_cluster;
+use crate::load::load_one;
+use crate::planner::plan_sizes;
 
 /// Runs the load set-up and spawns one task per index into `set`; `Some(code)` ends the run early
 /// (dry run 0, nothing matched 1, `--serverLimits=check` 0/2).

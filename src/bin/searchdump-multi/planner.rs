@@ -1,6 +1,10 @@
 //! Per-index size plans (`--serverLimits`) and their manifest records.
 
-use crate::*;
+use crate::cluster::Cluster;
+use crate::ctx::Ctx;
+use crate::flags::flag_name;
+use crate::sizing;
+use std::collections::BTreeMap;
 
 /// 1.2: probe the cluster once, read every target's stats in one call, and set the plan
 /// (ROADMAP-1.2 section 4). `targets` are the indices to dump (empty for a load). Returns the

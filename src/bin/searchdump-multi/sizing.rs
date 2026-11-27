@@ -7,18 +7,18 @@
 use searchdump_rs::limits::{self, Budget, Limits, Mode};
 
 /// The `off` profile: the 1.1.0 (1.1-10) fixed data defaults.
-pub const OFF_LIMIT: u64 = 1000;
+pub(crate) const OFF_LIMIT: u64 = 1000;
 /// The `off` profile bulk size (1.1-10).
-pub const OFF_BULK: u64 = 16 << 20;
+pub(crate) const OFF_BULK: u64 = 16 << 20;
 /// 1.1-10: stored (primary, compressed) bytes one dump page holds in the `off` profile.
 /// `_source` in the response is usually 1-4x the stored size, so a page stays well under the
 /// ~80 MB that a 256 MB heap survived in the 1.1-10 runs.
-pub const PAGE_STORE_BUDGET: u64 = 16 << 20;
+pub(crate) const PAGE_STORE_BUDGET: u64 = 16 << 20;
 
 /// 1.1-10, the `off` profile: documents per dump page for an index whose primary documents
 /// average `avg_doc_bytes` stored bytes: 1000 for small documents, fewer for large ones so a
 /// page holds about [`PAGE_STORE_BUDGET`], never less than 1 (identical to 1.1.0).
-pub fn page_limit_for(avg_doc_bytes: u64) -> u64 {
+pub(crate) fn page_limit_for(avg_doc_bytes: u64) -> u64 {
     if avg_doc_bytes == 0 {
         return OFF_LIMIT;
     }
@@ -27,45 +27,45 @@ pub fn page_limit_for(avg_doc_bytes: u64) -> u64 {
 
 /// One run's sizing decision.
 #[derive(Debug, Clone)]
-pub struct Plan {
-    pub mode: Mode,
+pub(crate) struct Plan {
+    pub(crate) mode: Mode,
     /// `--noDefaultDataFlags`: no sizing flags at all (only `--serverLimits=off`).
-    pub no_defaults: bool,
-    pub limits: Option<Limits>,
-    pub budget: Option<Budget>,
+    pub(crate) no_defaults: bool,
+    pub(crate) limits: Option<Limits>,
+    pub(crate) budget: Option<Budget>,
     /// `--parallel` as asked (the upper bound).
-    pub parallel: usize,
+    pub(crate) parallel: usize,
     /// Workers the budget fits at the largest index's page (reported; the byte semaphore
     /// enforces it at run time, so small indices still run `parallel` at once).
-    pub fit_parallel: usize,
+    pub(crate) fit_parallel: usize,
     /// Largest page response in bytes after the worker-first policy.
-    pub page_cap: u64,
+    pub(crate) page_cap: u64,
     /// Bulk bytes per load worker.
-    pub bulk_bytes: u64,
+    pub(crate) bulk_bytes: u64,
     /// 1.4 `--pageBytes` (L4-003): the user's page byte cap, if any.
-    pub page_bytes: Option<u64>,
+    pub(crate) page_bytes: Option<u64>,
 }
 
 /// One index's sizes.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct IndexSize {
-    pub limit: u64,
-    pub max_bulk_bytes: u64,
+pub(crate) struct IndexSize {
+    pub(crate) limit: u64,
+    pub(crate) max_bulk_bytes: u64,
     /// `default` | `large-docs` | `budget` | `off` | `fallback`
-    pub reason: &'static str,
+    pub(crate) reason: &'static str,
     /// Estimated bytes of one page in flight (for the byte semaphore; 0 = unknown).
-    pub page_bytes: u64,
+    pub(crate) page_bytes: u64,
 }
 
 /// (docs, stored bytes) of an index's primaries.
-pub type Stats = (u64, u64);
+pub(crate) type Stats = (u64, u64);
 
 fn avg(s: Option<Stats>) -> Option<u64> {
     s.and_then(|(d, b)| (d > 0 && b > 0).then(|| b / d))
 }
 
 /// Estimated response bytes of a page of `limit` documents of an index.
-pub fn page_estimate(limit: u64, s: Option<Stats>) -> u64 {
+pub(crate) fn page_estimate(limit: u64, s: Option<Stats>) -> u64 {
     match s {
         Some((d, _)) if avg(s).is_some() => {
             limit.min(d.max(1)) * avg(s).unwrap_or(0) * limits::EXPANSION
@@ -79,7 +79,7 @@ impl Plan {
     /// selected indices' stats. Worker-first (ROADMAP-1.2 4.1): if `parallel` pages of the
     /// largest index do not fit the in-flight budget, fewer workers are assumed first
     /// (down to 2, or 1 when 1 was asked), and only then the page shrinks.
-    pub fn new(
+    pub(crate) fn new(
         mode: Mode,
         no_defaults: bool,
         limits: Option<Limits>,
@@ -127,7 +127,7 @@ impl Plan {
     /// 1.4 `--pageBytes` (L4-003): cap every dump page at `pb` bytes too. With a budget the
     /// page cap becomes the smaller of the two (below the 1.3 floor as well: the user asked
     /// for it); without one (`off`, a fallback) each index's page is cut to fit `pb`.
-    pub fn with_page_bytes(mut self, pb: Option<u64>) -> Self {
+    pub(crate) fn with_page_bytes(mut self, pb: Option<u64>) -> Self {
         self.page_bytes = pb;
         if let (Some(p), Some(_)) = (pb, self.budget) {
             self.page_cap = self.page_cap.min(p);
@@ -136,7 +136,7 @@ impl Plan {
     }
 
     /// Sizes for a dump of one index.
-    pub fn dump(&self, s: Option<Stats>) -> IndexSize {
+    pub(crate) fn dump(&self, s: Option<Stats>) -> IndexSize {
         match self.budget {
             None => {
                 let fixed = avg(s).map_or(OFF_LIMIT, page_limit_for);
@@ -184,7 +184,7 @@ impl Plan {
 
     /// Sizes for a load (the file batch and the bulk bytes; the bulk bytes are the memory
     /// control on the target).
-    pub fn load(&self) -> IndexSize {
+    pub(crate) fn load(&self) -> IndexSize {
         match self.budget {
             None => IndexSize {
                 limit: OFF_LIMIT,
@@ -214,7 +214,7 @@ impl Plan {
     }
 
     /// The child flags for `size` (before the user's flags after `--`, which win).
-    pub fn flags(&self, size: &IndexSize, child_knows_server_limits: bool) -> Vec<String> {
+    pub(crate) fn flags(&self, size: &IndexSize, child_knows_server_limits: bool) -> Vec<String> {
         let mut v = vec![];
         if !self.no_defaults {
             v.push(format!("--limit={}", size.limit));
@@ -231,7 +231,7 @@ impl Plan {
     }
 
     /// The one "server limits:" line.
-    pub fn line(&self) -> String {
+    pub(crate) fn line(&self) -> String {
         let head = match &self.limits {
             None if self.no_defaults => {
                 return "server limits: not used (--noDefaultDataFlags) [off]".into();
@@ -268,6 +268,8 @@ impl Plan {
 
 #[cfg(test)]
 mod tests {
+    use crate::flags::DATA_FLAGS;
+    use crate::flags::merge_data_flags;
 
     #[test]
     fn server_limits_off_reproduces_1_1_0_flags() {
@@ -286,7 +288,7 @@ mod tests {
         .collect();
         let off = Plan::new(Mode::Off, false, None, 2, &[Some((6250, 6250 * 500))]);
         let mut flags = off.flags(&off.dump(Some((6250, 6250 * 500))), true);
-        flags.extend(crate::merge_data_flags(crate::DATA_FLAGS, &[]));
+        flags.extend(merge_data_flags(DATA_FLAGS, &[]));
         let mut want = v110.clone();
         want.push("--serverLimits=off".into());
         let (mut a, mut b) = (flags.clone(), want.clone());
@@ -295,7 +297,7 @@ mod tests {
         assert_eq!(a, b);
         // an old child (no --serverLimits) gets exactly the 1.1.0 set
         let mut old = off.flags(&off.dump(None), false);
-        old.extend(crate::merge_data_flags(crate::DATA_FLAGS, &[]));
+        old.extend(merge_data_flags(DATA_FLAGS, &[]));
         old.sort();
         let mut v = v110.clone();
         v.sort();

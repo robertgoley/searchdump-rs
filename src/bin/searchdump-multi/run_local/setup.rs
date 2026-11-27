@@ -1,7 +1,33 @@
 //! `run_local` set-up (split step 11): validation, types, selection, log directory, TLS, Ctrl-C and the
 //! child runner, in the order `run_local` has always run them.
 
-use crate::*;
+use crate::child::CHILD_GRACE;
+use crate::child::Runner;
+use crate::child::accepts_server_limits;
+use crate::child::accepts_stats_file;
+use crate::child::find_bin;
+use crate::child::takes_stats_file;
+use crate::cli::Args;
+use crate::cli::Compression;
+use crate::cli::Direction;
+use crate::cli::Layout;
+use crate::cli::MatchType;
+use crate::flags::DATA_FLAGS;
+use crate::flags::merge_data_flags;
+use crate::selection::Selector;
+use crate::storage::chrono_stamp;
+use crate::tls::ClusterTls;
+use crate::tls::Side;
+use crate::types::CLUSTER_TYPES;
+use crate::types::Types;
+use crate::types::node_type_flags;
+use crate::types::resolve_types;
+use anyhow::{Result, bail};
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+use tokio_util::sync::CancellationToken;
+use url::Url;
 
 /// Usage errors of a local run (exit 2 through `main`), checked before anything else.
 pub(crate) fn validate_local(args: &Args) -> Result<()> {
@@ -229,6 +255,7 @@ pub(crate) fn build_runner(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use clap::Parser;
 
     fn args(extra: &[&str]) -> Args {
         let mut v = vec!["m", "--input=http://h:9200", "--output=/tmp/x"];

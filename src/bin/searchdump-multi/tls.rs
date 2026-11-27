@@ -1,10 +1,12 @@
 //! Cluster TLS options and secrets (L4-001), and how they reach children.
 
-use crate::*;
+use crate::cli::Args;
+use anyhow::{Result, bail};
+use searchdump_rs::http::tls::TlsOptions;
 
 /// L4-001: a secret flag value (the key passphrase): `Debug` never shows it.
 #[derive(Clone, PartialEq, Eq)]
-pub struct Secret(pub String);
+pub(crate) struct Secret(pub(crate) String);
 
 impl std::fmt::Debug for Secret {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -18,32 +20,36 @@ pub(crate) fn parse_secret(s: &str) -> std::result::Result<Secret, String> {
 
 /// The cluster's side for searchdump: a dump reads it (`--input-*`), a load writes it
 /// (`--output-*`).
-pub type Side = searchdump_rs::endpoint::Direction;
+pub(crate) type Side = searchdump_rs::endpoint::Direction;
 
 /// L4-001 (1.4, C11): TLS settings for the one cluster of a dump or load: used by the parent's
 /// own requests and passed to every child. CA/cert/key paths go on the child's command line;
 /// the key passphrase only through the child's environment (Robert, t253u).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct ClusterTls {
-    pub ca: Option<String>,
-    pub cert: Option<String>,
-    pub key: Option<String>,
-    pub pass: Option<Secret>,
+pub(crate) struct ClusterTls {
+    pub(crate) ca: Option<String>,
+    pub(crate) cert: Option<String>,
+    pub(crate) key: Option<String>,
+    pub(crate) pass: Option<Secret>,
     /// `--insecure`, or `NODE_TLS_REJECT_UNAUTHORIZED=0` (see `node_insecure`).
-    pub insecure: bool,
+    pub(crate) insecure: bool,
     /// 1.4 (t255u): `NODE_TLS_REJECT_UNAUTHORIZED=0` in the environment, as searchdump and Node
     /// elasticdump honour it: verification off for the parent's requests and every child.
-    pub node_insecure: bool,
+    pub(crate) node_insecure: bool,
 }
 
 /// The variable Node (and searchdump) read: `0` turns certificate verification off.
-pub const NODE_TLS_ENV: &str = "NODE_TLS_REJECT_UNAUTHORIZED";
+pub(crate) const NODE_TLS_ENV: &str = "NODE_TLS_REJECT_UNAUTHORIZED";
 
 impl ClusterTls {
     /// `--X` wins over `--{side}-X` (searchdump's order); the passphrase then falls back to
     /// `$SEARCHDUMP_TLS_PASS` and `$SEARCHDUMP_{SIDE}_TLS_PASS`. A flag for the other side is an
     /// error, since that side is a directory and the flag would silently do nothing.
-    pub fn resolve(args: &Args, side: Side, env: &dyn Fn(&str) -> Option<String>) -> Result<Self> {
+    pub(crate) fn resolve(
+        args: &Args,
+        side: Side,
+        env: &dyn Fn(&str) -> Option<String>,
+    ) -> Result<Self> {
         let (other, mine, theirs) = match side {
             Side::Input => (
                 "output",
@@ -109,7 +115,7 @@ impl ClusterTls {
     }
 
     /// Whether any TLS flag of the cluster was given (copy has no cluster and refuses them).
-    pub fn any_flag(args: &Args) -> bool {
+    pub(crate) fn any_flag(args: &Args) -> bool {
         [
             &args.ca,
             &args.cert,
@@ -129,7 +135,7 @@ impl ClusterTls {
     }
 
     /// The parent's own client settings.
-    pub fn options(&self) -> TlsOptions {
+    pub(crate) fn options(&self) -> TlsOptions {
         TlsOptions {
             ca: self.ca.clone().map(Into::into),
             cert: self.cert.clone().map(Into::into),
@@ -142,7 +148,7 @@ impl ClusterTls {
     /// Command-line flags for a child (no secret in them). `--insecure` also when only
     /// `NODE_TLS_REJECT_UNAUTHORIZED=0` turned verification off (the child inherits the variable
     /// too; the flag makes it explicit, whatever the child does with its environment).
-    pub fn child_flags(&self, side: Side) -> Vec<String> {
+    pub(crate) fn child_flags(&self, side: Side) -> Vec<String> {
         let d = side.as_str();
         let mut v = vec![];
         if self.insecure {
@@ -162,7 +168,7 @@ impl ClusterTls {
     /// Environment for a child: the passphrase as `$SEARCHDUMP_{SIDE}_TLS_PASS`, and the
     /// variables that would win over it (the shared one and the old `ELASTICDUMP_*` names)
     /// removed, so the child uses exactly the passphrase the parent resolved.
-    pub fn child_env(&self, side: Side) -> (Vec<(String, String)>, Vec<String>) {
+    pub(crate) fn child_env(&self, side: Side) -> (Vec<(String, String)>, Vec<String>) {
         let Some(pass) = &self.pass else {
             return (vec![], vec![]);
         };
@@ -180,7 +186,7 @@ mod tests {
     use super::*;
 
     // ------------------------------------------------------------------ L4-001: TLS
-    fn tls_args(extra: &[&str]) -> crate::Args {
+    fn tls_args(extra: &[&str]) -> Args {
         use clap::Parser;
         let mut v = vec!["m", "--input=https://h:9200", "--output=/tmp/x"];
         v.extend_from_slice(extra);
@@ -189,7 +195,7 @@ mod tests {
 
     #[test]
     fn l4_001_cluster_tls_flags_and_precedence() {
-        use crate::{ClusterTls, Secret, Side};
+        use super::{ClusterTls, Secret, Side};
         let none = |_: &str| None;
         let a = tls_args(&[
             "--ca=shared.pem",
@@ -263,7 +269,7 @@ mod tests {
 
     #[test]
     fn l4_001_passphrase_goes_to_children_only_through_the_environment() {
-        use crate::{ClusterTls, Side};
+        use super::{ClusterTls, Side};
         let pp = "FAKE-tls-pp-1";
         let env = |k: &str| match k {
             "SEARCHDUMP_TLS_PASS" => Some(pp.to_string()),

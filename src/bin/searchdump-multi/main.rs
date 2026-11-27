@@ -28,30 +28,12 @@
 //! `$SEARCHDUMP_CHILD_ID`, printed by the parent, tagged on the child's log lines and recorded in
 //! its stats, the manifest and `LOGDIR/children.json`.
 #![forbid(unsafe_code)]
+#![warn(unreachable_pub)]
 
-use std::collections::BTreeMap;
-use std::fs;
-use std::io::{BufRead, BufReader, Read, Write};
-use std::path::{Path, PathBuf};
-use std::process::Stdio;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use crate::cli::Args;
+use crate::storage::run;
+use clap::Parser;
 
-use anyhow::{Context, Result, anyhow, bail};
-use clap::{Parser, ValueEnum};
-use http::Method;
-use regex::Regex;
-use searchdump_rs::endpoint::read_auth_file;
-use searchdump_rs::http::gate::RequestGate;
-use searchdump_rs::http::retry::error_chain;
-use searchdump_rs::http::tls::TlsOptions;
-use searchdump_rs::http::{Body, ClientOptions, EsClient};
-use serde::{Deserialize, Serialize};
-use tokio_util::sync::CancellationToken;
-use url::Url;
-
-// split (L4-S03..): one module per concern; the glob imports are narrowed in step 15
 mod child;
 mod cli;
 mod cluster;
@@ -65,26 +47,10 @@ mod manifest;
 mod planner;
 mod run_local;
 mod selection;
-pub mod sizing;
+mod sizing;
 mod storage;
 mod tls;
 mod types;
-use child::*;
-use cli::*;
-use cluster::*;
-use ctx::*;
-use discover::*;
-use dump::*;
-use files::*;
-use flags::*;
-use load::*;
-use manifest::*;
-use planner::*;
-use run_local::*;
-use selection::*;
-use storage::*;
-use tls::*;
-use types::*;
 
 fn main() {
     let args = Args::parse();

@@ -1,9 +1,30 @@
 //! The dump side of `run_local` (split step 12): list and select the targets, the dry run, size plans,
 //! the manifest, `--resume`, the cluster-wide dump and one task per target.
 
-use crate::*;
+use anyhow::{Context, Result, bail};
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 
 use super::dry_run;
+use crate::cli::Compression;
+use crate::cli::MatchType;
+use crate::cli::Order;
+use crate::cluster::Cluster;
+use crate::ctx::Ctx;
+use crate::ctx::Outcome;
+use crate::dump::dump_cluster;
+use crate::dump::dump_one;
+use crate::files::CLUSTER_DIR;
+use crate::files::item_file_for;
+use crate::files::meta_file;
+use crate::files::nonempty;
+use crate::manifest::Manifest;
+use crate::planner::plan_sizes;
+use crate::selection::Target;
+use crate::selection::TargetKind;
+use crate::selection::check_index_name;
+use crate::selection::select_targets;
 
 /// Runs the dump set-up and spawns one task per target into `set`; `Some(code)` ends the run early
 /// (dry run 0, nothing matched 1, `--serverLimits=check` 0/2).
@@ -217,6 +238,7 @@ pub(crate) fn byte_budget(ctx: &Ctx) -> Option<(Arc<tokio::sync::Semaphore>, u32
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::manifest::IndexEntry;
 
     fn entry(types: &[&str]) -> IndexEntry {
         IndexEntry {

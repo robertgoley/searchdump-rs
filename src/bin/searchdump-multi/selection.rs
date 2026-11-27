@@ -1,18 +1,22 @@
 //! Which indices, aliases and data streams are selected, and their directories.
 
-use crate::*;
+use crate::cli::Layout;
+use crate::cli::MatchType;
+use anyhow::{Context, Result, anyhow, bail};
+use regex::Regex;
+use std::path::PathBuf;
 
 // ----------------------------------------------------------------------------- selection
 
 /// Name selection: `--match`, `--exclude`, hidden indices, and the break-out group.
-pub struct Selector {
+pub(crate) struct Selector {
     include: Regex,
     exclude: Option<Regex>,
     include_hidden: bool,
 }
 
 impl Selector {
-    pub fn new(include: &str, exclude: Option<&str>, include_hidden: bool) -> Result<Self> {
+    pub(crate) fn new(include: &str, exclude: Option<&str>, include_hidden: bool) -> Result<Self> {
         let include =
             Regex::new(include).with_context(|| format!("invalid --match regex '{include}'"))?;
         let exclude = exclude
@@ -25,7 +29,7 @@ impl Selector {
         })
     }
 
-    pub fn selects(&self, name: &str) -> bool {
+    pub(crate) fn selects(&self, name: &str) -> bool {
         // Hidden/system indices only with --includeHidden or a --match that starts with a literal dot.
         let p = self.include.as_str();
         let explicit_dot = p.starts_with("^\\.") || p.starts_with("\\.");
@@ -35,12 +39,12 @@ impl Selector {
         self.include.is_match(name) && !self.exclude.as_ref().is_some_and(|e| e.is_match(name))
     }
 
-    pub fn has_group(&self) -> bool {
+    pub(crate) fn has_group(&self) -> bool {
         self.include.captures_len() > 1
     }
 
     /// The break-out group: the `group` named capture, else the first capture group.
-    pub fn group(&self, name: &str) -> Option<String> {
+    pub(crate) fn group(&self, name: &str) -> Option<String> {
         let caps = self.include.captures(name)?;
         let m = caps.name("group").or_else(|| caps.get(1))?;
         Some(sanitize_dir(m.as_str()))
@@ -49,24 +53,24 @@ impl Selector {
 
 /// What one dump job covers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TargetKind {
+pub(crate) enum TargetKind {
     Index,
     DataStream,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Target {
+pub(crate) struct Target {
     /// Index or data stream name.
-    pub name: String,
-    pub kind: TargetKind,
+    pub(crate) name: String,
+    pub(crate) kind: TargetKind,
     /// The name --match was tested against (the alias for --matchType alias); the group comes
     /// from it.
-    pub matched: String,
+    pub(crate) matched: String,
 }
 
 /// The dump jobs for a cluster's indices, aliases and data streams. Backing indices of a
 /// selected data stream are left to the stream; an index reached twice is dumped once.
-pub fn select_targets(
+pub(crate) fn select_targets(
     sel: &Selector,
     match_types: &[MatchType],
     indices: &[String],
@@ -113,7 +117,7 @@ pub fn select_targets(
 }
 
 /// A group value as one safe directory name.
-pub fn sanitize_dir(raw: &str) -> String {
+pub(crate) fn sanitize_dir(raw: &str) -> String {
     let s: String = raw
         .chars()
         .map(|c| {
@@ -132,7 +136,7 @@ pub fn sanitize_dir(raw: &str) -> String {
 }
 
 /// Index names are used as file names: refuse anything that could leave the directory.
-pub fn check_index_name(name: &str) -> Result<()> {
+pub(crate) fn check_index_name(name: &str) -> Result<()> {
     if name.is_empty()
         || name == "."
         || name == ".."
@@ -146,7 +150,12 @@ pub fn check_index_name(name: &str) -> Result<()> {
 
 /// The directory (relative to the dump root) that holds one index's files. `matched` is the
 /// name the group capture is taken from (the index itself, or the alias that selected it).
-pub fn rel_dir(layout: Layout, sel: &Selector, index: &str, matched: &str) -> Result<PathBuf> {
+pub(crate) fn rel_dir(
+    layout: Layout,
+    sel: &Selector,
+    index: &str,
+    matched: &str,
+) -> Result<PathBuf> {
     Ok(match layout {
         Layout::Flat => PathBuf::new(),
         Layout::Index => PathBuf::from(sanitize_dir(index)),

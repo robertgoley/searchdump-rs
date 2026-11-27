@@ -1,18 +1,29 @@
 //! Finding loadable indices and parts in a dump directory.
 
-use crate::*;
+use crate::files::CLUSTER_DIR;
+use crate::files::data_parts;
+use crate::files::file_name;
+use crate::files::is_part;
+use crate::files::parse_data_file;
+use crate::files::rs_named;
+use crate::manifest::Manifest;
+use crate::selection::check_index_name;
+use anyhow::{Context, Result, bail};
+use std::collections::BTreeMap;
+use std::fs;
+use std::path::{Path, PathBuf};
 
 // ----------------------------------------------------------------------------- discovery (load)
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Found {
-    pub index: String,
-    pub dir: PathBuf,
+pub(crate) struct Found {
+    pub(crate) index: String,
+    pub(crate) dir: PathBuf,
     /// Data files in load order: one file, or the parts of a split dump; empty for none.
-    pub data: Vec<PathBuf>,
-    pub records_hint: Option<u64>,
+    pub(crate) data: Vec<PathBuf>,
+    pub(crate) records_hint: Option<u64>,
     /// A data stream (written with `--bulkAction=create` to the stream name).
-    pub datastream: bool,
+    pub(crate) datastream: bool,
 }
 
 /// Indices in a dump directory: from the manifest (in `meta`) when there is one, else every
@@ -20,7 +31,7 @@ pub struct Found {
 /// up to two levels down (the `_cluster` directory excepted). Node multielasticdump names
 /// (`INDEX.json.gz`, `INDEX.settings.json.gz`, `INDEX.split-N.json.gz`) are found too; a
 /// Node-named data file counts only next to a settings or mapping file of the same index.
-pub fn discover(root: &Path, meta: &Path) -> Result<Vec<Found>> {
+pub(crate) fn discover(root: &Path, meta: &Path) -> Result<Vec<Found>> {
     let mut out: BTreeMap<String, Found> = BTreeMap::new();
     let mut has_meta = std::collections::BTreeSet::new();
     if let Some(m) = Manifest::load(meta)? {
@@ -169,6 +180,9 @@ pub fn discover(root: &Path, meta: &Path) -> Result<Vec<Found>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cli::Compression;
+    use crate::files::remove_data_files;
+    use crate::manifest::IndexEntry;
 
     #[test]
     fn discover_layouts_and_manifest() {

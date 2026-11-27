@@ -1,11 +1,13 @@
 //! Finding the searchdump binary and probing which flags it accepts.
 
-use crate::*;
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::process::Stdio;
 
 /// 1.1-7: whether `bin` is searchdump (which takes `--statsFile`), not Node elasticdump (which
 /// would get an option it does not know). The `elasticdump`/`elasticdump-rs` compatibility
 /// names are symlinks to searchdump, so the name is checked after resolving links.
-pub fn takes_stats_file(bin: &Path) -> bool {
+pub(crate) fn takes_stats_file(bin: &Path) -> bool {
     let real = fs::canonicalize(bin).unwrap_or_else(|_| bin.to_path_buf());
     real.file_name()
         .and_then(|n| n.to_str())

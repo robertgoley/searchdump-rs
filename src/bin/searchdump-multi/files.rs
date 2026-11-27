@@ -1,12 +1,19 @@
 //! File naming (RS and Node layouts), split parts, record counts and the meta directory.
 
-use crate::*;
+use crate::cli::Args;
+use crate::cli::Compression;
+use crate::cli::Direction;
+use crate::manifest::MANIFEST;
+use anyhow::{Context, Result, anyhow, bail};
+use std::fs;
+use std::io::Read;
+use std::path::{Path, PathBuf};
 
 /// Subdirectory of the dump root for cluster-scoped files. Index names cannot start with `_`,
 /// so it never collides with an index directory.
-pub const CLUSTER_DIR: &str = "_cluster";
+pub(crate) const CLUSTER_DIR: &str = "_cluster";
 
-pub fn item_file(index: &str, kind: &str, compression: Compression) -> String {
+pub(crate) fn item_file(index: &str, kind: &str, compression: Compression) -> String {
     if kind == "data" {
         format!("{index}.data.{}", compression.suffix())
     } else {
@@ -16,7 +23,7 @@ pub fn item_file(index: &str, kind: &str, compression: Compression) -> String {
 
 /// File names in Node multielasticdump's layout: `INDEX.json[.gz]` for data and
 /// `INDEX.TYPE.json[.gz]` for the rest, every file gzipped or none.
-pub fn node_item_file(index: &str, kind: &str, compression: Compression) -> String {
+pub(crate) fn node_item_file(index: &str, kind: &str, compression: Compression) -> String {
     let gz = if compression == Compression::Gzip {
         ".gz"
     } else {
@@ -30,7 +37,12 @@ pub fn node_item_file(index: &str, kind: &str, compression: Compression) -> Stri
 }
 
 /// The file for one item in either naming.
-pub fn item_file_for(node: bool, index: &str, kind: &str, compression: Compression) -> String {
+pub(crate) fn item_file_for(
+    node: bool,
+    index: &str,
+    kind: &str,
+    compression: Compression,
+) -> String {
     if node {
         node_item_file(index, kind, compression)
     } else {
@@ -53,7 +65,7 @@ pub(crate) const META_SUFFIXES: &[&str] = &[
 /// What a data-file name says: the index, the codec, and the part number of a split dump.
 /// searchdump names: `INDEX.data.json[.gz|.zst]`, `INDEX.data.split-N.json[...]`;
 /// Node names: `INDEX.json[.gz]`, `INDEX.split-N.json[.gz]`.
-pub fn parse_data_file(name: &str) -> Option<(String, Compression, Option<u64>)> {
+pub(crate) fn parse_data_file(name: &str) -> Option<(String, Compression, Option<u64>)> {
     if name == MANIFEST {
         return None;
     }
@@ -94,7 +106,7 @@ pub(crate) fn rs_named(name: &str) -> bool {
 
 /// An index's non-data file in either form (`INDEX.KIND.json`, then `.json.gz`), if it is
 /// there and not empty; the flag says it is gzipped.
-pub fn meta_file(dir: &Path, index: &str, kind: &str) -> Option<(PathBuf, bool)> {
+pub(crate) fn meta_file(dir: &Path, index: &str, kind: &str) -> Option<(PathBuf, bool)> {
     [("json", false), ("json.gz", true)]
         .into_iter()
         .map(|(ext, gz)| (dir.join(format!("{index}.{kind}.{ext}")), gz))
@@ -116,7 +128,7 @@ pub(crate) fn read_text(p: &Path) -> Result<String> {
 
 /// A split dump's part files for one index in `dir`, in part order. Errors on a gap or on parts
 /// in more than one codec.
-pub fn data_parts(dir: &Path, index: &str) -> Result<Vec<PathBuf>> {
+pub(crate) fn data_parts(dir: &Path, index: &str) -> Result<Vec<PathBuf>> {
     let mut parts: Vec<(u64, Compression, PathBuf)> = Vec::new();
     for ent in fs::read_dir(dir).with_context(|| format!("read {}", dir.display()))? {
         let ent = ent?;
@@ -159,7 +171,7 @@ pub(crate) fn is_part(p: &Path) -> bool {
 // ----------------------------------------------------------------------------- data files
 
 /// Records (lines) in a data file, decompressing by its name.
-pub fn count_records(path: &Path) -> Result<u64> {
+pub(crate) fn count_records(path: &Path) -> Result<u64> {
     let f = fs::File::open(path).with_context(|| format!("open {}", path.display()))?;
     let name = path
         .file_name()
@@ -186,7 +198,7 @@ pub fn count_records(path: &Path) -> Result<u64> {
 }
 
 /// elasticdump writes settings and mappings as JSON, sometimes as a JSON string of JSON.
-pub fn mappings_body(text: &str) -> Result<serde_json::Value> {
+pub(crate) fn mappings_body(text: &str) -> Result<serde_json::Value> {
     let mut doc: serde_json::Value = serde_json::from_str(text.trim())?;
     if let serde_json::Value::String(s) = &doc {
         doc = serde_json::from_str(s)?;
@@ -235,7 +247,7 @@ pub(crate) fn nonempty(p: &Path) -> bool {
 /// Where the manifest and `_cluster/` go: --metaDir; else for a dump the directory itself, or
 /// `DIR.meta` beside it with --nodeCompat (Node takes every entry in DIR for an index); for a
 /// load the directory when it holds a manifest or `_cluster/`, else `DIR.meta` when that exists.
-pub fn meta_dir(args: &Args) -> PathBuf {
+pub(crate) fn meta_dir(args: &Args) -> PathBuf {
     if let Some(d) = &args.meta_dir {
         return d.clone();
     }
@@ -261,6 +273,9 @@ pub fn meta_dir(args: &Args) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::discover::discover;
+    use clap::Parser;
+    use std::io::Write;
 
     #[test]
     fn mappings_body_shapes() {

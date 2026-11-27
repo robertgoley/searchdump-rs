@@ -1,7 +1,10 @@
 //! The result report of `run_local` (split step 13): ok/skipped lines on stdout, FAILED on stderr (each
 //! flushed as it arrives, cluster-wide results first), the summary line and the exit code.
 
-use crate::*;
+use crate::ctx::Outcome;
+use anyhow::Result;
+use std::io::Write;
+use std::time::Duration;
 
 #[derive(Debug, Default)]
 pub(crate) struct Tally {
