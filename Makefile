@@ -44,7 +44,7 @@ CONTAINER ?= $(shell command -v podman >/dev/null 2>&1 && echo podman || echo do
 BUILDER_IMAGE ?= dhi.io/rust
 BUILDER_TAG   ?= 1.99.1-debian13-dev@sha256:6d78c1696e4745d1e006193ddef94d354094c890a284fa8ad6b954a8777eb63d
 BASE_IMAGE    ?= dhi.io/debian-base
-BASE_TAG      ?= trixie-debian13-dev@sha256:36cada6ceac36fc775a1ce0597dc7a02b4f97d48163d955a0b382f2a0ae6add0
+BASE_TAG      ?= trixie-debian13-dev@sha256:120051dda16c2611454d2c54a0959f23f80c32493d0e528a5d1348bca82dfbc8
 # Docker Hardened Images, Debian 13 / glibc builder -> static glibc runtime (no shell; default before L-810c)
 DHI_STATIC_BUILDER_IMAGE ?= dhi.io/rust
 DHI_STATIC_BUILDER_TAG   ?= 1.99.1-debian13-dev@sha256:6d78c1696e4745d1e006193ddef94d354094c890a284fa8ad6b954a8777eb63d
@@ -54,17 +54,17 @@ DHI_STATIC_BASE_TAG      ?= 20250419-glibc-debian13@sha256:133e7708dab3dc8c84080
 DHI_ALPINE_BUILDER_IMAGE ?= dhi.io/rust
 DHI_ALPINE_BUILDER_TAG   ?= 1.99.0-alpine3.23-dev@sha256:2d4387114840f672c75a8cec9414a300e07b285798382c76a466eafec4686b6e
 DHI_ALPINE_BASE_IMAGE    ?= dhi.io/alpine-base
-DHI_ALPINE_BASE_TAG      ?= 3.24-alpine3.24-dev@sha256:7e00fc0f6f9f84303dc2657aac557bdefe9877a66c388c0521c5794d51056efa
+DHI_ALPINE_BASE_TAG      ?= 3.24-alpine3.24-dev@sha256:ab3130d401f94092d65c15d38566fbffdba1b4fe0f766968003535cdddf6d2e0
 # Public fallback, not default (same Debian release, so the same glibc)
 PUBLIC_BUILDER_IMAGE ?= docker.io/library/rust
-PUBLIC_BUILDER_TAG   ?= 1.99-trixie@sha256:09027f873d45b8ecd1dc86f1fa13b7a62b875c961f017a0e331267b350430137
+PUBLIC_BUILDER_TAG   ?= 1.99-trixie@sha256:8a4e90c7946b74626488b1446f712c0fe0ed1a596cbd3d871684bc9c5433ae07
 PUBLIC_BASE_IMAGE    ?= docker.io/library/debian
-PUBLIC_BASE_TAG      ?= trixie-slim@sha256:f6b08b09a05725f9431502d3b5714f5c4576e82c1a84fa1debe0c24a7e0c3ec4
+PUBLIC_BASE_TAG      ?= trixie-slim@sha256:8aa5a7bf5a1955bddbe7d74fcdd0b91ab30e74362a8b73af672b0481b35b44a0
 # Public musl fallback, not default (Alpine builder + Alpine runtime with bash)
 ALPINE_BUILDER_IMAGE ?= docker.io/library/rust
-ALPINE_BUILDER_TAG   ?= 1.99.1-alpine3.24@sha256:b1d5dd5a22a09404d3e798c0cf051b689077360374eb505fa5bb93c479693d87
+ALPINE_BUILDER_TAG   ?= 1.99.1-alpine3.24@sha256:44819b27be4c97b0e4d7203bd2e02c4820f97700211b6a37fb4c246a2de59383
 ALPINE_BASE_IMAGE    ?= docker.io/library/alpine
-ALPINE_BASE_TAG      ?= 3.24.3@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a
+ALPINE_BASE_TAG      ?= 3.24.4@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf
 CARGO_BUILD_JOBS ?= 2
 # Image platform for every image target (default linux/amd64, L-810c; linux/arm64 runs the build
 # under emulation on an amd64 host).

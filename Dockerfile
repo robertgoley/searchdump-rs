@@ -15,7 +15,7 @@
 #   dhi-alpine  dhi.io/rust:1.99.0-alpine3.23-dev -> dhi.io/alpine-base:3.24-alpine3.24-dev, target
 #               `runtime-shell` (bash, ca-certificates and libgcc added, packages upgraded at build
 #               time; musl's own allocator). Tag <ver>-alpine.
-#   alpine      rust:1.99.1-alpine3.24 -> alpine:3.24.3 (public, musl, not default). Tag <ver>-alpine-public.
+#   alpine      rust:1.99.1-alpine3.24 -> alpine:3.24.4 (public, musl, not default). Tag <ver>-alpine-public.
 #   public      rust:1.99-trixie -> debian:trixie-slim (public, glibc, not default). Tag <ver>-debian-public.
 # Base comparison (size, CVEs, arch): results/local/L-808b.md, SECURITY-CVE.md.
 #
@@ -29,7 +29,7 @@
 ARG BUILDER_IMAGE=dhi.io/rust
 ARG BUILDER_TAG=1.99.1-debian13-dev@sha256:6d78c1696e4745d1e006193ddef94d354094c890a284fa8ad6b954a8777eb63d
 ARG BASE_IMAGE=dhi.io/debian-base
-ARG BASE_TAG=trixie-debian13-dev@sha256:36cada6ceac36fc775a1ce0597dc7a02b4f97d48163d955a0b382f2a0ae6add0
+ARG BASE_TAG=trixie-debian13-dev@sha256:120051dda16c2611454d2c54a0959f23f80c32493d0e528a5d1348bca82dfbc8
 
 # ----------------------------------------------------------------- builder
 FROM ${BUILDER_IMAGE}:${BUILDER_TAG} AS builder
