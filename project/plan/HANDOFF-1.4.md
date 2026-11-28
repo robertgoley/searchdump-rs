@@ -7,10 +7,12 @@ Last update: see the newest row of section 3 (times are America/New_York).
 
 - `release/1.4` was cut from `main` at ac8d8c4 (v1.3.1) on 2026-11-25 and pushed to origin as its own branch
   (like `release/1.3`). Worktree on grokbox: `/workspace/rel-1.4` (the repo is `/workspace/push-fork`).
-- **Released as 1.4.0 (Robert t269u, 2026-11-27):** version commit c3d3242 on `release/1.4`, `main`
-  fast-forwarded ac8d8c4 -> c3d3242 (no merge commit), annotated tag `v1.4.0` (object 39c3d00) on c3d3242,
-  release https://github.com/robertgoley/searchdump-rs/releases/tag/v1.4.0 published and marked Latest.
-  Verification results: section 7. No PR.
+- **Released as 1.4.0, then rebuilt on the newest base images (Robert t269u / t275u, option A 2026-11-28):**
+  first ship was c3d3242 (tag object 39c3d00, release id 460471424, run 45980239972). On 2026-11-28 the
+  existing release was deleted (no `--cleanup-tag`), the annotated tag `v1.4.0` was moved to 99241a1
+  (tag object 328a45e, message `searchdump-rs 1.4.0`), and a full release-build ran. New release
+  https://github.com/robertgoley/searchdump-rs/releases/tag/v1.4.0 (id 461378710) is published and Latest.
+  `main` = `release/1.4` = 99241a1 plus any later docs commit. Verification: section 7. No PR.
 - Headline (Robert, t248u/t250u): **limits and multi polish**. Approved items (t243u): multi TLS flags,
   per-child uuid logging, `--pageBytes`, remove the duplicate reqwest. The key passphrase reaches children
   through the environment, never argv (t253u).
@@ -53,6 +55,8 @@ L4-004 one reqwest; L4-005+ are handoff/CI follow-ups. They land in whatever ord
 | 2026-11-27 05:00 | c3d3242 | Version 1.4.0 (Cargo, Dockerfile ARG, README/examples tags, CHANGELOG `## 1.4.0`, RELEASE-NOTES-1.4.0); ci 45978472578 + security 45978476476 success |
 | 2026-11-27 05:20 | (release) | `main` ff to c3d3242 (ci 45980219359 + security 45980219397 success); tag `v1.4.0`; release-build 45980239972 success (all jobs, 5 image jobs) |
 | 2026-11-27 05:47 | (release) | draft published, marked Latest; deployment verification in section 7 |
+| 2026-11-27 17:20–23:30 | 99241a1 | L4-032: refresh image base pins (dhi debian-base 120051dd…, dhi alpine-base ab3130d4…, debian:trixie-slim 8aa5a7bf…, rust:1.99-trixie 8a4e90c7…, rust:1.99.1-alpine3.24 44819b27…, alpine 3.24.3 -> 3.24.4 f59abe65…). base_refresh 46076115811 success. CI on 99241a1: ci 46077472956 success; security image dhi-debian 46077475228, dhi-static 46077482085, dhi-alpine 46077489404 success. Public alpine/debian security runs failed at crate-vendor (dhi.io login missing; pre-existing, not used by release.yml) |
+| 2026-11-28 01:51–02:22 | (release) | Robert chose option A: delete release 460471424, move annotated tag v1.4.0 to 99241a1 (328a45e), release-build 46118591562 success, new release 461378710 published Latest at 02:22 ET, main ff 169a6bb -> 99241a1. Verification in section 7 (rebuild) |
 
 ## 4. Item status
 
@@ -145,6 +149,39 @@ L4-004 one reqwest; L4-005+ are handoff/CI follow-ups. They land in whatever ord
   `docker/trivyignore.alpine.yaml` cover 3.5.9-r1 and -r3 (fix states unknown / not-fixed / wont-fix); no other
   variant's rules changed. Rescan of the published `1.4.0-alpine` (`sha256:ab761016…`): grype before rc=2 (shared
   file), after rc=0; trivy rc=0. SECURITY-CVE.md updated (status row, last scan, Alpine table, L-831 section).
+
+- **Rebuild on newest bases (Robert t275u + option A, 2026-11-28 01:51–02:22 ET):** old release 460471424
+  deleted (no `--cleanup-tag`); annotated tag `v1.4.0` moved from c3d3242 (tag object 39c3d00) to 99241a1
+  (tag object 328a45e, message `searchdump-rs 1.4.0`); only that tag ref was force-updated. release-build
+  46118591562 success (all jobs, including all 5 image jobs). New release id 461378710 published 02:22 ET
+  and marked Latest: https://github.com/robertgoley/searchdump-rs/releases/tag/v1.4.0 (`releases/latest` =
+  v1.4.0). Notes are the CHANGELOG `## 1.4.0` section (disclaimer included). `main` was ff'd 169a6bb -> 99241a1.
+  The GitHub Releases assets were replaced (same 11 names; checksums differ from the 2026-11-27 ship because
+  this is a new CI build and the tarball includes the pin-refresh docs). SHA256SUMS:
+  - aarch64-gnu `3165aef7bb8f1df2a2e9feff5b4a5e8eeb87ae5cdd72a309bfa80bb95532ec8e`
+  - aarch64-musl `add52f046440bd8e7d8f1fe7de58f6d8e541972624c576a9c960acbd81d4a9e9`
+  - x86_64-gnu `d804b9ba78a0db588dcae1fa2fcdf508f332f34b2f1a0425efd27c0408d418bc`
+  - x86_64-musl `e5c1fbd5a23d7e662dc62684bbf13028e2217f4d949de01d199e1af75fd747e4`
+  - SBOM `0884470532f4515be61e7560a737c95b946c1bb583c515a6a18e36c6e215478f`
+  All 11 download anonymously; `sha256sum -c` and each `.sha256` OK; `gh attestation verify` OK for the 4
+  tarballs and the SBOM. x86_64 gnu + musl: `searchdump`, `searchdump-multi`, `elasticdump`, `elasticdump-rs`,
+  `multielasticdump` print 1.4.0; `--help` OK. aarch64: `file` only (ELF aarch64, gnu dynamic / musl static).
+- **Images after the rebuild (all 7 tags replaced; attestations OK):**
+  - `latest` = `1.4.0` = `1.4.0-dhi-debian`: `sha256:dc0bf921f3d5f6b35180143b6a92788a03e5c96a622219c93b7abf1c9409822d`
+    (was `630d89a3…`)
+  - `1.4.0-dhi-alpine`: `sha256:419027b840db7189680298ef9dae3cc1516b0bb7aa348cd1a2d7cec8e90140a8` (was `3e2ddf43…`)
+  - `1.4.0-dhi-static`: `sha256:d03116409ddd286490a66be03d3e50358d88d1d8a09d8ee4352390e20371faa5` (was `2a757f51…`)
+  - `1.4.0-public`: `sha256:4f6d7489850c20ab249d2160339a927ce640166b3333bd4a0e6c0f532af96b06` (was `005391a4…`)
+  - `1.4.0-alpine`: `sha256:ee1e7eb73ebfa68aaa1893b39f010d463d52a42a923b150551d951e07fd24e4e` (was `ab761016…`)
+  Each prints `searchdump 1.4.0` / `searchdump-multi 1.4.0`; `--help` OK; `gh attestation verify oci://…@digest` OK.
+- **Scan of the rebuilt images (grype / trivy, Makefile ignore rules):** dhi-debian, dhi-alpine, dhi-static and
+  alpine pass both. `public` fails as documented (grype 24 ids, trivy 19 ids), the same IDs as the 2026-11-27
+  public image, all already in SECURITY-CVE.md; no new accept rules added. alpine still ships OpenSSL 3.5.9-r1
+  on Alpine 3.24.4; the L4-031 alpine ignore files still match.
+- **Smoke (it-os-sec-l4tls, port 19252, private CA, 2026-11-28):** disk had recovered to 59%, so the leftover
+  `cluster.blocks.create_index` was cleared. Released x86_64 gnu binary: dump+load 200/200, `searchdump-multi`
+  dump+load restored 200. Released `:1.4.0` image: dump+load 200/200, dump identical to the binary (sorted);
+  image `searchdump-multi` dump 200 records. Indices removed; container stopped again.
 - Not done: aarch64 execution (no qemu), cosign (not used by the release process). Dependabot PR runs (sha2,
   rand, rand_chacha) failed; left alone.
 
